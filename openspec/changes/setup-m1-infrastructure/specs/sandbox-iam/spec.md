@@ -1,15 +1,15 @@
 ## ADDED Requirements
 
 ### Requirement: LabRole analysis
-The project SHALL document what the LabRole allows, what it denies, and how this was found out (console, CLI, policy simulator), reviewing LabRole separately in the AWS Academy sandbox (operated under the `voclabs` role) and in the AWS Learner Lab environment.
+The project SHALL document what the session role `voclabs` allows and denies in the AWS Academy Cloud Architecting Sandbox, and what `LabRole` allows and denies in the AWS Academy Learner Lab, and how each was found out (console, CLI, policy simulator).
 
-#### Scenario: LabRole is documented for the AWS Academy sandbox
-- **WHEN** a reviewer opens the LabRole analysis
-- **THEN** it lists what LabRole allows, what it denies, and the method used to find out each, for the AWS Academy sandbox
+#### Scenario: voclabs is documented for the Cloud Architecting Sandbox
+- **WHEN** a reviewer opens the role analysis
+- **THEN** it lists what `voclabs` allows, what it denies, and the method used to find out each, for the Cloud Architecting Sandbox
 
-#### Scenario: LabRole is documented for the AWS Learner Lab environment
-- **WHEN** a reviewer opens the LabRole analysis
-- **THEN** it lists what LabRole allows, what it denies, and the method used to find out each, for the AWS Learner Lab environment
+#### Scenario: LabRole is documented for the Learner Lab
+- **WHEN** a reviewer opens the role analysis
+- **THEN** it lists what `LabRole` allows, what it denies, and the method used to find out each, for the Learner Lab
 
 ### Requirement: Read-only IAM policy in IaC
 The project SHALL provide an IaC template for an IAM policy that allows ONLY viewing resources and grants no write access. 

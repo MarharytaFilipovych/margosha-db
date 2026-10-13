@@ -4,10 +4,10 @@
 - [ ] ADR: stack layout (one stack, or network separate from application)
 - [ ] ADR: CIDR addressing scheme
 
-## 2. LabRole
+## 2. Role dissection
 
-- [ ] Document what LabRole allows and denies in the AWS Academy sandbox (session role: `voclabs`), and how this was found out (console, CLI, policy simulator)
-- [ ] Document what LabRole allows and denies in the AWS Learner Lab environment, and how this was found out (console, CLI, policy simulator)
+- [ ] Document what the session role `voclabs` allows and denies in the Cloud Architecting Sandbox, and how this was found out (console, CLI, policy simulator)
+- [ ] Document what `LabRole` allows and denies in the Learner Lab, and how this was found out (console, CLI, policy simulator)
 
 ## 3. IAM in IaC (not deployed)
 
@@ -21,15 +21,14 @@
 - [ ] IaC: VPC
 - [ ] IaC: public subnet with Internet Gateway
 - [ ] IaC: private subnets for internal access only
-- [ ] IaC stack holding the network resources
-- [ ] Deploy the stack in the AWS Academy sandbox
+- [ ] IaC stack holding the network resources, exporting the VPC ID and subnet IDs
+- [ ] Deploy the stack in the AWS Academy Cloud Architecting Sandbox
 
 ## 5. Planning for Milestone 2
 
-- [ ] Review service quotas needed in Milestone 2 in the AWS Academy sandbox; write down the ones that can limit us
-- [ ] Review service quotas needed in Milestone 2 in the AWS Learner Lab environment; write down the ones that can limit us
-- [ ] Calculate the monthly budget for Milestone 2 with 2 shards
-- [ ] Compare the budget against the sandbox credit ceiling
+- [ ] Review service quotas needed in Milestone 2 in the Learner Lab; write down the ones that can limit us
+- [ ] Calculate the monthly budget for Milestone 2 in the Learner Lab, assuming 2 shards running 24/7 (730 h/month)
+- [ ] Compare the budget against the remaining budget shown on the Learner Lab page
 
 ## 6. Recreatability
 
