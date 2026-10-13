@@ -1,0 +1,110 @@
+{
+    "EvaluationResults": [
+        {
+            "EvalActionName": "ec2:CreateVpc",
+            "EvalResourceName": "*",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "role_voclabs_Pvoclabs",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 1,
+                        "Column": 38
+                    },
+                    "EndPosition": {
+                        "Line": 1,
+                        "Column": 1810
+                    }
+                }
+            ],
+            "MissingContextValues": [],
+            "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+            }
+        },
+        {
+            "EvalActionName": "ec2:RunInstances",
+            "EvalResourceName": "*",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "role_voclabs_Pvoclabs",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 1,
+                        "Column": 38
+                    },
+                    "EndPosition": {
+                        "Line": 1,
+                        "Column": 1810
+                    }
+                }
+            ],
+            "MissingContextValues": [],
+            "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+            }
+        },
+        {
+            "EvalActionName": "iam:CreateRole",
+            "EvalResourceName": "*",
+            "EvalDecision": "implicitDeny",
+            "MatchedStatements": [],
+            "MissingContextValues": [
+                "ec2:PlacementGroupStrategy",
+                "rds:DatabaseClass",
+                "rds:StorageSize",
+                "ec2:VolumeType",
+                "rds:Piops",
+                "ec2:InstanceType",
+                "ec2:VolumeSize",
+                "rds:Databaseclass",
+                "ec2:Owner",
+                "ec2:Tenancy",
+                "autoscaling:InstanceType",
+                "rds:DatabaseEngine",
+                "cloud9:InstanceType",
+                "s3express:SessionMode"
+            ],
+            "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+            }
+        },
+        {
+            "EvalActionName": "s3:GetObject",
+            "EvalResourceName": "*",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "role_voclabs_Pvoclabs",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 1,
+                        "Column": 38
+                    },
+                    "EndPosition": {
+                        "Line": 1,
+                        "Column": 1810
+                    }
+                },
+                {
+                    "SourcePolicyId": "ReadOnlyAccess",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 1,
+                        "Column": 49597
+                    },
+                    "EndPosition": {
+                        "Line": 1,
+                        "Column": 94724
+                    }
+                }
+            ],
+            "MissingContextValues": [],
+            "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+            }
+        }
+    ]
+}

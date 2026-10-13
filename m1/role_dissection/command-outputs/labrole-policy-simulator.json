@@ -1,0 +1,123 @@
+{
+    "EvaluationResults": [
+        {
+            "EvalActionName": "ec2:CreateVpc",
+            "EvalResourceName": "*",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "c235010a5906184l17592828t1w797089401427-VocLabPolicy1-1iHmn5jZsBDH",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 1,
+                        "Column": 38
+                    },
+                    "EndPosition": {
+                        "Line": 1,
+                        "Column": 1086
+                    }
+                }
+            ],
+            "MissingContextValues": [],
+            "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+            }
+        },
+        {
+            "EvalActionName": "ec2:RunInstances",
+            "EvalResourceName": "*",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "c235010a5906184l17592828t1w797089401427-VocLabPolicy1-1iHmn5jZsBDH",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 1,
+                        "Column": 38
+                    },
+                    "EndPosition": {
+                        "Line": 1,
+                        "Column": 1086
+                    }
+                }
+            ],
+            "MissingContextValues": [],
+            "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+            }
+        },
+        {
+            "EvalActionName": "iam:CreateRole",
+            "EvalResourceName": "*",
+            "EvalDecision": "implicitDeny",
+            "MatchedStatements": [],
+            "MissingContextValues": [
+                "ec2:ResourceTag/eks:eni:owner",
+                "iam:AWSServiceName",
+                "ec2:InstanceMarketType",
+                "ec2:PlacementGroupStrategy",
+                "sagemaker:InstanceTypes",
+                "rds:StorageSize",
+                "rds:DatabaseClass",
+                "ec2:VolumeType",
+                "rds:Piops",
+                "ec2:InstanceType",
+                "iam:PassedToService",
+                "aws:RequestedRegion",
+                "ec2:VolumeSize",
+                "ec2:Tenancy",
+                "autoscaling:InstanceType",
+                "rds:DatabaseEngine"
+            ],
+            "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+            }
+        },
+        {
+            "EvalActionName": "iam:CreatePolicy",
+            "EvalResourceName": "*",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "c235010a5906184l17592828t1w797089401427-VocLabPolicy2-W9w18pGqhpf9",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 1,
+                        "Column": 954
+                    },
+                    "EndPosition": {
+                        "Line": 1,
+                        "Column": 1339
+                    }
+                }
+            ],
+            "MissingContextValues": [],
+            "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+            }
+        },
+        {
+            "EvalActionName": "s3:GetObject",
+            "EvalResourceName": "*",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "c235010a5906184l17592828t1w797089401427-VocLabPolicy1-1iHmn5jZsBDH",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 1,
+                        "Column": 1086
+                    },
+                    "EndPosition": {
+                        "Line": 1,
+                        "Column": 2663
+                    }
+                }
+            ],
+            "MissingContextValues": [],
+            "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+            }
+        }
+    ]
+}
