@@ -1,0 +1,113 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Creates a view-only (read-only) IAM managed policy and an IAM role that
+  has the policy attached and can be assumed by another principal.
+
+Parameters:
+  TrustedPrincipalArn:
+    Type: String
+    Description: >
+      ARN of the principal allowed to assume the role. Examples:
+      arn:aws:iam::123456789012:root (whole account),
+      arn:aws:iam::123456789012:user/alice,
+      arn:aws:iam::123456789012:role/SomeRole
+    AllowedPattern: "^arn:aws[a-z-]*:iam::[0-9]{12}:(root|user/.+|role/.+)$"
+    ConstraintDescription: Must be a valid IAM account root, user, or role ARN.
+  MaxSessionDuration:
+    Type: Number
+    Default: 3600
+    MinValue: 3600
+    MaxValue: 43200
+    Description: Maximum session duration in seconds (1 to 12 hours).
+
+Resources:
+  ReadOnlyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: ReadOnlyViewerPolicy
+      Description: Allows viewing resources (metadata) only. No create, update, or delete access, and no reading of data contents.
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ViewEC2AndVPC
+            Effect: Allow
+            Action:
+              - ec2:Describe*
+            Resource: "*"
+          - Sid: ViewS3BucketsNotObjects
+            Effect: Allow
+            Action:
+              - s3:ListAllMyBuckets
+              - s3:GetBucketLocation
+              - s3:ListBucket
+            Resource: "*"
+          - Sid: ViewIAM
+            Effect: Allow
+            Action:
+              - iam:List*
+              - iam:Get*
+            Resource: "*"
+          - Sid: ViewCloudFormation
+            Effect: Allow
+            Action:
+              - cloudformation:Describe*
+              - cloudformation:List*
+            Resource: "*"
+          - Sid: ViewOtherServicesMetadata
+            Effect: Allow
+            Action:
+              - elasticloadbalancing:Describe*
+              - autoscaling:Describe*
+              - cloudwatch:Describe*
+              - cloudwatch:List*
+              - logs:Describe*
+              - lambda:List*
+              - rds:Describe*
+              - rds:List*
+              - dynamodb:Describe*
+              - dynamodb:List*
+              - ecs:Describe*
+              - ecs:List*
+              - eks:Describe*
+              - eks:List*
+              - ecr:Describe*
+              - ecr:List*
+              - sns:List*
+              - sqs:List*
+              - kms:Describe*
+              - kms:List*
+              - secretsmanager:ListSecrets
+              - secretsmanager:DescribeSecret
+              - ssm:DescribeParameters
+              - route53:List*
+              - acm:Describe*
+              - acm:List*
+              - cloudtrail:Describe*
+              - cloudtrail:List*
+              - tag:GetResources
+            Resource: "*"
+
+  ReadOnlyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ReadOnlyViewerRole
+      Description: View-only role assumable by a trusted principal.
+      MaxSessionDuration: !Ref MaxSessionDuration
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowTrustedPrincipalToAssume
+            Effect: Allow
+            Principal:
+              AWS: !Ref TrustedPrincipalArn
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref ReadOnlyPolicy
+
+Outputs:
+  RoleArn:
+    Description: ARN of the read-only role.
+    Value: !GetAtt ReadOnlyRole.Arn
+  PolicyArn:
+    Description: ARN of the read-only managed policy.
+    Value: !Ref ReadOnlyPolicy

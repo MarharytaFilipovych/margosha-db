@@ -110,7 +110,7 @@ aws iam get-policy-version \
   --policy-arn arn:aws:iam::aws:policy/ReadOnlyAccess --version-id v190 \
   > readonly-access-policy.json
 ```
-Allows view actions (`Describe*`, `List*`, `Get*`) across AWS services: see result in [here](command-outputs/readonly-access-policy.json)
+Allows view actions (`Describe*`, `List*`, `Get*`) across AWS services: see result in [here](command_outputs/role_dissection/readonly-access-policy.json)
 
 ### Write access (from inline policy `Pvoclabs`)
 The contents of `Pvoclabs` could not be read, so the write permissions are **inferred by testing**. Dry runs create nothing:
@@ -124,7 +124,7 @@ AMI_ID=$(aws ec2 describe-images \
 
 aws ec2 run-instances --image-id "$AMI_ID" --instance-type t3.micro --dry-run
 ```
-![](images/dry-run.png)
+![](images/role_dissection/dry-run.png)
 
 I can create a VPC and launch instances in the console.
 
@@ -142,7 +142,7 @@ aws iam simulate-principal-policy \
   --action-names ec2:CreateVpc ec2:RunInstances iam:CreateRole s3:GetObject \
   > vocabrole-policy-simulator.json
 ```
-Result in [here](command-outputs/vocabrole-policy-simulator.json).
+Result in [here](command_outputs/role_dissection/vocabrole-policy-simulator.json).
 
 | Action | Result | Matched policy | Notes |
 |---|---|---|---|
@@ -169,11 +169,11 @@ It's no longer just an inference from testing in the console — the simulator n
 ```bash
 aws iam get-role-policy --role-name voclabs --policy-name Pvoclabs
 ```
-![](images/get-policy-error.png)
+![](images/role_dissection/get-policy-error.png)
 ```bash
 aws iam get-role --role-name voclabs --query 'Role.PermissionsBoundary'
 ```
-![](images/get-role-error.png)
+![](images/role_dissection/get-role-error.png)
 
 Both failed.
 
@@ -223,7 +223,7 @@ aws iam create-role --role-name ViewOnlyRole --assume-role-policy-document file:
 aws iam create-policy --policy-name ViewOnlyResourcesPolicy --policy-document file://policy.json
 ```
 
-![](images/acess-denied-for-policy-and-role-creation.png)
+![](images/role_dissection/acess-denied-for-policy-and-role-creation.png)
 
 | Action | Result |
 |---|---|
@@ -244,14 +244,14 @@ meaning a Deny statement specifically targets those two actions. So `Pvoclabs` l
 **IAM** -> **Roles** -> search `voclabs` and click on it.
 
 Note: for me this is access denied.
-![denied_access](images/access-denied.png)
+![denied_access](images/role_dissection/access-denied.png)
 
 ---
 
 ## Full role list (console)
 
 Go to **IAM** -> **Roles**
-![full list view](images/roles.png)
+![full list view](images/role_dissection/roles.png)
 
 ---
 
@@ -553,11 +553,11 @@ The content of AWS managed policies can be read (console: **IAM** -> **Policies*
 | `AmazonEKSClusterPolicy` | EC2: limited List, Write, Tagging (only with condition `ec2:ResourceTag/eks:eni:owner = amazon-vpc-cni`); EC2 Auto Scaling: limited List, Write; ELB and ELB v2: List, Read, Write, Tagging; IAM: limited Write (only with condition `iam:AWSServiceName = elasticloadbalancing.amazonaws.com`); KMS: limited Read | what EKS needs to manage a cluster: network interfaces it tags itself, Auto Scaling groups, load balancers, and creating the Elastic Load Balancing service-linked role (the only IAM write, and only for that one service) |
 | `AmazonEKSWorkerNodePolicy` | EC2: limited List; EKS: limited Read; EKS Auth: full | what an EKS worker node needs to join a cluster |
 
-![](images/lab-role.png)
-![](images/AmazonSSMManagedInstanceCore.png)
-![](images/AmazonEC2ContainerRegistryReadOnly.png)
-![](images/AmazonEKSClusterPolicy.png)
-![](images/AmazonEKSWorkerNodePolicy.png)
+![](images/role_dissection/lab-role.png)
+![](images/role_dissection/AmazonSSMManagedInstanceCore.png)
+![](images/role_dissection/AmazonEC2ContainerRegistryReadOnly.png)
+![](images/role_dissection/AmazonEKSClusterPolicy.png)
+![](images/role_dissection/AmazonEKSWorkerNodePolicy.png)
 
 ### Lab-created policies `VocLabPolicy1/2/3` (not readable)
 
@@ -572,9 +572,9 @@ Context: an identity-based policy explicitly denies the action
 Policy ARN: arn:aws:iam::797089401427:policy/Pvoclabs1
 ```
 
-![](images/c235010a5906184l17592828t1w797089401427-VocLabPolicy1-1iHmn5jZsBDH.png)
-![](images/c235010a5906184l17592828t1w797089401427-VocLabPolicy2-W9w18pGqhpf9.png)
-![](images/c235010a5906184l17592828t1w797089401427-VocLabPolicy3-lEqtuEPBuywr.png)
+![](images/role_dissection/c235010a5906184l17592828t1w797089401427-VocLabPolicy1-1iHmn5jZsBDH.png)
+![](images/role_dissection/c235010a5906184l17592828t1w797089401427-VocLabPolicy2-W9w18pGqhpf9.png)
+![](images/role_dissection/c235010a5906184l17592828t1w797089401427-VocLabPolicy3-lEqtuEPBuywr.png)
 
 Reading the error:
 - It's an **explicit deny**, and the error names where it comes from: the policy `Pvoclabs1`.
@@ -596,7 +596,7 @@ aws iam simulate-principal-policy \
   > labrole-policy-simulator.json
 ```
 
-The result: [here](command-outputs/labrole-policy-simulator.json).
+The result: [here](command_outputs/role_dissection/labrole-policy-simulator.json).
 
 | Action | Result | Matched policy | Notes |
 |---|---|---|---|
@@ -632,7 +632,7 @@ Reading the results:
 - **Trust relationships** tab: shows the same JSON document as `AssumeRolePolicyDocument` in the `get-role` output above.
 - **Tags** tab: the `cloudlab` tag.
 
-![](images/lab-role-tags.png)
+![](images/role_dissection/lab-role-tags.png)
 
 Also observed in the console: "Generate policy based on CloudTrail events" failed with `Access denied to access-analyzer:ListPolicyGenerations`, 
 so I couldn't use IAM Access Analyzer to see which permissions the role actually uses.
