@@ -1,0 +1,152 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  VPC with one public subnet (routed to an Internet Gateway) and two
+  private subnets in different AZs (local traffic only, no route to
+  the internet).
+
+Parameters:
+  VpcCidr:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: CIDR block of the VPC.
+  PublicSubnetCidr:
+    Type: String
+    Default: 10.0.0.0/24
+    Description: CIDR block of the public subnet (must be inside the VPC CIDR).
+  PrivateSubnetACidr:
+    Type: String
+    Default: 10.0.1.0/24
+    Description: CIDR block of private subnet A (must be inside the VPC CIDR).
+  PrivateSubnetBCidr:
+    Type: String
+    Default: 10.0.2.0/24
+    Description: CIDR block of private subnet B (must be inside the VPC CIDR).
+  AvailabilityZoneA:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: us-east-1a
+    Description: AZ for the public subnet and private subnet A.
+  AvailabilityZoneB:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: us-east-1b
+    Description: AZ for private subnet B (must differ from AvailabilityZoneA).
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: margosha-vpc
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: margosha-igw
+
+  IGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PublicSubnetCidr
+      AvailabilityZone: !Ref AvailabilityZoneA
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: margosha-public-sb
+
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PrivateSubnetACidr
+      AvailabilityZone: !Ref AvailabilityZoneA
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: margosha-private-sb-a
+
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PrivateSubnetBCidr
+      AvailabilityZone: !Ref AvailabilityZoneB
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: margosha-private-sb-b
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: margosha-rt-public
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: IGWAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: margosha-rt-private
+
+  PrivateSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetB
+      RouteTableId: !Ref PrivateRouteTable
+
+Outputs:
+  VpcId:
+    Description: ID of the VPC.
+    Value: !Ref VPC
+    Export:
+      Name: !Sub "${AWS::StackName}-VpcId"
+  PublicSubnetId:
+    Description: ID of the public subnet.
+    Value: !Ref PublicSubnet
+    Export:
+      Name: !Sub "${AWS::StackName}-PublicSubnetId"
+  PrivateSubnetAId:
+    Description: ID of private subnet A.
+    Value: !Ref PrivateSubnetA
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivateSubnetAId"
+  PrivateSubnetBId:
+    Description: ID of private subnet B.
+    Value: !Ref PrivateSubnetB
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivateSubnetBId"

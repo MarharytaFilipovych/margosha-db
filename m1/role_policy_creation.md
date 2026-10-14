@@ -179,7 +179,7 @@ This removes both the role and the policy.
 
 ## Deployment in the sandbox fails
 
-![](./images/read_only_role/failed-role-policy-stack-creation.png)
+![](images/role_policy_creation/failed-role-policy-stack-creation.png)
 
 Why?
 ```bash
@@ -187,9 +187,9 @@ aws cloudformation describe-stack-events --stack-name read-only-role \
   > why_role_policy_creation_failed.json
 ```
 
-Output: in [here](command_outputs/read_only_role/why-role-policy-creation-failed.json).
+Output: in [here](command_outputs/role_policy_creation/why-role-policy-creation-failed.json).
 
-![](./images/read_only_role/failed-policy-creation.png)
+![](images/role_policy_creation/failed-policy-creation.png)
 
 ### Why the sandbox refuses it
 

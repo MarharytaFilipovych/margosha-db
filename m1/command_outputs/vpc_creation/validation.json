@@ -1,0 +1,35 @@
+{
+    "Parameters": [
+        {
+            "ParameterKey": "AvailabilityZoneA",
+            "DefaultValue": "us-east-1a",
+            "NoEcho": false
+        },
+        {
+            "ParameterKey": "PublicSubnetCidr",
+            "DefaultValue": "10.0.0.0/24",
+            "NoEcho": false
+        },
+        {
+            "ParameterKey": "AvailabilityZoneB",
+            "DefaultValue": "us-east-1b",
+            "NoEcho": false
+        },
+        {
+            "ParameterKey": "PrivateSubnetACidr",
+            "DefaultValue": "10.0.1.0/24",
+            "NoEcho": false
+        },
+        {
+            "ParameterKey": "PrivateSubnetBCidr",
+            "DefaultValue": "10.0.2.0/24",
+            "NoEcho": false
+        },
+        {
+            "ParameterKey": "VpcCidr",
+            "DefaultValue": "10.0.0.0/16",
+            "NoEcho": false
+        }
+    ],
+    "Description": "VPC with one public subnet (routed to an Internet Gateway) and two private subnets in different AZs (local traffic only, no route to the internet).\n"
+}
