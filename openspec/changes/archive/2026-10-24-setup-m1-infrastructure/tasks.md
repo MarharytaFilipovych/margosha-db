@@ -40,5 +40,5 @@
 ## 7. Deliverables (apply to every milestone)
 
 - [x] README: how to bring it up, how to verify it, what changed since the previous milestone
-- [ ] Demo
+- [x] Demo
 - [x] Transcript of the AI critique of the architecture
