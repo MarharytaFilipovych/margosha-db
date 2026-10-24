@@ -1,0 +1,88 @@
+{
+    "Quotas": [
+        {
+            "ServiceCode": "s3",
+            "ServiceName": "Amazon Simple Storage Service (Amazon S3)",
+            "QuotaArn": "arn:aws:servicequotas::797089401427:s3/L-DC2B2D3D",
+            "QuotaCode": "L-DC2B2D3D",
+            "QuotaName": "General purpose buckets",
+            "Value": 10000.0,
+            "Unit": "None",
+            "Adjustable": true,
+            "GlobalQuota": true,
+            "UsageMetric": {
+                "MetricNamespace": "AWS/Usage",
+                "MetricName": "ResourceCount",
+                "MetricDimensions": {
+                    "Class": "None",
+                    "Resource": "GeneralPurposeBuckets",
+                    "Service": "S3",
+                    "Type": "Resource"
+                },
+                "MetricStatisticRecommendation": "Maximum"
+            },
+            "Period": {
+                "PeriodValue": 5,
+                "PeriodUnit": "MINUTE"
+            },
+            "QuotaAppliedAtLevel": "ACCOUNT",
+            "Description": "The number of Amazon S3 general purpose buckets that you can create in an account"
+        },
+        {
+            "ServiceCode": "s3",
+            "ServiceName": "Amazon Simple Storage Service (Amazon S3)",
+            "QuotaArn": "arn:aws:servicequotas:us-east-1:797089401427:s3/L-B461D596",
+            "QuotaCode": "L-B461D596",
+            "QuotaName": "Replication rules",
+            "Value": 1000.0,
+            "Unit": "None",
+            "Adjustable": false,
+            "GlobalQuota": false,
+            "QuotaAppliedAtLevel": "ACCOUNT",
+            "Description": "The maximum number of rules you can specify in an Amazon S3 Replication configuration"
+        },
+        {
+            "ServiceCode": "s3",
+            "ServiceName": "Amazon Simple Storage Service (Amazon S3)",
+            "QuotaArn": "arn:aws:servicequotas:us-east-1:797089401427:s3/L-1A9B467F",
+            "QuotaCode": "L-1A9B467F",
+            "QuotaName": "Replication Destinations",
+            "Value": 28.0,
+            "Unit": "None",
+            "Adjustable": true,
+            "GlobalQuota": false,
+            "QuotaAppliedAtLevel": "ACCOUNT",
+            "Description": "The number of destination S3 buckets you can add for each source S3 bucket across all replication rules."
+        },
+        {
+            "ServiceCode": "s3",
+            "ServiceName": "Amazon Simple Storage Service (Amazon S3)",
+            "QuotaArn": "arn:aws:servicequotas:us-east-1:797089401427:s3/L-349AD9CA",
+            "QuotaCode": "L-349AD9CA",
+            "QuotaName": "Replication transfer rate",
+            "Value": 1.0,
+            "Unit": "Gigabits",
+            "Adjustable": true,
+            "GlobalQuota": false,
+            "Period": {
+                "PeriodValue": 1,
+                "PeriodUnit": "SECOND"
+            },
+            "QuotaAppliedAtLevel": "ACCOUNT",
+            "Description": "The maximum Replication Time Control transfer rate that you can replicate from the source region in this account."
+        },
+        {
+            "ServiceCode": "s3",
+            "ServiceName": "Amazon Simple Storage Service (Amazon S3)",
+            "QuotaArn": "arn:aws:servicequotas:us-east-1:797089401427:s3/L-89BABEE8",
+            "QuotaCode": "L-89BABEE8",
+            "QuotaName": "Object size",
+            "Value": 48.828125,
+            "Unit": "Terabytes",
+            "Adjustable": false,
+            "GlobalQuota": false,
+            "QuotaAppliedAtLevel": "ACCOUNT",
+            "Description": "The maximum size (in TB) of an Amazon S3 object"
+        }
+    ]
+}
