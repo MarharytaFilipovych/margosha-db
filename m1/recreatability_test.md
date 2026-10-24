@@ -144,7 +144,7 @@ aws cloudformation describe-stack-events --stack-name margosha-vpc \
 ### What broke on the first attempt
 
 Nothing broke: the stack was created successfully on the first attempt. 
-The test was done in the same session as the original deployment, so credentials and the default region were already working. 
+The test was done in a new session, but the stack was created at the start of that session, right before the teardown (see the note at the top), so credentials and the default region were already working when the stack was recreated. 
 The errors that can appear when starting in a new session (expired credentials, missing region, wrong file path) are listed in the [error reference](vpc_creation.md#basic-error-reference).
 
 ---

@@ -30,6 +30,12 @@ Parameters:
     Default: us-east-1b
     Description: AZ for private subnet B (must differ from AvailabilityZoneA).
 
+Rules:
+  DifferentAvailabilityZones:
+    Assertions:
+      - Assert: !Not [!Equals [!Ref AvailabilityZoneA, !Ref AvailabilityZoneB]]
+        AssertDescription: AvailabilityZoneB must differ from AvailabilityZoneA, otherwise both private subnets are in the same AZ.
+
 Resources:
   VPC:
     Type: AWS::EC2::VPC
