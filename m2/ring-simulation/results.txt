@@ -1,0 +1,32 @@
+100000 YCSB-style keys, e.g. user6284781860667377211
+hash                                   vnodes  shard-a %  moved to shard-c %  other moves  ring entries  worst |a-50| %
+MurmurHash3 32-bit                          1       67.3                 9.0            0             3            45.1
+MurmurHash3 32-bit                         16       62.2                46.5            0            48            15.5
+MurmurHash3 32-bit                         64       48.9                31.6            0           192             8.6
+MurmurHash3 32-bit                        128       48.9                30.9            0           384             7.4
+MurmurHash3 32-bit                        256       51.8                32.5            0           768             5.2
+MurmurHash3 128-bit (first 64 bits)         1       47.3                32.6            0             3            42.2
+MurmurHash3 128-bit (first 64 bits)        16       70.1                36.2            0            48            19.4
+MurmurHash3 128-bit (first 64 bits)        64       55.5                36.0            0           192             7.9
+MurmurHash3 128-bit (first 64 bits)       128       52.8                33.2            0           384             4.6
+MurmurHash3 128-bit (first 64 bits)       256       46.7                33.8            0           768             5.7
+xxHash64                                    1       47.6                 0.6            0             3            40.0
+xxHash64                                   16       43.6                31.7            0            48            20.5
+xxHash64                                   64       58.0                34.9            0           192             5.7
+xxHash64                                  128       50.9                38.2            0           384             5.0
+xxHash64                                  256       50.2                36.3            0           768             3.9
+MD5 (first 64 bits)                         1       76.0                29.3            0             3            48.0
+MD5 (first 64 bits)                        16       62.2                48.6            0            48            12.9
+MD5 (first 64 bits)                        64       56.7                36.0            0           192            10.6
+MD5 (first 64 bits)                       128       48.4                36.1            0           384             4.5
+MD5 (first 64 bits)                       256       50.5                35.5            0           768             3.5
+CRC32                                       1       99.1                 0.1            0             3            49.4
+CRC32                                      16       69.9                27.7            0            48            35.0
+CRC32                                      64       57.7                24.2            0           192            10.0
+CRC32                                     128       55.9                22.3            0           384             9.1
+CRC32                                     256       55.6                25.5            0           768             6.0
+Java String.hashCode                        1      100.0                 0.0            0             3            50.0
+Java String.hashCode                       16      100.0                 0.0            0            48            50.0
+Java String.hashCode                       64      100.0                 0.0            0           192            50.0
+Java String.hashCode                      128      100.0                 0.0            0           384            50.0
+Java String.hashCode                      256      100.0                 0.0            0           768            50.0

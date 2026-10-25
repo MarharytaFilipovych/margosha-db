@@ -2,9 +2,9 @@
 
 ## 1. Decisions (before the code that depends on them)
 
-- [ ] ADR 0004: API protocol and format in `adr/`; verify it names the protocol and the spec format (design.md decision 1 lists the alternatives)
-- [ ] ADR 0005: hash function and number of virtual nodes in `adr/`; verify it cites the spread and key-movement numbers from the ring simulation in `m2/ring-simulation/`
-- [ ] ADR 0006: partition key strategy in `adr/`; verify it says what is hashed (partition key only, or partition + sort key) and how YCSB keys map to it
+- [x] ADR 0004: API protocol and format in `adr/`; verify it names the protocol and the spec format (design.md decision 1 lists the alternatives)
+- [x] ADR 0005: hash function and number of virtual nodes in `adr/`; verify it cites the spread and key-movement numbers from the ring simulation in `m2/ring-simulation/`
+- [x] ADR 0006: partition key strategy in `adr/`; verify it says what is hashed (partition key only, or partition + sort key) and how YCSB keys map to it
 
 ## 2. Project scaffolding and CI checks
 
