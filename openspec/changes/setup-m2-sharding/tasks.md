@@ -10,7 +10,7 @@
 
 - [x] Create the Maven (wrapper committed) Java 21 multi-module project under `app/` (parent `pom.xml`) with modules `api`, `ring`, `node`, `ycsb-binding`; verify `./mvnw verify` succeeds on an empty project
 - [x] Make `node` build one executable Spring Boot jar (`spring-boot-maven-plugin`) with `coordinator` and `shard` subcommands; verify `java -jar margosha.jar coordinator --mode=single` starts
-- [ ] Add `.github/workflows/pipeline.yml` with the `check` job (`./mvnw verify`); verify the job passes on GitHub for a push and fails for a commit with a failing test
+- [x] Add `.github/workflows/pipeline.yml` with the `check` job (`./mvnw verify`); verify the job passes on GitHub for a push and fails for a commit with a failing test
 
 ## 3. API specification (after ADR 0004)
 
