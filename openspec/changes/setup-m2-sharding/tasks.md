@@ -8,8 +8,8 @@
 
 ## 2. Project scaffolding and CI checks
 
-- [ ] Create the Maven (wrapper committed) Java 21 multi-module project under `app/` (parent `pom.xml`) with modules `api`, `ring`, `node`, `ycsb-binding`; verify `./mvnw verify` succeeds on an empty project
-- [ ] Make `node` build one executable Spring Boot jar (`spring-boot-maven-plugin`) with `coordinator` and `shard` subcommands; verify `java -jar margosha.jar coordinator --mode single` starts
+- [x] Create the Maven (wrapper committed) Java 21 multi-module project under `app/` (parent `pom.xml`) with modules `api`, `ring`, `node`, `ycsb-binding`; verify `./mvnw verify` succeeds on an empty project
+- [x] Make `node` build one executable Spring Boot jar (`spring-boot-maven-plugin`) with `coordinator` and `shard` subcommands; verify `java -jar margosha.jar coordinator --mode=single` starts
 - [ ] Add `.github/workflows/pipeline.yml` with the `check` job (`./mvnw verify`); verify the job passes on GitHub for a push and fails for a commit with a failing test
 
 ## 3. API specification (after ADR 0004)
@@ -30,7 +30,7 @@
 
 ## 6. Coordinator in single-node mode
 
-- [ ] Implement the API server with Spring Boot (Spring Web) with the record backend interface and the local in-memory backend; verify `coordinator --mode single` serves CREATE / READ / EXISTS / UPDATE / DELETE in an integration test
+- [ ] Implement the API server with Spring Boot (Spring Web) with the record backend interface and the local in-memory backend; verify `coordinator --mode=single` serves CREATE / READ / EXISTS / UPDATE / DELETE in an integration test
 - [ ] Implement register table with the validation, conflict and not-found errors from the `kv-api` spec; verify each `kv-api` scenario has a passing integration test
 
 ## 7. Sharded mode: registration, writes and reads
