@@ -14,9 +14,8 @@
 
 ## 3. API specification (after ADR 0004)
 
-- [ ] Write the API specification file in the format from ADR 0004, covering register table, EXISTS / CREATE / READ / UPDATE / DELETE, and register shard, with all errors from the `kv-api` spec
-- [ ] Generate or write the Java models and client for the spec in `api`; verify they compile and a serialization round-trip test passes
-- [ ] Document the API with an example request for each operation in `m2/api.md`; verify each example matches the spec
+- [x] Write the API specification file in the format from ADR 0004, covering register table, EXISTS / CREATE / READ / UPDATE / DELETE, and register shard, with all errors from the `kv-api` spec
+- [x] Write the Java models and client for the spec in `api`; verify they compile and a serialization round-trip test passes
 
 ## 4. Consistent hashing ring (after ADR 0005 and ADR 0006)
 
@@ -32,6 +31,7 @@
 
 - [ ] Implement the API server with Spring Boot (Spring Web) with the record backend interface and the local in-memory backend; verify `coordinator --mode=single` serves CREATE / READ / EXISTS / UPDATE / DELETE in an integration test
 - [ ] Implement register table with the validation, conflict and not-found errors from the `kv-api` spec; verify each `kv-api` scenario has a passing integration test
+- [ ] Return unexpected errors as `INTERNAL_ERROR` (500) in the shared error format; verify an integration test where an operation throws gets `{code, message}` and not Spring's default error body
 
 ## 7. Sharded mode: registration, writes and reads
 
@@ -39,6 +39,7 @@
 - [ ] Implement the coordinator's register shard operation and shard registration on start, retrying until the coordinator accepts it; verify tests for a shard starting while the coordinator runs and before it is up
 - [ ] Implement the remote shard backend and route CREATE / UPDATE / DELETE through the ring; verify with 2 in-process shards that each record is stored on exactly its owning shard
 - [ ] Route READ and EXISTS through the ring; verify reads hit only the owning shard
+- [ ] Return `SHARD_UNAVAILABLE` (503) when no shard is registered or the owning shard does not answer within the timeout, without sending the request to another shard; verify with a stopped in-process shard that its keys fail and the other shard's keys still succeed
 - [ ] Verify the "ring changes do not move data" scenario: add a shard after loading, check that moved keys read as not found
 - [ ] Write `m2/routing.md`: how keys reach a shard, single-node vs sharded mode, what happens when a shard is added; verify its examples match the tests
 

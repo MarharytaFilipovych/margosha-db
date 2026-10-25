@@ -1,0 +1,11 @@
+package com.margosha.api.model;
+
+public enum ErrorCode {
+    VALIDATION_ERROR,
+    TABLE_NOT_FOUND,
+    RECORD_NOT_FOUND,
+    TABLE_ALREADY_EXISTS,
+    RECORD_ALREADY_EXISTS,
+    INTERNAL_ERROR,
+    SHARD_UNAVAILABLE
+}

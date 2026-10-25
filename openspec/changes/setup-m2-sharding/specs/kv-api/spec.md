@@ -80,7 +80,8 @@ The UPDATE operation SHALL replace all attributes of an existing record with the
 - **THEN** the request fails with a not-found error and no record is created
 
 ### Requirement: DELETE removes a record
-The DELETE operation SHALL remove the record stored under the given primary key. Deleting a key that has no record SHALL succeed and report that nothing was removed.
+The DELETE operation SHALL remove the record stored under the given primary key.
+Deleting a key that has no record SHALL fail with a not-found error.
 
 #### Scenario: Delete existing record
 - **WHEN** a client deletes `user_id=42` and then checks it with EXISTS
@@ -88,7 +89,14 @@ The DELETE operation SHALL remove the record stored under the given primary key.
 
 #### Scenario: Delete missing record
 - **WHEN** a client deletes a key that has no record
-- **THEN** the request succeeds and reports that no record was removed
+- **THEN** the request fails with a not-found error
+
+### Requirement: Unexpected server errors
+When an operation fails because of an error the server did not expect, the API SHALL answer with an internal error in the shared error format (an error code and a message), not with a framework-specific error page.
+
+#### Scenario: Unexpected failure
+- **WHEN** an operation fails because of an unexpected error in the server
+- **THEN** the client receives an internal error with an error code and a message
 
 ### Requirement: Operations on unknown tables
 Every record operation on a table that is not registered SHALL fail with a not-found error for the table.

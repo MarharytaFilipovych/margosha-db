@@ -18,7 +18,7 @@ The requirements allow any protocol: OpenAPI REST, GraphQL, gRPC, or anything el
 - *GraphQL*: a good fit when clients should get data in a flexible shape, for example by choosing the fields they need.
   It's rejected because our operations are fixed key lookups, so that flexibility brings nothing.
   With REST, the server keeps control over what each endpoint accepts and returns.
-  In GraphQL, every request is also a `POST` to one URL, so HTTP status codes (404, 409) and methods (`HEAD`, `DELETE`) would no longer carry meaning.
+  In GraphQL, every request is also a `POST` to one URL, so HTTP status codes (404, 409) and methods (`PUT`, `DELETE`) would no longer carry meaning.
 - *Plain REST without a specification*: it's rejected because without the specification, the API would only be described by its implementation.
 - *REST described with OpenAPI*: simple and widely used, and most people understand it better than gRPC or GraphQL.
   Data stores use it too: Elasticsearch, for example, exposes its whole API as REST with JSON, and it works fine for its users.
@@ -39,7 +39,7 @@ REST over HTTP, with JSON bodies, described in OpenAPI 3.0.3.
 | READ a record | `GET /tables/{tableName}/records/{partitionKey}?sortKey=…` |
 | UPDATE a record | `PUT /tables/{tableName}/records/{partitionKey}?sortKey=…` |
 | DELETE a record | `DELETE /tables/{tableName}/records/{partitionKey}?sortKey=…` |
-| EXISTS | `HEAD /tables/{tableName}/records/{partitionKey}?sortKey=…` |
+| EXISTS | `GET /tables/{tableName}/records/{partitionKey}/exists?sortKey=…` |
 | Register a shard | `POST /shards` |
 
 Design choices inside the API:
@@ -61,9 +61,9 @@ Design choices inside the API:
 
 - The API stays simple and familiar: anyone who knows REST can read the spec and use the store without learning a new protocol.
 - Any HTTP client can call the API: `curl`, Postman, a browser, or any programming language.
-  No code generation is needed, which keeps testing and the demo simple.
 - HTTP methods and status codes carry meaning on their own.
-  EXISTS is a `HEAD` request that returns only `200` or `404`, without a body.
+  EXISTS is a `GET` on `/exists` that returns `{"exists": true|false}`.
+  It is not a `HEAD` request: `HEAD` has no body, so a `404` could not tell a missing table from a missing record.
 - The OpenAPI file is a single, language-independent contract, written before the Coordinator code.
   Swagger UI can render it, and `openapi-spec-validator` can check it.
 - The sort key is a query parameter rather than part of the path, so tables with and without a sort key use the same URLs.

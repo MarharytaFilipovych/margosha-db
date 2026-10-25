@@ -1,0 +1,374 @@
+openapi: 3.0.3
+info:
+  title: Margosha DB API
+  version: 0.1.0
+  description: |
+    API of the Margosha DB coordinator (ADR 0004).
+    Clients register tables and do CRUD over records (plus EXISTS).
+    Shards register themselves with the coordinator when they start.
+
+    Keys and attribute values are strings.
+    A table has a partition key and, optionally, a sort key.
+    The sort key value is sent as the `sortKey` query parameter.
+
+    Shards serve the same record paths (`/tables/{tableName}/records/...`), called by the coordinator.
+    Shards don't keep table definitions: they have no `POST /tables` and don't return `TABLE_NOT_FOUND`.
+    The coordinator checks the table and the keys before it forwards a request to a shard.
+
+tags:
+  - name: tables
+  - name: records
+  - name: shards
+
+paths:
+  /tables:
+    post:
+      tags: [tables]
+      operationId: registerTable
+      summary: Register a table definition
+      description: |
+        Registers a table with its partition key and optional sort key.
+        Registering a name that already exists fails with 409, and the existing table is kept.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TableDefinition'
+            examples:
+              partitionKeyOnly:
+                value: { name: users, partitionKey: user_id }
+              withSortKey:
+                value: { name: orders, partitionKey: customer_id, sortKey: order_id }
+      responses:
+        '201':
+          description: Table registered.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TableDefinition'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /tables/{tableName}/records:
+    parameters:
+      - $ref: '#/components/parameters/TableName'
+    post:
+      tags: [records]
+      operationId: createRecord
+      summary: CREATE a record
+      description: |
+        Stores a new record. The body holds the key attributes and the other attributes.
+        Fails with 409 if a record with this primary key already exists.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Record'
+            example: { user_id: '42', name: Anna, city: Kyiv }
+      responses:
+        '201':
+          description: Record created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Record'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ShardUnavailable'
+
+  /tables/{tableName}/records/{partitionKey}:
+    parameters:
+      - $ref: '#/components/parameters/TableName'
+      - $ref: '#/components/parameters/PartitionKey'
+      - $ref: '#/components/parameters/SortKey'
+    get:
+      tags: [records]
+      operationId: readRecord
+      summary: READ a record
+      responses:
+        '200':
+          description: The record with all its attributes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Record'
+              example: { user_id: '42', name: Anna, city: Kyiv }
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ShardUnavailable'
+    put:
+      tags: [records]
+      operationId: updateRecord
+      summary: UPDATE a record
+      description: |
+        Replaces all non-key attributes of an existing record with the given ones.
+        The key comes from the path; the body must not contain the key attributes.
+        Fails with 404 if the record does not exist (no record is created).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Attributes'
+            example: { name: Bob }
+      responses:
+        '200':
+          description: The updated record.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Record'
+              example: { user_id: '42', name: Bob }
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ShardUnavailable'
+    delete:
+      tags: [records]
+      operationId: deleteRecord
+      summary: DELETE a record
+      description: Fails with 404 if the table or the record does not exist.
+      responses:
+        '204':
+          description: Record deleted.
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ShardUnavailable'
+
+  /tables/{tableName}/records/{partitionKey}/exists:
+    parameters:
+      - $ref: '#/components/parameters/TableName'
+      - $ref: '#/components/parameters/PartitionKey'
+      - $ref: '#/components/parameters/SortKey'
+    get:
+      tags: [records]
+      operationId: recordExists
+      summary: EXISTS - check whether a record exists
+      description: |
+        Returns whether a record is stored under the key, without returning the record.
+        A missing record is not an error: the answer is `false`.
+        404 means only that the table does not exist.
+      responses:
+        '200':
+          description: Whether the record exists.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExistsResult'
+              examples:
+                present:
+                  value: { exists: true }
+                absent:
+                  value: { exists: false }
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/TableNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ShardUnavailable'
+
+  /shards:
+    post:
+      tags: [shards]
+      operationId: registerShard
+      summary: Register a shard
+      description: |
+        Called by each shard when it starts.
+        Registering a shard ID that is already registered replaces its address.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShardRegistration'
+            example: { shardId: shard-a, address: 'http://10.0.1.15:8081' }
+      responses:
+        '200':
+          description: Shard registered.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShardRegistration'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  parameters:
+    TableName:
+      name: tableName
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    PartitionKey:
+      name: partitionKey
+      in: path
+      required: true
+      description: Value of the table's partition key.
+      schema:
+        type: string
+        minLength: 1
+    SortKey:
+      name: sortKey
+      in: query
+      required: false
+      description: |
+        Value of the table's sort key.
+        Required for a table that has a sort key; must not be sent for a table without one (400).
+      schema:
+        type: string
+        minLength: 1
+
+  schemas:
+    TableDefinition:
+      type: object
+      required: [name, partitionKey]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Table name.
+        partitionKey:
+          type: string
+          minLength: 1
+          description: Name of the partition key attribute.
+        sortKey:
+          type: string
+          minLength: 1
+          description: Name of the sort key attribute (optional).
+      additionalProperties: false
+
+    Attributes:
+      type: object
+      description: Named attributes with string values.
+      additionalProperties:
+        type: string
+
+    Record:
+      type: object
+      description: |
+        A record: the key attributes (partition key and, if the table has one, sort key)
+        and the other attributes. All values are strings; key values must not be empty.
+      additionalProperties:
+        type: string
+
+    ExistsResult:
+      type: object
+      required: [exists]
+      properties:
+        exists:
+          type: boolean
+          description: Whether a record is stored under the given key.
+      additionalProperties: false
+
+    ShardRegistration:
+      type: object
+      required: [shardId, address]
+      properties:
+        shardId:
+          type: string
+          minLength: 1
+          description: Fixed ID of the shard, for example shard-a. Its ring positions are computed from it (ADR 0005).
+        address:
+          type: string
+          minLength: 1
+          description: Base URL the shard serves on.
+      additionalProperties: false
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum:
+            - VALIDATION_ERROR
+            - TABLE_NOT_FOUND
+            - RECORD_NOT_FOUND
+            - TABLE_ALREADY_EXISTS
+            - RECORD_ALREADY_EXISTS
+            - INTERNAL_ERROR
+            - SHARD_UNAVAILABLE
+        message:
+          type: string
+      additionalProperties: false
+
+  responses:
+    ValidationError:
+      description: |
+        The request is invalid, for example an empty table name, a missing key attribute,
+        a missing or unexpected sort key, or a non-string value.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example: { code: VALIDATION_ERROR, message: 'Missing value for sort key order_id' }
+    NotFound:
+      description: The table or the record does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example: { code: TABLE_NOT_FOUND, message: 'Table ghost does not exist' }
+    TableNotFound:
+      description: The table does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example: { code: TABLE_NOT_FOUND, message: 'Table ghost does not exist' }
+    Conflict:
+      description: The table or the record already exists.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example: { code: RECORD_ALREADY_EXISTS, message: 'Record user_id=42 already exists' }
+    InternalError:
+      description: An unexpected error in the server.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example: { code: INTERNAL_ERROR, message: 'Unexpected server error' }
+    ShardUnavailable:
+      description: |
+        Sharded mode only: no shard is registered, or the shard that owns the key
+        did not answer within the timeout. The request is not sent to another shard.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example: { code: SHARD_UNAVAILABLE, message: 'Shard shard-b did not answer' }
