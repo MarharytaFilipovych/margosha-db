@@ -19,9 +19,9 @@
 
 ## 4. Consistent hashing ring (after ADR 0005 and ADR 0006)
 
-- [ ] Implement the ring in `ring`: hash function interface, configurable virtual nodes, vnode positions from `hash(shardId#i)`, add shard; verify unit tests for lookup and add pass
-- [ ] Implement the routing-key function from ADR 0006; verify a unit test shows the same primary key always maps to the same routing key
-- [ ] Add tests for the `shard-routing` properties (40-60% split of 100,000 keys over 2 shards; at most 45% of keys move when a 3rd shard is added); verify the tests pass with the setting from ADR 0005 (MurmurHash3 128-bit, 128 virtual nodes)
+- [x] Implement the ring in `ring`: hash function interface, configurable virtual nodes, vnode positions from `hash(shardId#i)`, add shard; verify unit tests for lookup and add pass
+- [x] Implement the routing-key function from ADR 0006; verify a unit test shows the same primary key always maps to the same routing key
+- [x] Add tests for the `shard-routing` properties (40-60% split of 100,000 keys over 2 shards; at most 45% of keys move when a 3rd shard is added); verify the tests pass with the setting from ADR 0005 (MurmurHash3 128-bit, 128 virtual nodes)
 
 ## 5. In-memory storage
 
