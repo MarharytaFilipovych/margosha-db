@@ -25,7 +25,7 @@
 
 ## 5. In-memory storage
 
-- [ ] Implement the in-memory record store (one map per table) in `node`; verify put / get / exists / update / delete unit tests pass
+- [x] Implement the in-memory record store (one map per table) in `node`; verify put / get / exists / update / delete unit tests pass
 
 ## 6. Coordinator in single-node mode
 
