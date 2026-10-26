@@ -1,5 +1,13 @@
 package com.margosha.node.storage;
 
+import static com.margosha.node.data.TestData.ANN_ATTRIBUTES;
+import static com.margosha.node.data.TestData.BOB_ATTRIBUTES;
+import static com.margosha.node.data.TestData.ORDERS;
+import static com.margosha.node.data.TestData.ORDER_42_1;
+import static com.margosha.node.data.TestData.ORDER_42_2;
+import static com.margosha.node.data.TestData.USERS;
+import static com.margosha.node.data.TestData.USER_42;
+import static com.margosha.node.data.TestData.USER_7;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -13,47 +21,37 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import com.margosha.api.model.Attributes;
-import com.margosha.api.model.PrimaryKey;
 import com.margosha.node.exception.RecordAlreadyExistsException;
 import com.margosha.node.exception.RecordNotFoundException;
 import org.junit.jupiter.api.Test;
 
 class InMemoryRecordStoreTest {
 
-	private static final String USERS = "users";
-	private static final String ORDERS = "orders";
-
-	private static final PrimaryKey USER_42 = PrimaryKey.of("42");
-	private static final PrimaryKey USER_7 = PrimaryKey.of("7");
-	private static final PrimaryKey ORDER_42_1 = new PrimaryKey("42", "order-1");
-	private static final PrimaryKey ORDER_42_2 = new PrimaryKey("42", "order-2");
-
-	private static final Attributes ANN_IN_KYIV = Attributes.of(Map.of("name", "Ann", "city", "Kyiv"));
-	private static final Attributes BOB = Attributes.of(Map.of("name", "Bob"));
+	private static final String CUSTOMERS = "customers";
 
 	private final InMemoryRecordStore store = new InMemoryRecordStore();
 
 	@Test
 	void createdRecordCanBeRead() {
 		// Act
-		store.create(USERS, USER_42, ANN_IN_KYIV);
+		store.create(USERS, USER_42, ANN_ATTRIBUTES);
 
 		// Assert
-		assertThat(store.read(USERS, USER_42)).isEqualTo(ANN_IN_KYIV);
+		assertThat(store.read(USERS, USER_42)).isEqualTo(ANN_ATTRIBUTES);
 	}
 
 	@Test
 	void createOfExistingKeyFailsAndKeepsTheRecord() {
 		// Arrange
-		store.create(USERS, USER_42, ANN_IN_KYIV);
+		store.create(USERS, USER_42, ANN_ATTRIBUTES);
 
 		// Act & Assert
-		assertThatThrownBy(() -> store.create(USERS, USER_42, BOB))
+		assertThatThrownBy(() -> store.create(USERS, USER_42, BOB_ATTRIBUTES))
 				.isInstanceOf(RecordAlreadyExistsException.class)
 				.hasMessageContaining(USERS);
 
 		// Assert
-		assertThat(store.read(USERS, USER_42)).isEqualTo(ANN_IN_KYIV);
+		assertThat(store.read(USERS, USER_42)).isEqualTo(ANN_ATTRIBUTES);
 	}
 
 	@Test
@@ -65,7 +63,7 @@ class InMemoryRecordStoreTest {
 	@Test
 	void existsIsTrueForPresentAndFalseForAbsentKey() {
 		// Arrange
-		store.create(USERS, USER_42, ANN_IN_KYIV);
+		store.create(USERS, USER_42, ANN_ATTRIBUTES);
 
 		// Act
 		boolean present = store.exists(USERS, USER_42);
@@ -88,29 +86,41 @@ class InMemoryRecordStoreTest {
 	@Test
 	void updateReplacesAllAttributes() {
 		// Arrange
-		store.create(USERS, USER_42, ANN_IN_KYIV);
+		store.create(USERS, USER_42, ANN_ATTRIBUTES);
 
 		// Act
-		store.update(USERS, USER_42, BOB);
+		store.update(USERS, USER_42, BOB_ATTRIBUTES);
 
 		// Assert
 		// kv-api: "a later READ returns only name=Bob" - city is gone
-		assertThat(store.read(USERS, USER_42)).isEqualTo(BOB);
+		assertThat(store.read(USERS, USER_42)).isEqualTo(BOB_ATTRIBUTES);
 	}
 
 	@Test
 	void updateOfMissingKeyFailsAndCreatesNothing() {
 		// Act & Assert
-		assertThatThrownBy(() -> store.update(USERS, USER_42, BOB)).isInstanceOf(RecordNotFoundException.class);
+		assertThatThrownBy(() -> store.update(USERS, USER_42, BOB_ATTRIBUTES)).isInstanceOf(RecordNotFoundException.class);
 
 		// Assert
 		assertThat(store.exists(USERS, USER_42)).isFalse();
 	}
 
 	@Test
+	void updateOfMissingKeyInExistingTableFails() {
+		// Arrange
+		store.create(USERS, USER_42, ANN_ATTRIBUTES);
+
+		// Act & Assert
+		assertThatThrownBy(() -> store.update(USERS, USER_7, BOB_ATTRIBUTES)).isInstanceOf(RecordNotFoundException.class);
+
+		// Assert
+		assertThat(store.exists(USERS, USER_7)).isFalse();
+	}
+
+	@Test
 	void deletedRecordNoLongerExists() {
 		// Arrange
-		store.create(USERS, USER_42, ANN_IN_KYIV);
+		store.create(USERS, USER_42, ANN_ATTRIBUTES);
 
 		// Act
 		store.delete(USERS, USER_42);
@@ -127,42 +137,54 @@ class InMemoryRecordStoreTest {
 	}
 
 	@Test
+	void deleteOfMissingKeyInExistingTableFails() {
+		// Arrange
+		store.create(USERS, USER_42, ANN_ATTRIBUTES);
+
+		// Act & Assert
+		assertThatThrownBy(() -> store.delete(USERS, USER_7)).isInstanceOf(RecordNotFoundException.class);
+
+		// Assert
+		assertThat(store.exists(USERS, USER_42)).isTrue();
+	}
+
+	@Test
 	void keyCanBeCreatedAgainAfterDelete() {
 		// Arrange
-		store.create(USERS, USER_42, ANN_IN_KYIV);
+		store.create(USERS, USER_42, ANN_ATTRIBUTES);
 		store.delete(USERS, USER_42);
 
 		// Act
-		store.create(USERS, USER_42, BOB);
+		store.create(USERS, USER_42, BOB_ATTRIBUTES);
 
 		// Assert
-		assertThat(store.read(USERS, USER_42)).isEqualTo(BOB);
+		assertThat(store.read(USERS, USER_42)).isEqualTo(BOB_ATTRIBUTES);
 	}
 
 	@Test
 	void sortKeyMakesRecordsOfOnePartitionDistinct() {
 		// Act
-		store.create(ORDERS, ORDER_42_1, ANN_IN_KYIV);
-		store.create(ORDERS, ORDER_42_2, BOB);
+		store.create(ORDERS, ORDER_42_1, ANN_ATTRIBUTES);
+		store.create(ORDERS, ORDER_42_2, BOB_ATTRIBUTES);
 
 		// Assert
-		assertThat(store.read(ORDERS, ORDER_42_1)).isEqualTo(ANN_IN_KYIV);
-		assertThat(store.read(ORDERS, ORDER_42_2)).isEqualTo(BOB);
+		assertThat(store.read(ORDERS, ORDER_42_1)).isEqualTo(ANN_ATTRIBUTES);
+		assertThat(store.read(ORDERS, ORDER_42_2)).isEqualTo(BOB_ATTRIBUTES);
 	}
 
 	@Test
 	void tablesAreSeparate() {
 		// Arrange
-		store.create(USERS, USER_42, ANN_IN_KYIV);
+		store.create(USERS, USER_42, ANN_ATTRIBUTES);
 
 		// Act
-		boolean existsInOtherTable = store.exists("customers", USER_42);
-		store.create("customers", USER_42, BOB);
+		boolean existsInOtherTable = store.exists(CUSTOMERS, USER_42);
+		store.create(CUSTOMERS, USER_42, BOB_ATTRIBUTES);
 
 		// Assert
 		assertThat(existsInOtherTable).isFalse();
-		assertThat(store.read(USERS, USER_42)).isEqualTo(ANN_IN_KYIV);
-		assertThat(store.read("customers", USER_42)).isEqualTo(BOB);
+		assertThat(store.read(USERS, USER_42)).isEqualTo(ANN_ATTRIBUTES);
+		assertThat(store.read(CUSTOMERS, USER_42)).isEqualTo(BOB_ATTRIBUTES);
 	}
 
 	@Test
@@ -204,7 +226,7 @@ class InMemoryRecordStoreTest {
 	@Test
 	void tableAndKeyAreRequired() {
 		// Act & Assert
-		assertThatThrownBy(() -> store.create(null, USER_42, BOB)).isInstanceOf(NullPointerException.class);
+		assertThatThrownBy(() -> store.create(null, USER_42, BOB_ATTRIBUTES)).isInstanceOf(NullPointerException.class);
 		assertThatThrownBy(() -> store.read(USERS, null)).isInstanceOf(NullPointerException.class);
 		assertThatThrownBy(() -> store.create(USERS, USER_42, null)).isInstanceOf(NullPointerException.class);
 	}

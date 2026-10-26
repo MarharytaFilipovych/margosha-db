@@ -1,19 +1,19 @@
 package com.margosha.api.client;
 
-import static com.margosha.api.TestBuilder.BASE_URL;
-import static com.margosha.api.TestBuilder.ORDERS;
-import static com.margosha.api.TestBuilder.USERS;
-import static com.margosha.api.TestBuilder.error;
-import static com.margosha.api.TestBuilder.json;
-import static com.margosha.api.TestBuilder.order;
-import static com.margosha.api.TestBuilder.orderKey;
-import static com.margosha.api.TestBuilder.ordersTable;
-import static com.margosha.api.TestBuilder.renamed;
-import static com.margosha.api.TestBuilder.renamedUser;
-import static com.margosha.api.TestBuilder.shardA;
-import static com.margosha.api.TestBuilder.tree;
-import static com.margosha.api.TestBuilder.user;
-import static com.margosha.api.TestBuilder.userKey;
+import static com.margosha.api.data.TestData.BASE_URL;
+import static com.margosha.api.data.TestData.ORDERS;
+import static com.margosha.api.data.TestData.USERS;
+import static com.margosha.api.data.TestData.error;
+import static com.margosha.api.data.TestData.json;
+import static com.margosha.api.data.TestData.order;
+import static com.margosha.api.data.TestData.orderKey;
+import static com.margosha.api.data.TestData.ordersTable;
+import static com.margosha.api.data.TestData.renamed;
+import static com.margosha.api.data.TestData.renamedUser;
+import static com.margosha.api.data.TestData.shardA;
+import static com.margosha.api.data.TestData.tree;
+import static com.margosha.api.data.TestData.user;
+import static com.margosha.api.data.TestData.userKey;
 import static com.margosha.api.client.MargoshaDbClient.SHARDS;
 import static com.margosha.api.client.MargoshaDbClient.TABLES;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,7 +41,7 @@ import org.springframework.test.web.client.response.DefaultResponseCreator;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
-import com.margosha.api.TestBuilder.ErrorResponse;
+import com.margosha.api.data.TestData.ErrorResponse;
 import com.margosha.api.model.ErrorCode;
 import com.margosha.api.model.PrimaryKey;
 import com.margosha.api.model.ShardRegistration;
@@ -49,6 +49,19 @@ import com.margosha.api.model.TableDefinition;
 import com.margosha.api.model.TableRecord;
 
 class MargoshaDbClientTest {
+
+    private static final String RECORDS = "/records";
+    private static final String EXISTS = "/exists";
+    private static final String SORT_KEY_QUERY = "?sortKey=";
+
+    private static final String USERS_RECORDS = TABLES + "/" + USERS + RECORDS;
+    private static final String ORDERS_RECORDS = TABLES + "/" + ORDERS + RECORDS;
+    private static final String USER_RECORD = USERS_RECORDS + "/" + userKey().partitionKey();
+    private static final String USER_EXISTS = USER_RECORD + EXISTS;
+    private static final String ORDER_PATH = ORDERS_RECORDS + "/" + orderKey().partitionKey();
+    private static final String ORDER_SORT_KEY = SORT_KEY_QUERY + orderKey().sortKey();
+    private static final String ORDER_RECORD = ORDER_PATH + ORDER_SORT_KEY;
+    private static final String ORDER_EXISTS = ORDER_PATH + EXISTS + ORDER_SORT_KEY;
 
     private MockRestServiceServer server;
     private MargoshaDbClient client;
@@ -97,7 +110,7 @@ class MargoshaDbClientTest {
         @Test
         void postsTheRecordAndReturnsIt() {
             // Arrange
-            expectRequest(HttpMethod.POST, "/tables/users/records", user())
+            expectRequest(HttpMethod.POST, USERS_RECORDS, user())
                     .andRespond(respond(HttpStatus.CREATED, user()));
 
             // Act
@@ -111,7 +124,7 @@ class MargoshaDbClientTest {
         @Test
         void unknownTableThrowsTableNotFound() {
             // Arrange
-            expectRequest(HttpMethod.POST, "/tables/users/records", user())
+            expectRequest(HttpMethod.POST, USERS_RECORDS, user())
                     .andRespond(respondWithError(HttpStatus.NOT_FOUND, ErrorCode.TABLE_NOT_FOUND));
 
             // Act
@@ -124,7 +137,7 @@ class MargoshaDbClientTest {
         @Test
         void existingRecordThrowsConflict() {
             // Arrange
-            expectRequest(HttpMethod.POST, "/tables/users/records", user())
+            expectRequest(HttpMethod.POST, USERS_RECORDS, user())
                     .andRespond(respondWithError(HttpStatus.CONFLICT, ErrorCode.RECORD_ALREADY_EXISTS));
 
             // Act
@@ -141,7 +154,7 @@ class MargoshaDbClientTest {
         @Test
         void getsTheRecordByPartitionKey() {
             // Arrange
-            expectRequest(HttpMethod.GET, "/tables/users/records/42")
+            expectRequest(HttpMethod.GET, USER_RECORD)
                     .andRespond(respond(HttpStatus.OK, user()));
 
             // Act
@@ -155,7 +168,7 @@ class MargoshaDbClientTest {
         @Test
         void sendsTheSortKeyAsQueryParameter() {
             // Arrange
-            expectRequest(HttpMethod.GET, "/tables/orders/records/c1?sortKey=o7")
+            expectRequest(HttpMethod.GET, ORDER_RECORD)
                     .andRespond(respond(HttpStatus.OK, order()));
 
             // Act
@@ -167,7 +180,7 @@ class MargoshaDbClientTest {
         }
 
         @ParameterizedTest(name = "{0} -> {1}")
-        @MethodSource("com.margosha.api.TestBuilder#keysNeedingEncoding")
+        @MethodSource("com.margosha.api.data.TestData#keysNeedingEncoding")
         void encodesKeysInTheUri(PrimaryKey key, String expectedPath) {
             // Arrange
             expectRequest(HttpMethod.GET, expectedPath)
@@ -183,7 +196,7 @@ class MargoshaDbClientTest {
         @Test
         void missingRecordThrowsRecordNotFound() {
             // Arrange
-            expectRequest(HttpMethod.GET, "/tables/users/records/42")
+            expectRequest(HttpMethod.GET, USER_RECORD)
                     .andRespond(respondWithError(HttpStatus.NOT_FOUND, ErrorCode.RECORD_NOT_FOUND));
 
             // Act
@@ -200,7 +213,7 @@ class MargoshaDbClientTest {
         @Test
         void existingRecordReturnsTrue() {
             // Arrange
-            expectRequest(HttpMethod.GET, "/tables/users/records/42/exists")
+            expectRequest(HttpMethod.GET, USER_EXISTS)
                     .andRespond(respondJson(HttpStatus.OK, "{\"exists\":true}"));
 
             // Act
@@ -214,7 +227,7 @@ class MargoshaDbClientTest {
         @Test
         void missingRecordReturnsFalse() {
             // Arrange
-            expectRequest(HttpMethod.GET, "/tables/orders/records/c1/exists?sortKey=o7")
+            expectRequest(HttpMethod.GET, ORDER_EXISTS)
                     .andRespond(respondJson(HttpStatus.OK, "{\"exists\":false}"));
 
             // Act
@@ -228,7 +241,7 @@ class MargoshaDbClientTest {
         @Test
         void unknownTableThrowsTableNotFound() {
             // Arrange
-            expectRequest(HttpMethod.GET, "/tables/users/records/42/exists")
+            expectRequest(HttpMethod.GET, USER_EXISTS)
                     .andRespond(respondWithError(HttpStatus.NOT_FOUND, ErrorCode.TABLE_NOT_FOUND));
 
             // Act
@@ -245,7 +258,7 @@ class MargoshaDbClientTest {
         @Test
         void putsOnlyTheAttributesAndReturnsTheUpdatedRecord() {
             // Arrange
-            expectRequest(HttpMethod.PUT, "/tables/users/records/42", renamed())
+            expectRequest(HttpMethod.PUT, USER_RECORD, renamed())
                     .andRespond(respond(HttpStatus.OK, renamedUser()));
 
             // Act
@@ -259,7 +272,7 @@ class MargoshaDbClientTest {
         @Test
         void missingRecordThrowsRecordNotFound() {
             // Arrange
-            expectRequest(HttpMethod.PUT, "/tables/users/records/42", renamed())
+            expectRequest(HttpMethod.PUT, USER_RECORD, renamed())
                     .andRespond(respondWithError(HttpStatus.NOT_FOUND, ErrorCode.RECORD_NOT_FOUND));
 
             // Act
@@ -276,7 +289,7 @@ class MargoshaDbClientTest {
         @Test
         void sendsDeleteForTheKey() {
             // Arrange
-            expectRequest(HttpMethod.DELETE, "/tables/orders/records/c1?sortKey=o7")
+            expectRequest(HttpMethod.DELETE, ORDER_RECORD)
                     .andRespond(withStatus(HttpStatus.NO_CONTENT));
 
             // Act
@@ -289,7 +302,7 @@ class MargoshaDbClientTest {
         @Test
         void missingRecordThrowsRecordNotFound() {
             // Arrange
-            expectRequest(HttpMethod.DELETE, "/tables/users/records/42")
+            expectRequest(HttpMethod.DELETE, USER_RECORD)
                     .andRespond(respondWithError(HttpStatus.NOT_FOUND, ErrorCode.RECORD_NOT_FOUND));
 
             // Act
@@ -336,10 +349,10 @@ class MargoshaDbClientTest {
     class Errors {
 
         @ParameterizedTest(name = "{0}")
-        @MethodSource("com.margosha.api.TestBuilder#errorResponses")
+        @MethodSource("com.margosha.api.data.TestData#errorResponses")
         void everyErrorResponseIsThrownAsApiException(ErrorResponse response) {
             // Arrange
-            expectRequest(HttpMethod.GET, "/tables/users/records/42")
+            expectRequest(HttpMethod.GET, USER_RECORD)
                     .andRespond(respondWithError(response.status(), response.code()));
 
             // Act
@@ -352,7 +365,7 @@ class MargoshaDbClientTest {
         @Test
         void errorWithoutErrorBodyHasNoError() {
             // Arrange
-            expectRequest(HttpMethod.GET, "/tables/users/records/42")
+            expectRequest(HttpMethod.GET, USER_RECORD)
                     .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR).body("oops"));
 
             // Act
@@ -368,7 +381,7 @@ class MargoshaDbClientTest {
         @Test
         void connectionFailureIsResourceAccessException() {
             // Arrange
-            expectRequest(HttpMethod.GET, "/tables/users/records/42")
+            expectRequest(HttpMethod.GET, USER_RECORD)
                     .andRespond(withException(new IOException("connection refused")));
 
             // Act

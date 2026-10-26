@@ -1,4 +1,4 @@
-package com.margosha.api;
+package com.margosha.api.data;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -20,7 +20,7 @@ import com.margosha.api.model.TableRecord;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
-public final class TestBuilder {
+public final class TestData {
 
     public static final String BASE_URL = "http://localhost:8080";
     public static final String USERS = "users";
@@ -28,7 +28,7 @@ public final class TestBuilder {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
-    private TestBuilder() { }
+    private TestData() { }
 
     public static TableDefinition usersTable() {
         return TableDefinition.of(USERS, "user_id");

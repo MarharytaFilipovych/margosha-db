@@ -9,10 +9,11 @@ import com.margosha.api.model.PrimaryKey;
 import com.margosha.node.exception.RecordAlreadyExistsException;
 import com.margosha.node.exception.RecordNotFoundException;
 
-public class InMemoryRecordStore {
+public class InMemoryRecordStore implements RecordStorage {
 
 	private final Map<String, Map<PrimaryKey, Attributes>> tables = new ConcurrentHashMap<>();
 
+	@Override
 	public void create(String table, PrimaryKey key, Attributes attributes) {
 		requireArguments(table, key);
 		Objects.requireNonNull(attributes, "attributes");
@@ -22,6 +23,7 @@ public class InMemoryRecordStore {
 		}
 	}
 
+	@Override
 	public Attributes read(String table, PrimaryKey key) {
 		requireArguments(table, key);
 		Attributes attributes = records(table).get(key);
@@ -31,11 +33,13 @@ public class InMemoryRecordStore {
 		return attributes;
 	}
 
+	@Override
 	public boolean exists(String table, PrimaryKey key) {
 		requireArguments(table, key);
 		return records(table).containsKey(key);
 	}
 
+	@Override
 	public void update(String table, PrimaryKey key, Attributes attributes) {
 		requireArguments(table, key);
 		Objects.requireNonNull(attributes, "attributes");
@@ -45,6 +49,7 @@ public class InMemoryRecordStore {
 		}
 	}
 
+	@Override
 	public void delete(String table, PrimaryKey key) {
 		requireArguments(table, key);
 		Map<PrimaryKey, Attributes> records = tables.get(table);

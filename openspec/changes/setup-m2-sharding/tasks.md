@@ -29,9 +29,9 @@
 
 ## 6. Coordinator in single-node mode
 
-- [ ] Implement the API server with Spring Boot (Spring Web) with the record backend interface and the local in-memory backend; verify `coordinator --mode=single` serves CREATE / READ / EXISTS / UPDATE / DELETE in an integration test
-- [ ] Implement register table with the validation, conflict and not-found errors from the `kv-api` spec; verify each `kv-api` scenario has a passing integration test
-- [ ] Return unexpected errors as `INTERNAL_ERROR` (500) in the shared error format; verify an integration test where an operation throws gets `{code, message}` and not Spring's default error body
+- [x] Implement the API server with Spring Boot (Spring Web) with the record backend interface and the local in-memory backend; verify `coordinator --mode=single` serves CREATE / READ / EXISTS / UPDATE / DELETE in an integration test
+- [x] Implement register table with the validation, conflict and not-found errors from the `kv-api` spec; verify each `kv-api` scenario has a passing integration test
+- [x] Return unexpected errors as `INTERNAL_ERROR` (500) in the shared error format; verify an integration test where an operation throws gets `{code, message}` and not Spring's default error body
 
 ## 7. Sharded mode: registration, writes and reads
 

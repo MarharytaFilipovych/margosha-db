@@ -1,8 +1,8 @@
 package com.margosha.api.model;
 
-import static com.margosha.api.TestBuilder.fromJson;
-import static com.margosha.api.TestBuilder.json;
-import static com.margosha.api.TestBuilder.tree;
+import static com.margosha.api.data.TestData.fromJson;
+import static com.margosha.api.data.TestData.json;
+import static com.margosha.api.data.TestData.tree;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.params.ParameterizedTest;
@@ -11,7 +11,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 class ModelSerializationTest {
 
     @ParameterizedTest
-    @MethodSource("com.margosha.api.TestBuilder#modelsWithJson")
+    @MethodSource("com.margosha.api.data.TestData#modelsWithJson")
     void roundTripsThroughTheSpecJson(Object model, String specJson) {
         // Arrange
         Class<?> type = model.getClass();
@@ -28,7 +28,7 @@ class ModelSerializationTest {
     }
 
     @ParameterizedTest
-    @MethodSource("com.margosha.api.TestBuilder#recordParts")
+    @MethodSource("com.margosha.api.data.TestData#recordParts")
     void recordSplitsIntoKeyAndAttributes(TableDefinition table, TableRecord record,
                                           PrimaryKey expectedKey, Attributes expectedAttributes) {
         // Act
