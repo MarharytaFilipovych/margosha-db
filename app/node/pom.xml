@@ -37,6 +37,18 @@
             <artifactId>spring-boot-starter-webmvc-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.margosha</groupId>
+            <artifactId>ycsb-binding</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>site.ycsb</groupId>
+            <artifactId>core</artifactId>
+            <version>${ycsb.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

@@ -203,7 +203,7 @@ CREATE, EXISTS, UPDATE and DELETE take the same path; only the HTTP method and b
 | Job | Runs on | What it does |
 |---|---|---|
 | `check` | every push and pull request | `./mvnw verify`: builds the jar and runs the tests |
-| `deploy` | push to `main`, or started by hand on `main`; only after `check` passed; one run at a time | 1. `margosha-vpc` and 2. `margosha-app` with `aws cloudformation deploy --no-fail-on-empty-changeset`; 3. uploads the tested jar to `s3://margosha-artifacts-<account-id>/releases/margosha.jar`; 4. reboots the coordinator and the shards; 5. waits until all three nodes logged the new jar's sha256 |
+| `deploy` | push to `main`, or started by hand on `main`; only after `check` passed; one run at a time | 1. `margosha-vpc` and 2. `margosha-app` with `aws cloudformation deploy --no-fail-on-empty-changeset`; 3. uploads the tested jars to `s3://margosha-artifacts-<account-id>/releases/`: `margosha.jar` (the nodes) and `margosha-ycsb-binding.jar` (the bench client, see [m2/benchmark/procedure.md](m2/benchmark/procedure.md)); 4. reboots the coordinator and the shards; 5. waits until all three nodes logged the new jar's sha256 |
 
 - Checks with screenshots (app-only change, template change, deploy by hand): [m2/deploy_pipeline.md](m2/deploy_pipeline.md).
 - A stack with no changes prints `No changes to deploy` and the run goes on. The run's **Summary** page lists each stack's result, the jar hash and the node IDs.

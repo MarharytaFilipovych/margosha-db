@@ -25,12 +25,14 @@ jobs:
       - name: Build and run the tests
         run: ./mvnw --batch-mode verify
 
-      - name: Keep the jar for the deploy job
+      - name: Keep the jars for the deploy job
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: margosha-jar
-          path: app/node/target/margosha.jar
+          name: margosha-jars
+          path: |
+            app/node/target/margosha.jar
+            app/ycsb-binding/target/margosha-ycsb-binding.jar
           if-no-files-found: error
           retention-days: 7
 
@@ -49,15 +51,17 @@ jobs:
       VPC_STACK: margosha-vpc
       APP_STACK: margosha-app
       JAR: app/node/target/margosha.jar
+      BINDING_JAR: app/ycsb-binding/target/margosha-ycsb-binding.jar
     steps:
       - name: Check out the repository
         uses: actions/checkout@v5
 
-      - name: Get the tested jar
+      # The artifact keeps the paths below app/, so both jars land where the build put them.
+      - name: Get the tested jars
         uses: actions/download-artifact@v4
         with:
-          name: margosha-jar
-          path: app/node/target
+          name: margosha-jars
+          path: app
 
       - name: Use the Learner Lab session credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -98,7 +102,7 @@ jobs:
             --no-fail-on-empty-changeset | tee app-deploy.log
           echo "- \`$APP_STACK\`: $(tail -n 1 app-deploy.log)" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload the jar
+      - name: Upload the jars
         run: |
           out() { aws cloudformation describe-stacks --stack-name "$APP_STACK" --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text; }
           BUCKET=$(out ArtifactsBucketName)
@@ -106,6 +110,10 @@ jobs:
           aws s3 cp "$JAR" "s3://$BUCKET/releases/margosha.jar" --only-show-errors
           echo "Uploaded $JAR to s3://$BUCKET/releases/margosha.jar, sha256 $HASH"
           echo "- jar: \`s3://$BUCKET/releases/margosha.jar\`, sha256 \`$HASH\` (commit \`${GITHUB_SHA::7}\`)" >> "$GITHUB_STEP_SUMMARY"
+          BINDING_HASH=$(sha256sum "$BINDING_JAR" | cut -c1-16)
+          aws s3 cp "$BINDING_JAR" "s3://$BUCKET/releases/margosha-ycsb-binding.jar" --only-show-errors
+          echo "Uploaded $BINDING_JAR to s3://$BUCKET/releases/margosha-ycsb-binding.jar, sha256 $BINDING_HASH"
+          echo "- YCSB binding: \`s3://$BUCKET/releases/margosha-ycsb-binding.jar\`, sha256 \`$BINDING_HASH\`" >> "$GITHUB_STEP_SUMMARY"
           {
             echo "JAR_HASH=$HASH"
             echo "COORD=$(out CoordinatorInstanceId)"
