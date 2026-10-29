@@ -1,0 +1,413 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Margosha DB application: artifacts bucket, coordinator (public subnet),
+  shard A and shard B (private subnets A and B), and the YCSB client while
+  benchmarking (BenchClient=true). Needs the margosha-vpc stack.
+
+Parameters:
+  NetworkStackName:
+    Type: String
+    Default: margosha-vpc
+    Description: Name of the network stack whose exports (VpcId, subnet IDs) are imported.
+  VpcCidr:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: CIDR of the VPC; the coordinator accepts API traffic from it.
+  AmiId:
+    Type: AWS::EC2::Image::Id
+    Default: ami-041607313c6a2a618
+    Description: >
+      Amazon Linux 2023 x86_64 AMI. Pinned, so an update never replaces the
+      instances because Amazon published a newer AMI. To move to the latest:
+      aws ssm get-parameter --name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: vockey
+    Description: Key pair for SSH (the Learner Lab one is vockey).
+  ApiPort:
+    Type: Number
+    Default: 8080
+    MinValue: 1024
+    MaxValue: 65535
+    Description: Port of the API on the coordinator and the shards.
+  OperatorCidr:
+    Type: String
+    Default: ""
+    AllowedPattern: ^$|^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$
+    Description: >
+      Your IP as a CIDR (e.g. 203.0.113.7/32). Opens the coordinator's API and
+      SSH, and the bench client's SSH, to it. Empty = closed.
+  BenchClient:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: Create the YCSB client (t3.small) only while benchmarking.
+
+Conditions:
+  HasOperator: !Not [!Equals [!Ref OperatorCidr, ""]]
+  CreateBenchClient: !Equals [!Ref BenchClient, "true"]
+  BenchClientWithOperator: !And [!Condition CreateBenchClient, !Condition HasOperator]
+
+Resources:
+
+  ArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "margosha-artifacts-${AWS::AccountId}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: Name
+          Value: margosha-artifacts
+
+  CoordinatorSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Margosha coordinator - API from the VPC and the operator, SSH from the operator
+      VpcId: !ImportValue
+        Fn::Sub: "${NetworkStackName}-VpcId"
+      SecurityGroupIngress:
+        - Description: API from inside the VPC (shards, bench client)
+          IpProtocol: tcp
+          FromPort: !Ref ApiPort
+          ToPort: !Ref ApiPort
+          CidrIp: !Ref VpcCidr
+      Tags:
+        - Key: Name
+          Value: margosha-coordinator-sg
+
+  CoordinatorApiFromOperator:
+    Type: AWS::EC2::SecurityGroupIngress
+    Condition: HasOperator
+    Properties:
+      GroupId: !Ref CoordinatorSecurityGroup
+      Description: API from the operator
+      IpProtocol: tcp
+      FromPort: !Ref ApiPort
+      ToPort: !Ref ApiPort
+      CidrIp: !Ref OperatorCidr
+
+  CoordinatorSshFromOperator:
+    Type: AWS::EC2::SecurityGroupIngress
+    Condition: HasOperator
+    Properties:
+      GroupId: !Ref CoordinatorSecurityGroup
+      Description: SSH from the operator
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      CidrIp: !Ref OperatorCidr
+
+  ShardSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Margosha shards - API and SSH only from the coordinator
+      VpcId: !ImportValue
+        Fn::Sub: "${NetworkStackName}-VpcId"
+      SecurityGroupIngress:
+        - Description: API from the coordinator
+          IpProtocol: tcp
+          FromPort: !Ref ApiPort
+          ToPort: !Ref ApiPort
+          SourceSecurityGroupId: !Ref CoordinatorSecurityGroup
+        - Description: SSH from the coordinator (jump host)
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          SourceSecurityGroupId: !Ref CoordinatorSecurityGroup
+      Tags:
+        - Key: Name
+          Value: margosha-shard-sg
+
+  BenchSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Condition: CreateBenchClient
+    Properties:
+      GroupDescription: Margosha YCSB client - no inbound except SSH from the operator
+      VpcId: !ImportValue
+        Fn::Sub: "${NetworkStackName}-VpcId"
+      Tags:
+        - Key: Name
+          Value: margosha-bench-sg
+
+  BenchSshFromOperator:
+    Type: AWS::EC2::SecurityGroupIngress
+    Condition: BenchClientWithOperator
+    Properties:
+      GroupId: !Ref BenchSecurityGroup
+      Description: SSH from the operator
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      CidrIp: !Ref OperatorCidr
+
+  NodeLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub "${AWS::StackName}-node"
+      LaunchTemplateData:
+        ImageId: !Ref AmiId
+        InstanceType: t3.micro
+        KeyName: !Ref KeyName
+        IamInstanceProfile:
+          Name: LabInstanceProfile
+        CreditSpecification:
+          CpuCredits: standard
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: 8
+              VolumeType: gp3
+              DeleteOnTermination: true
+        MetadataOptions:
+          HttpEndpoint: enabled
+          HttpTokens: required
+          InstanceMetadataTags: enabled
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            # Runs once, on the first boot. Installs Java and the margosha service.
+            set -euxo pipefail
+
+            for attempt in 1 2 3 4 5; do
+              dnf install -y java-21-amazon-corretto-headless && break
+              sleep 10
+            done
+            java -version
+
+            useradd --system --home-dir /opt/margosha --shell /sbin/nologin margosha || true
+            mkdir -p /opt/margosha /etc/margosha
+            chown margosha:margosha /opt/margosha /etc/margosha
+
+            cat > /etc/margosha/stack.env <<'EOF'
+            BUCKET=${ArtifactsBucket}
+            PORT=${ApiPort}
+            REGION=${AWS::Region}
+            EOF
+
+            # Before every start: settings from the instance tags, then the jar from S3.
+            cat > /usr/local/bin/margosha-prepare <<'EOF'
+            #!/bin/bash
+            set -uo pipefail
+            source /etc/margosha/stack.env
+
+            imds() {
+              local token
+              token=$(curl -sf -X PUT http://169.254.169.254/latest/api/token \
+                -H "X-aws-ec2-metadata-token-ttl-seconds: 60") || return 1
+              curl -sf -H "X-aws-ec2-metadata-token: $token" "http://169.254.169.254/latest/$1"
+            }
+            tag() { imds "meta-data/tags/instance/$1"; }
+
+            ROLE=$(tag MargoshaRole) || { echo "margosha: no MargoshaRole tag"; exit 1; }
+            case "$ROLE" in
+              coordinator)
+                ARGS="coordinator --mode=sharded --server.port=$PORT" ;;
+              shard)
+                SHARD_ID=$(tag MargoshaShardId)
+                COORDINATOR_IP=$(tag MargoshaCoordinatorIp)
+                HOST=$(imds meta-data/local-ipv4)
+                if [ -z "$SHARD_ID" ] || [ -z "$COORDINATOR_IP" ] || [ -z "$HOST" ]; then
+                  echo "margosha: missing shard settings (id '$SHARD_ID', coordinator '$COORDINATOR_IP', host '$HOST')"
+                  exit 1
+                fi
+                ARGS="shard --server.port=$PORT --margosha.shard.id=$SHARD_ID"
+                ARGS="$ARGS --margosha.coordinator.url=http://$COORDINATOR_IP:$PORT --margosha.shard.host=$HOST" ;;
+              *)
+                echo "margosha: unknown role '$ROLE'"; exit 1 ;;
+            esac
+            echo "MARGOSHA_ARGS=\"$ARGS\"" > /etc/margosha/node.env
+            echo "margosha: role $ROLE, args: $ARGS"
+
+            JAR=s3://$BUCKET/releases/margosha.jar
+            until aws s3 cp --region "$REGION" --only-show-errors "$JAR" /opt/margosha/margosha.jar.new; do
+              echo "margosha: $JAR not available yet, retrying in 15s"
+              sleep 15
+            done
+            mv -f /opt/margosha/margosha.jar.new /opt/margosha/margosha.jar
+            echo "margosha: downloaded $JAR, sha256 $(sha256sum /opt/margosha/margosha.jar | cut -c1-16)"
+            EOF
+
+            cat > /usr/local/bin/margosha-run <<'EOF'
+            #!/bin/bash
+            source /etc/margosha/node.env
+            # MARGOSHA_ARGS is unquoted on purpose: it holds several arguments.
+            exec java -Xmx512m -jar /opt/margosha/margosha.jar $MARGOSHA_ARGS
+            EOF
+            chmod 755 /usr/local/bin/margosha-prepare /usr/local/bin/margosha-run
+
+            cat > /etc/systemd/system/margosha.service <<'EOF'
+            [Unit]
+            Description=Margosha DB node (jar downloaded from S3 on every start)
+            Wants=network-online.target
+            After=network-online.target
+
+            [Service]
+            User=margosha
+            ExecStartPre=/usr/local/bin/margosha-prepare
+            ExecStart=/usr/local/bin/margosha-run
+            # The download retries until the jar exists, so starting may take long.
+            TimeoutStartSec=infinity
+            Restart=on-failure
+            RestartSec=10
+            # Java exits with 143 on SIGTERM (systemctl stop): not a failure.
+            SuccessExitStatus=143
+            # Also to the serial console, so logs can be read with
+            # aws ec2 get-console-output, without SSH.
+            StandardOutput=journal+console
+            StandardError=journal+console
+
+            [Install]
+            WantedBy=multi-user.target
+            EOF
+
+            systemctl daemon-reload
+            systemctl enable margosha
+            # --no-block: do not wait here while the jar is not in the bucket yet.
+            systemctl start --no-block margosha
+      TagSpecifications:
+        - ResourceType: launch-template
+          Tags:
+            - Key: Name
+              Value: margosha-node
+
+  Coordinator:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref NodeLaunchTemplate
+        Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
+      SubnetId: !ImportValue
+        Fn::Sub: "${NetworkStackName}-PublicSubnetId"
+      SecurityGroupIds:
+        - !Ref CoordinatorSecurityGroup
+      Tags:
+        - Key: Name
+          Value: margosha-coordinator
+        - Key: MargoshaRole
+          Value: coordinator
+
+  ShardA:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref NodeLaunchTemplate
+        Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
+      SubnetId: !ImportValue
+        Fn::Sub: "${NetworkStackName}-PrivateSubnetAId"
+      SecurityGroupIds:
+        - !Ref ShardSecurityGroup
+      Tags:
+        - Key: Name
+          Value: margosha-shard-a
+        - Key: MargoshaRole
+          Value: shard
+        - Key: MargoshaShardId
+          Value: shard-a
+        - Key: MargoshaCoordinatorIp
+          Value: !GetAtt Coordinator.PrivateIp
+
+  ShardB:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref NodeLaunchTemplate
+        Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
+      SubnetId: !ImportValue
+        Fn::Sub: "${NetworkStackName}-PrivateSubnetBId"
+      SecurityGroupIds:
+        - !Ref ShardSecurityGroup
+      Tags:
+        - Key: Name
+          Value: margosha-shard-b
+        - Key: MargoshaRole
+          Value: shard
+        - Key: MargoshaShardId
+          Value: shard-b
+        - Key: MargoshaCoordinatorIp
+          Value: !GetAtt Coordinator.PrivateIp
+
+  BenchClientInstance:
+    Type: AWS::EC2::Instance
+    Condition: CreateBenchClient
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: t3.small
+      KeyName: !Ref KeyName
+      IamInstanceProfile: LabInstanceProfile
+      CreditSpecification:
+        CPUCredits: standard
+      SubnetId: !ImportValue
+        Fn::Sub: "${NetworkStackName}-PublicSubnetId"
+      SecurityGroupIds:
+        - !Ref BenchSecurityGroup
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 8
+            VolumeType: gp3
+            DeleteOnTermination: true
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          # Installs Java and YCSB 0.17.0. The binding jar comes from the bucket.
+          set -euxo pipefail
+          for attempt in 1 2 3 4 5; do
+            dnf install -y java-21-amazon-corretto-headless && break
+            sleep 10
+          done
+          java -version
+          curl -fsSL --retry 5 --retry-delay 10 -o /tmp/ycsb.tar.gz \
+            https://github.com/brianfrankcooper/YCSB/releases/download/0.17.0/ycsb-0.17.0.tar.gz
+          tar -xzf /tmp/ycsb.tar.gz -C /opt
+          rm /tmp/ycsb.tar.gz
+          ln -sfn /opt/ycsb-0.17.0 /opt/ycsb
+          # Stop here (no BENCH-READY) if the archive was not what we expected.
+          test -d /opt/ycsb/lib
+          ls /opt/ycsb/lib/core-*.jar
+          cat > /etc/profile.d/margosha-bench.sh <<'EOF'
+          export MARGOSHA_URL=http://${Coordinator.PrivateIp}:${ApiPort}
+          export MARGOSHA_BUCKET=${ArtifactsBucket}
+          EOF
+          echo "BENCH-READY ycsb=/opt/ycsb coordinator=http://${Coordinator.PrivateIp}:${ApiPort}" > /dev/console
+      Tags:
+        - Key: Name
+          Value: margosha-bench
+
+Outputs:
+  ArtifactsBucketName:
+    Description: Bucket for the jar (releases/margosha.jar) and benchmark results.
+    Value: !Ref ArtifactsBucket
+  CoordinatorInstanceId:
+    Description: Instance ID of the coordinator.
+    Value: !Ref Coordinator
+  ShardAInstanceId:
+    Description: Instance ID of shard A.
+    Value: !Ref ShardA
+  ShardBInstanceId:
+    Description: Instance ID of shard B.
+    Value: !Ref ShardB
+  CoordinatorPrivateIp:
+    Description: Private IP of the coordinator (stays the same across stop/start).
+    Value: !GetAtt Coordinator.PrivateIp
+  CoordinatorPublicIp:
+    Description: Public IP of the coordinator at the last deploy (changes every lab session).
+    Value: !GetAtt Coordinator.PublicIp
+  BenchClientInstanceId:
+    Condition: CreateBenchClient
+    Description: Instance ID of the YCSB client.
+    Value: !Ref BenchClientInstance
+  BenchClientPublicIp:
+    Condition: CreateBenchClient
+    Description: Public IP of the YCSB client.
+    Value: !GetAtt BenchClientInstance.PublicIp

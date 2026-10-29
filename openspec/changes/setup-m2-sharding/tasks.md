@@ -51,12 +51,12 @@
 
 ## 9. Application infrastructure
 
-- [ ] Write `cfn/margosha-app.yaml`: bucket `margosha-artifacts-<account-id>` (public access blocked), parameters (AMI, `OperatorCidr`, API port, `BenchClient`), security groups as in design.md decision 11, coordinator in the public subnet, shard A / B in private A / B, `t3.micro`, standard credits, 8 GiB gp3, `LabInstanceProfile`, UserData with role, shard ID and `!GetAtt Coordinator.PrivateIp`, the YCSB client (`t3.small`, public subnet, Corretto 21 and YCSB 0.17.0) only when `BenchClient` is `true`, instance IDs as outputs; verify `cfn-lint` passes
-- [ ] Write the systemd unit that downloads the jar from the bucket on every boot, retrying until it exists, and then starts the node; verify on the coordinator that after a reboot it runs the jar from the bucket
-- [ ] Deploy `margosha-app` and upload the first jar; verify both shards register and a record can be created and read through the coordinator
-- [ ] Verify the `app-infrastructure` access scenarios: shards have no public IP, a shard's API port is not reachable from the public subnet except from the coordinator, the coordinator is reachable on its private IP
-- [ ] Stop and start all instances (as at the end of a lab session); verify both shards register again
-- [ ] Set `BenchClient` to `true` and then back to `false`; verify the client is created and deleted, and the coordinator and the shards are not replaced
+- [x] Write `cfn/margosha-app.yaml`: bucket `margosha-artifacts-<account-id>` (public access blocked), parameters (AMI, `OperatorCidr`, API port, `BenchClient`), security groups as in design.md decision 11, coordinator in the public subnet, shard A / B in private A / B, `t3.micro`, standard credits, 8 GiB gp3, `LabInstanceProfile`, UserData with role, shard ID and `!GetAtt Coordinator.PrivateIp`, the YCSB client (`t3.small`, public subnet, Corretto 21 and YCSB 0.17.0) only when `BenchClient` is `true`, instance IDs as outputs; verify `cfn-lint` passes
+- [x] Write the systemd unit that downloads the jar from the bucket on every boot, retrying until it exists, and then starts the node; verify on the coordinator that after a reboot it runs the jar from the bucket
+- [x] Deploy `margosha-app` and upload the first jar; verify both shards register and a record can be created and read through the coordinator
+- [x] Verify the `app-infrastructure` access scenarios: shards have no public IP, a shard's API port is not reachable from the public subnet except from the coordinator, the coordinator is reachable on its private IP
+- [x] Stop and start all instances (as at the end of a lab session); verify both shards register again
+- [x] Set `BenchClient` to `true` and then back to `false`; verify the client is created and deleted, and the coordinator and the shards are not replaced
 
 ## 10. Delivery pipeline: deploy job
 

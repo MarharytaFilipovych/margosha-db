@@ -344,67 +344,67 @@ timed out: the subnet reaches S3 and nothing else. The test instance was termina
 
 #### CloudFormation stack
 Stack info: `CREATE_COMPLETE`, description mentions the gateway endpoint.
-![](./images/stack/stack-info.png)
+![](images/vpc-stack/stack-info.png)
 Deployment timeline: `S3GatewayEndpoint` is created right after the VPC and the private route table.
-![](./images/stack/stack-timeline.png)
+![](images/vpc-stack/stack-timeline.png)
 Resources (13), including `S3GatewayEndpoint` → `vpce-04d2a3a4b4ead41eb`.
-![](./images/stack/stack-resources.png)
+![](images/vpc-stack/stack-resources.png)
 Outputs and exports (unchanged from M1).
-![](./images/stack/stack-outputs.png)
+![](images/vpc-stack/stack-outputs.png)
 Parameters (defaults).
-![](./images/stack/stack-parameters.png)
+![](images/vpc-stack/stack-parameters.png)
 
 #### VPC
-![](./images/stack/vpcs.png)
-![](./images/stack/vpc-details.png)
+![](images/vpc-stack/vpcs.png)
+![](images/vpc-stack/vpc-details.png)
 Resource map: `margosha-rt-private` connects to the endpoint, `margosha-rt-public` to the Internet Gateway.
-![](./images/stack/vpc-resource-map.png)
-![](./images/stack/vpc-cidrs.png)
-![](./images/stack/vpc-tags.png)
+![](images/vpc-stack/vpc-resource-map.png)
+![](images/vpc-stack/vpc-cidrs.png)
+![](images/vpc-stack/vpc-tags.png)
 
 #### Subnets
-![](./images/stack/subnets.png)
+![](images/vpc-stack/subnets.png)
 
 Public subnet:
-![](./images/stack/sb-public-details.png)
-![](./images/stack/sb-public-rts.png)
-![](./images/stack/sb-public-tags.png)
+![](images/vpc-stack/sb-public-details.png)
+![](images/vpc-stack/sb-public-rts.png)
+![](images/vpc-stack/sb-public-tags.png)
 
 Private subnet A:
-![](./images/stack/sb-pr-a-details.png)
-![](./images/stack/sb-pr-a-rts.png)
-![](./images/stack/sb-pr-a-tags.png)
+![](images/vpc-stack/sb-pr-a-details.png)
+![](images/vpc-stack/sb-pr-a-rts.png)
+![](images/vpc-stack/sb-pr-a-tags.png)
 
 Private subnet B:
-![](./images/stack/sb-pr-b-details.png)
-![](./images/stack/sb-pr-b-rts.png)
-![](./images/stack/sb-pr-b-tags.png)
+![](images/vpc-stack/sb-pr-b-details.png)
+![](images/vpc-stack/sb-pr-b-rts.png)
+![](images/vpc-stack/sb-pr-b-tags.png)
 
 #### Route tables
 The two unnamed tables with `Main: Yes` are the implicit main route tables of `margosha-vpc` and of the default VPC;
 no subnet uses them (see the note in [vpc_creation.md](../m1/vpc_creation.md)).
-![](./images/stack/route-tables.png)
+![](images/vpc-stack/route-tables.png)
 
 Private route table:
-![](./images/stack/rt-pr-details.png)
-![](./images/stack/rt-pr-routes.png)
-![](./images/stack/rt-pr-sb-asc.png)
-![](./images/stack/rt-pr-tags.png)
+![](images/vpc-stack/rt-pr-details.png)
+![](images/vpc-stack/rt-pr-routes.png)
+![](images/vpc-stack/rt-pr-sb-asc.png)
+![](images/vpc-stack/rt-pr-tags.png)
 
 Public route table:
-![](./images/stack/rt-public-details.png)
-![](./images/stack/rt-public-routes.png)
-![](./images/stack/rt-public-sb-asc.png)
-![](./images/stack/rt-public-tags.png)
+![](images/vpc-stack/rt-public-details.png)
+![](images/vpc-stack/rt-public-routes.png)
+![](images/vpc-stack/rt-public-sb-asc.png)
+![](images/vpc-stack/rt-public-tags.png)
 
 #### Internet Gateway
-![](./images/stack/igw-details.png)
-![](./images/stack/igw-tags.png)
+![](images/vpc-stack/igw-details.png)
+![](images/vpc-stack/igw-tags.png)
 
 #### S3 gateway endpoint
-![](./images/stack/vpce-details.png)
+![](images/vpc-stack/vpce-details.png)
 Attached only to the private route table (which has the 2 private subnets).
-![](./images/stack/vpce-route-tables.png)
+![](images/vpc-stack/vpce-route-tables.png)
 Policy, with the account ID filled in for the artifacts bucket.
-![](./images/stack/vpce-policy.png)
-![](./images/stack/vpce-tags.png)
+![](images/vpc-stack/vpce-policy.png)
+![](images/vpc-stack/vpce-tags.png)
