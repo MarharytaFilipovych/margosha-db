@@ -69,6 +69,8 @@ Resources:
       Tags:
         - Key: Name
           Value: margosha-artifacts
+        - Key: Project
+          Value: margosha-db
 
   CoordinatorSecurityGroup:
     Type: AWS::EC2::SecurityGroup
