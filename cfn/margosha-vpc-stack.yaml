@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: >
   VPC with one public subnet (routed to an Internet Gateway) and two
   private subnets in different AZs (local traffic only, no route to
-  the internet).
+  the internet). The private subnets reach S3 through a gateway endpoint.
 
 Parameters:
   VpcCidr:
@@ -134,6 +134,32 @@ Resources:
     Properties:
       SubnetId: !Ref PrivateSubnetB
       RouteTableId: !Ref PrivateRouteTable
+
+  S3GatewayEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.s3"
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref PrivateRouteTable
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AmazonLinux2023Repos
+            Effect: Allow
+            Principal: "*"
+            Action: s3:GetObject
+            Resource: !Sub "arn:${AWS::Partition}:s3:::al2023-repos-${AWS::Region}-de612dc2/*"
+          - Sid: ArtifactsBucketRead
+            Effect: Allow
+            Principal: "*"
+            Action:
+              - s3:GetObject
+              - s3:ListBucket
+            Resource:
+              - !Sub "arn:${AWS::Partition}:s3:::margosha-artifacts-${AWS::AccountId}"
+              - !Sub "arn:${AWS::Partition}:s3:::margosha-artifacts-${AWS::AccountId}/*"
 
 Outputs:
   VpcId:

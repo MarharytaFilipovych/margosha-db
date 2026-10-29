@@ -45,9 +45,9 @@
 
 ## 8. Network: S3 gateway endpoint
 
-- [ ] Add the S3 gateway endpoint on the private route table to `cfn/margosha-vpc-stack.yaml`, with a policy allowing `s3:GetObject` on `arn:aws:s3:::al2023-repos-us-east-1-de612dc2/*` and read on `margosha-artifacts-<account-id>`; verify `cfn-lint` passes
-- [ ] Update the `margosha-vpc` stack in the Learner Lab; verify the private route table has the local and S3 prefix-list routes and no IGW route, and an instance in a private subnet can `dnf install` a package
-- [ ] Update `m1/vpc_creation.md` or add a note in `m2/` describing the endpoint and the verification commands; verify the commands run as written
+- [x] Add the S3 gateway endpoint on the private route table to `cfn/margosha-vpc-stack.yaml`, with a policy allowing `s3:GetObject` on `arn:aws:s3:::al2023-repos-us-east-1-de612dc2/*` and read on `margosha-artifacts-<account-id>`; verify `cfn-lint` passes
+- [x] Update the `margosha-vpc` stack in the Learner Lab; verify the private route table has the local and S3 prefix-list routes and no IGW route, and an instance in a private subnet can `dnf install` a package
+- [x] Update `m1/vpc_creation.md` or add a note in `m2/` describing the endpoint and the verification commands; verify the commands run as written
 
 ## 9. Application infrastructure
 
