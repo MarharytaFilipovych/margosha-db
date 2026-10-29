@@ -23,6 +23,11 @@ Later milestones (M3, M5) are compared against these numbers.
 | Shards | 2 × `t3.micro`, private subnets A (`us-east-1a`) and B (`us-east-1b`), `-Xmx512m`, standard credits |
 | YCSB client | `t3.small`, public subnet, same VPC; calls the coordinator's private IP |
 
+The pipeline run that deployed the benchmarked commit (#12, `9a12bf2`). The binding hash on it (`cb0b0ab68cebdf63`) is the
+one the bench client downloaded and wrote to `params.txt`, so the benchmark ran the jars from this run:
+
+![Pipeline run #12](../images/benchmark/pipeline-run-benchmarked-commit.png)
+
 **Why workload A:** the API has no scan, so E can't run. A sends both reads and writes through the ring, and writes are the
 harder case for the store. B and C are almost only reads; D keeps inserting during the run, so memory grows on 1 GiB
 nodes; F sends the same requests as A, in pairs. Details in [procedure.md](procedure.md#workload).

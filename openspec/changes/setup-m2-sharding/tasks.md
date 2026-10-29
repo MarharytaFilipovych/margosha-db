@@ -75,8 +75,8 @@
 
 ## 12. End-to-end checks
 
-- [ ] Fresh deploy from the pipeline into a lab account where only `margosha-vpc` exists; verify the store works with no manual console steps
-- [ ] Run `openspec validate setup-m2-sharding --strict`; verify it passes
+- [x] Fresh deploy from the pipeline into a lab account where only `margosha-vpc` exists; verify the store works with no manual console steps
+- [x] Run `openspec validate setup-m2-sharding --strict`; verify it passes
 
 ## 13. Deliverables (apply to every milestone)
 
