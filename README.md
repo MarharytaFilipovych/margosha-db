@@ -195,3 +195,55 @@ sequenceDiagram
 ```
 
 CREATE, EXISTS, UPDATE and DELETE take the same path; only the HTTP method and body differ. Errors are turned into JSON answers by `ApiExceptionHandler` on the coordinator.
+
+## Deploy pipeline
+
+[`.github/workflows/pipeline.yml`](.github/workflows/pipeline.yml) has two jobs:
+
+| Job | Runs on | What it does |
+|---|---|---|
+| `check` | every push and pull request | `./mvnw verify`: builds the jar and runs the tests |
+| `deploy` | push to `main`, or started by hand on `main`; only after `check` passed; one run at a time | 1. `margosha-vpc` and 2. `margosha-app` with `aws cloudformation deploy --no-fail-on-empty-changeset`; 3. uploads the tested jar to `s3://margosha-artifacts-<account-id>/releases/margosha.jar`; 4. reboots the coordinator and the shards; 5. waits until all three nodes logged the new jar's sha256 |
+
+- A stack with no changes prints `No changes to deploy` and the run goes on. The run's **Summary** page lists each stack's result, the jar hash and the node IDs.
+- Parameters the pipeline does not pass keep their current values (`OperatorCidr`, `BenchClient`). A new stack gets the defaults, so the operator's access is closed until it is set by hand (see [m2/app_infrastructure.md](m2/app_infrastructure.md#2-create-the-stack-task-93)).
+- Nodes the deploy has just created (first deploy, or replaced by a template change) are not rebooted: they are still in their first-boot setup and download the jar when it is done. Stopped nodes are started instead of rebooted.
+
+### Refresh the secrets (every new lab session)
+
+The deploy job uses the Learner Lab session credentials. They stop working when the session ends, so copy the new ones before deploying.
+
+1. Start the lab, open **AWS Details → AWS CLI: Show**, and copy the three values.
+2. In GitHub: **Settings → Secrets and variables → Actions → Repository secrets**, update (or create the first time) `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN`.
+
+Or with the [GitHub CLI](https://cli.github.com/), after pasting the lab credentials into `~/.aws/credentials` as usual. The values are piped from the AWS CLI config, so they never appear on the screen or in the shell history:
+
+Windows (PowerShell):
+```powershell
+aws configure get aws_access_key_id     | gh secret set AWS_ACCESS_KEY_ID
+aws configure get aws_secret_access_key | gh secret set AWS_SECRET_ACCESS_KEY
+aws configure get aws_session_token     | gh secret set AWS_SESSION_TOKEN
+gh secret list
+```
+
+macOS (Terminal):
+```bash
+aws configure get aws_access_key_id     | gh secret set AWS_ACCESS_KEY_ID
+aws configure get aws_secret_access_key | gh secret set AWS_SECRET_ACCESS_KEY
+aws configure get aws_session_token     | gh secret set AWS_SESSION_TOKEN
+gh secret list
+```
+`gh secret list` should show all three with today's date. If a deploy fails at **Check the credentials**, the secrets are from an old session.
+
+### Start a deploy by hand
+
+After refreshing the secrets (a push made before that fails at **Check the credentials**, so it is re-run this way):
+
+- GitHub: **Actions → pipeline → Run workflow**, branch `main`, **Run workflow**. The button only appears once the workflow file is on `main`.
+- GitHub CLI (same on Windows and macOS):
+  ```bash
+  gh workflow run pipeline.yml --ref main
+  gh run watch
+  ```
+
+A manual run runs `check` again (build and tests), then `deploy`.

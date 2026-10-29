@@ -3,6 +3,7 @@ name: pipeline
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   check:
@@ -23,3 +24,126 @@ jobs:
 
       - name: Build and run the tests
         run: ./mvnw --batch-mode verify
+
+      - name: Keep the jar for the deploy job
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: margosha-jar
+          path: app/node/target/margosha.jar
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    needs: check
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-learner-lab
+      cancel-in-progress: false
+    defaults:
+      run:
+        shell: bash
+    env:
+      AWS_REGION: us-east-1
+      VPC_STACK: margosha-vpc
+      APP_STACK: margosha-app
+      JAR: app/node/target/margosha.jar
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v5
+
+      - name: Get the tested jar
+        uses: actions/download-artifact@v4
+        with:
+          name: margosha-jar
+          path: app/node/target
+
+      - name: Use the Learner Lab session credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Check the credentials
+        run: |
+          if ! aws sts get-caller-identity; then
+            echo "::error::The AWS credentials were rejected. The lab session has probably ended: start the lab and refresh the AWS_* secrets (README, 'Deploy pipeline')."
+            exit 1
+          fi
+
+      - name: Deploy the network stack (margosha-vpc)
+        run: |
+          aws cloudformation deploy \
+            --stack-name "$VPC_STACK" \
+            --template-file cfn/margosha-vpc-stack.yaml \
+            --no-fail-on-empty-changeset | tee vpc-deploy.log
+          echo "- \`$VPC_STACK\`: $(tail -n 1 vpc-deploy.log)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remember the current node instance IDs
+        run: |
+          ids=$(aws cloudformation describe-stacks --stack-name "$APP_STACK" \
+            --query "Stacks[0].Outputs[?ends_with(OutputKey, 'InstanceId') && OutputKey!='BenchClientInstanceId'].OutputValue" \
+            --output text 2>/dev/null || true)
+          echo "Nodes before the deploy: ${ids:-none (new stack)}"
+          echo "NODES_BEFORE=$ids" >> "$GITHUB_ENV"
+
+      - name: Deploy the application stack (margosha-app)
+        run: |
+          aws cloudformation deploy \
+            --stack-name "$APP_STACK" \
+            --template-file cfn/margosha-app.yaml \
+            --no-fail-on-empty-changeset | tee app-deploy.log
+          echo "- \`$APP_STACK\`: $(tail -n 1 app-deploy.log)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the jar
+        run: |
+          out() { aws cloudformation describe-stacks --stack-name "$APP_STACK" --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text; }
+          BUCKET=$(out ArtifactsBucketName)
+          HASH=$(sha256sum "$JAR" | cut -c1-16)
+          aws s3 cp "$JAR" "s3://$BUCKET/releases/margosha.jar" --only-show-errors
+          echo "Uploaded $JAR to s3://$BUCKET/releases/margosha.jar, sha256 $HASH"
+          echo "- jar: \`s3://$BUCKET/releases/margosha.jar\`, sha256 \`$HASH\` (commit \`${GITHUB_SHA::7}\`)" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "JAR_HASH=$HASH"
+            echo "COORD=$(out CoordinatorInstanceId)"
+            echo "SHARD_A=$(out ShardAInstanceId)"
+            echo "SHARD_B=$(out ShardBInstanceId)"
+          } >> "$GITHUB_ENV"
+
+      - name: Reboot the coordinator and the shards
+        run: |
+          reboot=()
+          for id in "$COORD" "$SHARD_A" "$SHARD_B"; do
+            if [[ "$NODES_BEFORE" == *"$id"* ]]; then
+              state=$(aws ec2 describe-instances --instance-ids "$id" --query "Reservations[0].Instances[0].State.Name" --output text)
+              if [ "$state" = "stopped" ]; then
+                echo "$id is stopped: starting it (a start downloads the jar too)"
+                aws ec2 start-instances --instance-ids "$id" > /dev/null
+              else
+                reboot+=("$id")
+              fi
+            else
+              echo "$id was just created: it gets the jar on its first boot, not rebooted"
+            fi
+          done
+          if [ ${#reboot[@]} -gt 0 ]; then
+            echo "Rebooting ${reboot[*]}"
+            aws ec2 reboot-instances --instance-ids "${reboot[@]}"
+          fi
+
+      - name: Wait for the nodes to run the new jar
+        timeout-minutes: 15
+        run: |
+          for id in "$COORD" "$SHARD_A" "$SHARD_B"; do
+            while true; do
+              console=$(aws ec2 get-console-output --instance-id "$id" --latest --output text 2>/dev/null || true)
+              if [[ "$console" == *"sha256 $JAR_HASH"* ]]; then break; fi
+              echo "$id: new jar not downloaded yet, checking again in 20 s"
+              sleep 20
+            done
+            echo "$id: downloaded the jar with sha256 $JAR_HASH"
+          done
+          echo "- nodes \`$COORD\` (coordinator), \`$SHARD_A\`, \`$SHARD_B\` downloaded the new jar" >> "$GITHUB_STEP_SUMMARY"
