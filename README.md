@@ -82,3 +82,116 @@ aws cloudformation wait stack-delete-complete --stack-name margosha-vpc
 ## What changed since the previous milestone
 
 M1 is the first milestone, so there is no previous one. Everything listed in [What's in M1](#whats-in-m1) is new.
+
+---
+
+# Milestone 2: how the application classes work together
+
+One jar, `margosha.jar`, runs in one of three setups. The first argument is the **role** (`coordinator` or `shard`, a Spring profile); a coordinator also gets a **mode** (`--mode=single` or `--mode=sharded`, the property `margosha.mode`). More detail: [m2/routing.md](m2/routing.md).
+
+## Which classes exist in each role and mode
+
+```mermaid
+flowchart TD
+    start["java -jar margosha.jar &lt;role&gt; ..."] --> role{role}
+
+    role -- coordinator --> cfgC["CoordinatorConfig"]
+    cfgC --> common["CoordinatorController<br/>RecordService<br/>TableRegistryService"]
+    cfgC --> mode{"--mode"}
+    mode -- single --> single["RecordStorage = InMemoryRecordStorage"]
+    mode -- sharded --> sharded["RecordStorage = ShardRoutingService<br/>ShardRegistryService (HashRing)<br/>ShardRegistrationController (POST /shards)"]
+    sharded -. "one per registered shard,<br/>created at runtime" .-> remote["RemoteShardStorageService<br/>+ ShardClient"]
+
+    role -- shard --> cfgS["ShardConfig"]
+    cfgS --> shard["ShardController<br/>RecordStorage = InMemoryRecordStorage"]
+    cfgS -. "only if margosha.coordinator.url is set" .-> reg["CoordinatorRegistrationService<br/>+ CoordinatorClient"]
+
+    all["ApiExceptionHandler: every role and mode"]
+```
+
+## Shard registration (sharded mode, when a shard starts)
+
+```mermaid
+sequenceDiagram
+    participant S as CoordinatorRegistrationService<br/>(shard)
+    participant CC as CoordinatorClient
+    participant SRC as ShardRegistrationController<br/>(coordinator)
+    participant SR as ShardRegistryService
+    participant RS as RemoteShardStorageService
+
+    Note over S: ApplicationReadyEvent: web server is up, port known
+    loop until accepted, 2 s timeout per attempt, pause 2 s doubling up to 30 s
+        S->>CC: registerShard(shardId, http://host:port)
+        CC->>SRC: POST /shards
+        SRC->>SR: register(shard)
+        SR->>SR: validate id and address
+        SR->>RS: connect(shard, timeout)
+        SR->>SR: ring.addShard(shardId)
+        SRC-->>CC: 200 ShardRegistration
+        CC-->>S: accepted
+    end
+    Note over S: registered = true, background thread stops
+```
+
+## A record request in single mode
+
+```mermaid
+sequenceDiagram
+    actor Client as Client (YCSB, tests)
+    participant CC as CoordinatorClient
+    participant Ctl as CoordinatorController
+    participant RSv as RecordService
+    participant TR as TableRegistryService
+    participant Mem as InMemoryRecordStorage
+
+    Client->>CC: createRecord(table, record)
+    CC->>Ctl: POST /tables/{t}/records (key inside the body)
+    Ctl->>RSv: create(table, record)
+    RSv->>TR: get(table)
+    RSv->>RSv: check the key, split record into key + attributes
+    RSv->>Mem: create(table, key, attributes)
+    Ctl-->>CC: 201 record
+```
+
+## A record request in sharded mode
+
+```mermaid
+sequenceDiagram
+    actor Client as Client (YCSB, tests)
+    participant Ctl as CoordinatorController
+    participant RSv as RecordService
+    participant Rt as ShardRoutingService
+    participant SR as ShardRegistryService
+    participant RS as RemoteShardStorageService
+    participant SC as ShardClient
+    participant ShC as ShardController<br/>(owning shard)
+    participant Mem as InMemoryRecordStorage<br/>(owning shard)
+
+    Client->>Ctl: GET /tables/{t}/records/{pk}
+    Ctl->>RSv: read(table, pk, sortKey)
+    RSv->>RSv: check table and key (TableRegistryService)
+    RSv->>Rt: read(table, key)
+    Rt->>SR: ownerOf(key)
+    SR->>SR: ring.shardFor(partition key)
+    alt no shard registered
+        SR-->>Client: 503 SHARD_UNAVAILABLE "No shard is registered"
+    else owner found
+        SR-->>Rt: RemoteShardStorageService of the owner
+        Rt->>RS: read(table, key)
+        RS->>SC: readRecord(table, key)
+        SC->>ShC: GET /tables/{t}/records/{pk} (key in path)
+        ShC->>Mem: read(table, key)
+        alt record stored
+            ShC-->>RS: 200 attributes
+            RS-->>RSv: attributes
+            RSv-->>Client: 200 key + attributes
+        else not stored
+            ShC-->>RS: 404 RECORD_NOT_FOUND
+            RS-->>Client: 404 RECORD_NOT_FOUND
+        else shard down or no answer within margosha.shard.timeout
+            RS-->>Client: 503 SHARD_UNAVAILABLE "Shard X did not answer"
+        end
+    end
+```
+
+CREATE, EXISTS, UPDATE and DELETE take the same path; only the HTTP method and body differ. Errors are turned into JSON answers by `ApiExceptionHandler` on the coordinator.

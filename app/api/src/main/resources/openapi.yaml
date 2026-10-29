@@ -11,9 +11,17 @@ info:
     A table has a partition key and, optionally, a sort key.
     The sort key value is sent as the `sortKey` query parameter.
 
-    Shards serve the same record paths (`/tables/{tableName}/records/...`), called by the coordinator.
+    Shards serve the record operations under the same record path, called by the coordinator.
     Shards don't keep table definitions: they have no `POST /tables` and don't return `TABLE_NOT_FOUND`.
     The coordinator checks the table and the keys before it forwards a request to a shard.
+
+    Because a shard does not know which attributes are the key, the coordinator always sends the key
+    in the path (`/tables/{tableName}/records/{partitionKey}?sortKey=...`) and only the non-key
+    attributes in the body (the `Attributes` schema). On a shard:
+    - CREATE is `POST` on the record path (not on `/records`), body `Attributes`, answer 201 with the attributes.
+    - READ returns the stored `Attributes`, without the key attributes; the coordinator adds them back.
+    - UPDATE returns the stored `Attributes`; EXISTS and DELETE are the same as on the coordinator.
+    - Errors: `RECORD_NOT_FOUND` (404), `RECORD_ALREADY_EXISTS` (409), `VALIDATION_ERROR` (400).
 
 tags:
   - name: tables

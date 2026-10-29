@@ -54,6 +54,14 @@ public final class TestData {
         return TableRecord.of(Map.of("customer_id", "c1", "order_id", "o7", "total", "10"));
     }
 
+    public static Attributes userAttributes() {
+        return Attributes.of(Map.of("name", "Ann", "city", "Kyiv"));
+    }
+
+    public static Attributes orderAttributes() {
+        return Attributes.of(Map.of("total", "10"));
+    }
+
     public static Attributes renamed() {
         return Attributes.of(Map.of("name", "Bob"));
     }

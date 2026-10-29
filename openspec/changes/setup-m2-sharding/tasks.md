@@ -35,13 +35,13 @@
 
 ## 7. Sharded mode: registration, writes and reads
 
-- [ ] Implement the shard role: serves the record operations on its own in-memory store; verify an integration test calls a shard directly
-- [ ] Implement the coordinator's register shard operation and shard registration on start, retrying until the coordinator accepts it; verify tests for a shard starting while the coordinator runs and before it is up
-- [ ] Implement the remote shard backend and route CREATE / UPDATE / DELETE through the ring; verify with 2 in-process shards that each record is stored on exactly its owning shard
-- [ ] Route READ and EXISTS through the ring; verify reads hit only the owning shard
-- [ ] Return `SHARD_UNAVAILABLE` (503) when no shard is registered or the owning shard does not answer within the timeout, without sending the request to another shard; verify with a stopped in-process shard that its keys fail and the other shard's keys still succeed
-- [ ] Verify the "ring changes do not move data" scenario: add a shard after loading, check that moved keys read as not found
-- [ ] Write `m2/routing.md`: how keys reach a shard, single-node vs sharded mode, what happens when a shard is added; verify its examples match the tests
+- [x] Implement the shard role: serves the record operations on its own in-memory store; verify an integration test calls a shard directly
+- [x] Implement the coordinator's register shard operation and shard registration on start, retrying until the coordinator accepts it; verify tests for a shard starting while the coordinator runs and before it is up
+- [x] Implement the remote shard backend and route CREATE / UPDATE / DELETE through the ring; verify with 2 in-process shards that each record is stored on exactly its owning shard
+- [x] Route READ and EXISTS through the ring; verify reads hit only the owning shard
+- [x] Return `SHARD_UNAVAILABLE` (503) when no shard is registered or the owning shard does not answer within the timeout, without sending the request to another shard; verify with a stopped in-process shard that its keys fail and the other shard's keys still succeed
+- [x] Verify the "ring changes do not move data" scenario: add a shard after loading, check that moved keys read as not found
+- [x] Write `m2/routing.md`: how keys reach a shard, single-node vs sharded mode, what happens when a shard is added; verify its examples match the tests
 
 ## 8. Network: S3 gateway endpoint
 
