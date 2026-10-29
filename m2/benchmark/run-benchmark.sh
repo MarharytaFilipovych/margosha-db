@@ -10,8 +10,8 @@ set -euo pipefail
 
 WORKLOAD=${WORKLOAD:-workloada}
 RECORDS=${RECORDS:-100000}
-OPERATIONS=${OPERATIONS:-100000}
-THREADS=${THREADS:-16}
+OPERATIONS=${OPERATIONS:-200000}
+THREADS=${THREADS:-8}
 SKIP_LOAD=${SKIP_LOAD:-0}
 COMMIT=${COMMIT:-unknown}           # the benchmarked commit (from the pipeline run's Summary)
 

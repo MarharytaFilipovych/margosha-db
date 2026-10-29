@@ -67,11 +67,11 @@
 ## 11. Benchmark
 
 - [x] Implement the YCSB binding in `ycsb-binding` (table, key → partition key, fields → attributes; read / insert / update / delete; scan returns not-implemented); verify the round-trip test against an in-process coordinator passes
-- [ ] Publish the binding jar to the artifacts bucket in the pipeline; verify the bench client downloads it
-- [ ] Write the benchmark script and `m2/benchmark/procedure.md` (register `usertable`, load the records, run the chosen workload, copy outputs to `results/`); do a short trial run to choose the workload and set the record, operation and thread counts, and verify the documented commands run as written
-- [ ] Run the benchmark; verify YCSB reports no failed operations or the failures are written down
-- [ ] Copy the raw outputs into `m2/benchmark/raw/` and write `m2/benchmark/results.md` with the workload and why it was chosen, the parameters, throughput and avg / p95 / p99 latency per operation, the benchmarked commit and the instance types; verify it links to the raw output
-- [ ] Set `BenchClient` back to `false`; verify the client instance is gone and the store still answers
+- [x] Publish the binding jar to the artifacts bucket in the pipeline; verify the bench client downloads it
+- [x] Write the benchmark script and `m2/benchmark/procedure.md` (register `usertable`, load the records, run the chosen workload, copy outputs to `results/`); do a short trial run to choose the workload and set the record, operation and thread counts, and verify the documented commands run as written
+- [x] Run the benchmark; verify YCSB reports no failed operations or the failures are written down
+- [x] Copy the raw outputs into `m2/benchmark/raw/` and write `m2/benchmark/results.md` with the workload and why it was chosen, the parameters, throughput and avg / p95 / p99 latency per operation, the benchmarked commit and the instance types; verify it links to the raw output
+- [x] Set `BenchClient` back to `false`; verify the client instance is gone and the store still answers
 
 ## 12. End-to-end checks
 

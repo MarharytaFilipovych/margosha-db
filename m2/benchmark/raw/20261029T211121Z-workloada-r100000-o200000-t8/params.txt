@@ -1,0 +1,13 @@
+date_utc=2026-10-29T21:11:22Z
+commit=9a12bf2
+ycsb_version=0.17.0
+workload=workloada
+recordcount=100000
+operationcount=200000
+threads=8
+skip_load=0
+table=usertable
+coordinator=http://10.0.0.143:8080
+binding_sha256=cb0b0ab68cebdf63
+bench_instance_type=t3.small
+java=openjdk version "21.0.13" 2026-10-20 LTS
