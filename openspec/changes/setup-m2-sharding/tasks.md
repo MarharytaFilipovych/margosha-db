@@ -61,8 +61,8 @@
 ## 10. Delivery pipeline: deploy job
 
 - [x] Add the `deploy` job (needs `check`, runs on `main` and by hand, one run at a time) using the Learner Lab session credentials from repository secrets
-- [ ] Add the deploy steps in order (`margosha-vpc`, `margosha-app` with `--no-fail-on-empty-changeset`, jar upload, reboot of the coordinator and the shards); verify an application-only commit ends with the nodes running the new jar and reports no stack changes, and a template change updates that stack
-- [ ] Document in the README how to refresh the secrets and start a deploy by hand; verify by doing it once in a new lab session
+- [x] Add the deploy steps in order (`margosha-vpc`, `margosha-app` with `--no-fail-on-empty-changeset`, jar upload, reboot of the coordinator and the shards); verify an application-only commit ends with the nodes running the new jar and reports no stack changes, and a template change updates that stack
+- [x] Document in the README how to refresh the secrets and start a deploy by hand; verify by doing it once in a new lab session
 
 ## 11. Benchmark
 

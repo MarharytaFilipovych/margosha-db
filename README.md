@@ -205,6 +205,7 @@ CREATE, EXISTS, UPDATE and DELETE take the same path; only the HTTP method and b
 | `check` | every push and pull request | `./mvnw verify`: builds the jar and runs the tests |
 | `deploy` | push to `main`, or started by hand on `main`; only after `check` passed; one run at a time | 1. `margosha-vpc` and 2. `margosha-app` with `aws cloudformation deploy --no-fail-on-empty-changeset`; 3. uploads the tested jar to `s3://margosha-artifacts-<account-id>/releases/margosha.jar`; 4. reboots the coordinator and the shards; 5. waits until all three nodes logged the new jar's sha256 |
 
+- Checks with screenshots (app-only change, template change, deploy by hand): [m2/deploy_pipeline.md](m2/deploy_pipeline.md).
 - A stack with no changes prints `No changes to deploy` and the run goes on. The run's **Summary** page lists each stack's result, the jar hash and the node IDs.
 - Parameters the pipeline does not pass keep their current values (`OperatorCidr`, `BenchClient`). A new stack gets the defaults, so the operator's access is closed until it is set by hand (see [m2/app_infrastructure.md](m2/app_infrastructure.md#2-create-the-stack-task-93)).
 - Nodes the deploy has just created (first deploy, or replaced by a template change) are not rebooted: they are still in their first-boot setup and download the jar when it is done. Stopped nodes are started instead of rebooted.
