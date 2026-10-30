@@ -62,7 +62,7 @@ Each node keeps, per table, a hash map from primary key to the record's attribut
 - *Alternative*: storing records on disk. Rejected: M2 does not ask for durability; it is the topic of M3.
 
 ### 6. Coordinator metadata
-Table definitions and the shard list are kept in memory on the coordinator. After a coordinator restart they are empty: the shards register again when they start (on a deploy and at the start of a lab session all nodes restart, see decision 9), and the client registers its table again (the benchmark script does this first).
+Table definitions and the shard list are kept in memory on the coordinator. After a coordinator restart they are empty: the shards register again by themselves, because each shard repeats its registration every 10 s (`margosha.shard.register-refresh-interval`), not only when it starts; the client registers its table again (the benchmark script does this first). The repeat was added after the M2 AI critique ([m2/ai_critique.md](../../../m2/ai_critique.md), finding 1): with registration only on start, a coordinator restarted on its own (crash, systemd restart) stayed without shards until they were restarted by hand.
 - *Alternative*: a metadata file on the coordinator's disk. Rejected: not needed while the records themselves are lost on a restart.
 
 ### 7. Ring with stable positions

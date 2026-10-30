@@ -93,6 +93,8 @@ jobs:
             --output text 2>/dev/null || true)
           echo "Nodes before the deploy: ${ids:-none (new stack)}"
           echo "NODES_BEFORE=$ids" >> "$GITHUB_ENV"
+          # Log lines older than this (minus 60 s for clock differences) belong to boots before this deploy.
+          echo "SINCE=$(date -u -d '-60 seconds' +%Y-%m-%dT%H:%M:%S)" >> "$GITHUB_ENV"
 
       - name: Deploy the application stack (margosha-app)
         run: |
@@ -142,16 +144,38 @@ jobs:
             aws ec2 reboot-instances --instance-ids "${reboot[@]}"
           fi
 
-      - name: Wait for the nodes to run the new jar
+      - name: Wait for the nodes to start the new jar
         timeout-minutes: 15
         run: |
+          console() { aws ec2 get-console-output --instance-id "$1" --latest --output text 2>/dev/null || true; }
+          # Times of the lines matching $1 that were logged after $SINCE (Spring logs UTC, e.g. 2026-10-30T12:00:00.123Z).
+          since() { grep -E "$1" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}' | awk -v s="$SINCE" '$0 >= s'; }
+          deadline=$(( $(date +%s) + 12 * 60 ))
+          give_up() {
+            echo "::error::$1 within 12 minutes. Last log lines of $2:"
+            console "$2" | grep -E 'margosha|WARN|ERROR|Exception' | tail -n 20
+            exit 1
+          }
+
           for id in "$COORD" "$SHARD_A" "$SHARD_B"; do
-            while true; do
-              console=$(aws ec2 get-console-output --instance-id "$id" --latest --output text 2>/dev/null || true)
-              if [[ "$console" == *"sha256 $JAR_HASH"* ]]; then break; fi
-              echo "$id: new jar not downloaded yet, checking again in 20 s"
+            until
+              log=$(console "$id")
+              [[ "$log" == *"sha256 $JAR_HASH"* ]] && [ -n "$(since 'Running as' <<< "$log")" ]
+            do
+              [ "$(date +%s)" -lt "$deadline" ] || give_up "$id did not download and start the jar with sha256 $JAR_HASH" "$id"
+              echo "$id: new jar not downloaded or not started yet, checking again in 20 s"
               sleep 20
             done
-            echo "$id: downloaded the jar with sha256 $JAR_HASH"
+            echo "$id: runs the jar with sha256 $JAR_HASH (started at $(since 'Running as' <<< "$log" | tail -n 1) UTC)"
           done
-          echo "- nodes \`$COORD\` (coordinator), \`$SHARD_A\`, \`$SHARD_B\` downloaded the new jar" >> "$GITHUB_STEP_SUMMARY"
+
+          until
+            log=$(console "$COORD")
+            [ -n "$(since '(Registered|Updated) shard shard-a ' <<< "$log")" ] && [ -n "$(since '(Registered|Updated) shard shard-b ' <<< "$log")" ]
+          do
+            [ "$(date +%s)" -lt "$deadline" ] || give_up "The coordinator did not register both shards" "$COORD"
+            echo "coordinator: waiting for shard-a and shard-b to register, checking again in 15 s"
+            sleep 15
+          done
+          echo "coordinator: shard-a and shard-b registered"
+          echo "- nodes \`$COORD\` (coordinator), \`$SHARD_A\`, \`$SHARD_B\` started the new jar; shard-a and shard-b registered with the coordinator" >> "$GITHUB_STEP_SUMMARY"

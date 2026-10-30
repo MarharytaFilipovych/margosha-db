@@ -539,8 +539,9 @@ shard's API (the coordinator's own requests in step 7 worked); the coordinator a
 
 ### 9. Reboot: every boot downloads the jar again (task 9.2)
 
-All three are rebooted, as the pipeline will do. Rebooting only the coordinator would make it forget the shards
-(the shard list is in memory, and a shard registers only when it starts).
+All three are rebooted, as the pipeline will do. At the time of these checks, rebooting only the coordinator would make
+it forget the shards (the shard list is in memory, and a shard registered only when it started). Since the fix for
+[ai_critique.md](ai_critique.md) finding 1, shards repeat their registration every 10 s, so the coordinator gets them back.
 
 Windows (PowerShell):
 ```powershell
@@ -876,7 +877,7 @@ Bucket owner enforced: ACLs are off, and *Everyone* / *Authenticated users* have
 | Shard logs `missing shard settings` | A tag is missing on the instance | Check the tags in the template, redeploy |
 | API calls time out from the laptop | Your IP changed, or `OperatorCidr` is empty | Redeploy with the new `OperatorCidr=<ip>/32` |
 | `TABLE_NOT_FOUND` after a reboot / new session | Tables and records are kept in memory | Register the table again (design decision 6) |
-| `SHARD_UNAVAILABLE` after rebooting only the coordinator | The coordinator forgot the shards; they register only when they start | Reboot all three nodes |
+| `SHARD_UNAVAILABLE` after rebooting only the coordinator | The coordinator forgot the shards (the list is in memory) | Wait 10 s: the shards register again by themselves (added after these checks, see [ai_critique.md](ai_critique.md) finding 1). Before that change: reboot all three nodes |
 
 ### Teardown
 

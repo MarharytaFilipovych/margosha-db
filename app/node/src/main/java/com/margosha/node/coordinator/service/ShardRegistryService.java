@@ -29,10 +29,16 @@ public class ShardRegistryService {
 	@NonNull
 	private final Function<ShardRegistration, RecordStorage> connect;
 	private final Map<String, RecordStorage> shardStorages = new ConcurrentHashMap<>();
+	private final Map<String, String> shardAddresses = new ConcurrentHashMap<>();
 
 	public synchronized ShardRegistration register(ShardRegistration shard) {
 		validate(shard);
+		if (shard.address().equals(shardAddresses.get(shard.shardId()))) {
+			log.debug("Shard {} at {} is still registered", shard.shardId(), shard.address());
+			return shard;
+		}
 		shardStorages.put(shard.shardId(), connect.apply(shard));
+		shardAddresses.put(shard.shardId(), shard.address());
 		boolean added = ring.addShard(shard.shardId());
 		log.info("{} shard {} at {}", added ? "Registered" : "Updated", shard.shardId(), shard.address());
 		return shard;

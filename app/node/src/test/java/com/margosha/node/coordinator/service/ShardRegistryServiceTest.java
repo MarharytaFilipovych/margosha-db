@@ -98,6 +98,22 @@ class ShardRegistryServiceTest {
 	}
 
 	@Test
+	void registeringKnownShardAgainAtTheSameAddressKeepsItsConnection() {
+		// Arrange
+		registry.register(SHARD_A_1);
+		RecordStorage before = registry.ownerOf(USER_42);
+
+		// Act
+		registry.register(SHARD_A_1);
+		registry.register(SHARD_A_1);
+
+		// Assert
+		assertThat(registry.shards()).containsExactly(SHARD_A);
+		assertThat(connected).containsExactly(SHARD_A_1);
+		assertThat(registry.ownerOf(USER_42)).isSameAs(before);
+	}
+
+	@Test
 	void noRegisteredShardIsShardUnavailable() {
 		// Act & Assert
 		assertThatThrownBy(() -> registry.ownerOf(USER_42))

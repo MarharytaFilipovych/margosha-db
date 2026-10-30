@@ -68,6 +68,27 @@ class ShardRegistrationTest {
 	}
 
 	@Test
+	void restartedCoordinatorGetsItsShardsBackWithoutRestartingThem() {
+		// Arrange
+		int coordinatorPort = freePort();
+		try (InProcessNode shard = InProcessNode.shardRegisteringWith(SHARD_A, localAddress(coordinatorPort))) {
+			try (InProcessNode coordinator = InProcessNode.shardedCoordinator(coordinatorPort)) {
+				await().atMost(REGISTRATION_WAIT).until(() -> shard.coordinatorRegistration().isRegistered());
+			}
+
+			// Act
+			try (InProcessNode coordinator = InProcessNode.shardedCoordinator(coordinatorPort)) {
+
+				// Assert
+				await().atMost(REGISTRATION_WAIT).until(() -> coordinator.shardRegistry().shards().contains(SHARD_A));
+				coordinator.client().registerTable(usersTable(users));
+				coordinator.client().createRecord(users, ANN);
+				assertThat(shard.storage().read(users, USER_42)).isEqualTo(ANN_ATTRIBUTES);
+			}
+		}
+	}
+
+	@Test
 	void shardKeepsRetryingWhenCoordinatorDoesNotAnswer() {
 		// Arrange
 		try (HangingServer hangingCoordinator = HangingServer.start()) {

@@ -34,6 +34,9 @@ public class CoordinatorRegistrationService implements ApplicationListener<Appli
 	@NonNull
 	private final RetryBackoff backoff;
 
+	@NonNull
+	private final Duration refreshInterval;
+
 	private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(task -> {
 		Thread thread = new Thread(task, "coordinator-registration");
 		thread.setDaemon(true);
@@ -56,17 +59,24 @@ public class CoordinatorRegistrationService implements ApplicationListener<Appli
 	private void attempt(ShardRegistration registration, Duration pause) {
 		try {
 			coordinator.registerShard(registration);
+			if (!registered) {
+				log.info("Registered shard {} at {}", registration.shardId(), registration.address());
+			}
 			registered = true;
-			log.info("Registered shard {} at {}", registration.shardId(), registration.address());
-			executor.shutdown();
+			schedule(() -> attempt(registration, backoff.first()), refreshInterval);
 		} catch (RuntimeException e) {
+			registered = false;
 			log.warn("Coordinator did not accept shard {} yet, retrying in {}: {}",
 					registration.shardId(), pause, e.getMessage());
-			try {
-				executor.schedule(() -> attempt(registration, backoff.after(pause)), pause.toMillis(), TimeUnit.MILLISECONDS);
-			} catch (RejectedExecutionException stopped) {
-				log.info("Shard is stopping; registration of {} not retried", registration.shardId());
-			}
+			schedule(() -> attempt(registration, backoff.after(pause)), pause);
+		}
+	}
+
+	private void schedule(Runnable next, Duration delay) {
+		try {
+			executor.schedule(next, delay.toMillis(), TimeUnit.MILLISECONDS);
+		} catch (RejectedExecutionException stopped) {
+			log.info("Shard is stopping; registration of {} ends", shardId);
 		}
 	}
 

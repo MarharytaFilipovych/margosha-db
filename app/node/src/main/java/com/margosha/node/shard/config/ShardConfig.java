@@ -35,10 +35,11 @@ public class ShardConfig {
 			@Value("${margosha.shard.host:}") String host,
 			@Value("${margosha.shard.register-timeout}") Duration timeout,
 			@Value("${margosha.shard.register-retry-interval}") Duration retryInterval,
-			@Value("${margosha.shard.register-retry-max-interval}") Duration maxRetryInterval) {
+			@Value("${margosha.shard.register-retry-max-interval}") Duration maxRetryInterval,
+			@Value("${margosha.shard.register-refresh-interval}") Duration refreshInterval) {
 		CoordinatorClient coordinator = new CoordinatorClient(RestClientBuilders.withTimeout(timeout), coordinatorUrl);
 		return new CoordinatorRegistrationService(coordinator, shardId, hasText(host) ? host : localAddress(),
-				new RetryBackoff(retryInterval, maxRetryInterval));
+				new RetryBackoff(retryInterval, maxRetryInterval), refreshInterval);
 	}
 
 	private static String localAddress() {

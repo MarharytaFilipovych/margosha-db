@@ -20,6 +20,7 @@ public final class InProcessNode implements AutoCloseable {
 	private static final String REGISTER_TIMEOUT = "--margosha.shard.register-timeout=" + TestData.SHARD_TIMEOUT;
 	private static final String RETRY_INTERVAL = "--margosha.shard.register-retry-interval=200ms";
 	private static final String RETRY_MAX_INTERVAL = "--margosha.shard.register-retry-max-interval=400ms";
+	private static final String REFRESH_INTERVAL = "--margosha.shard.register-refresh-interval=300ms";
 
 	private final String shardId;
 	private final ConfigurableApplicationContext context;
@@ -30,7 +31,7 @@ public final class InProcessNode implements AutoCloseable {
 
 	public static InProcessNode shardRegisteringWith(String shardId, String coordinatorUrl) {
 		return startShard(shardId, List.of("--margosha.coordinator.url=" + coordinatorUrl,
-				REGISTER_TIMEOUT, RETRY_INTERVAL, RETRY_MAX_INTERVAL));
+				REGISTER_TIMEOUT, RETRY_INTERVAL, RETRY_MAX_INTERVAL, REFRESH_INTERVAL));
 	}
 
 	public static InProcessNode shardedCoordinator(int port) {

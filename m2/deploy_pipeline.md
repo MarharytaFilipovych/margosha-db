@@ -9,7 +9,9 @@ The `deploy` job runs after `check` passes on a push to `main` or when started b
 2. deploys `margosha-app` (`aws cloudformation deploy --no-fail-on-empty-changeset`);
 3. uploads the jar that `check` tested to `s3://margosha-artifacts-<account-id>/releases/margosha.jar`;
 4. reboots the coordinator and the shards;
-5. waits until all three nodes have logged the new jar's sha256 on their serial console.
+5. waits until all three nodes have logged the new jar's sha256 on their serial console. (Since the fix for
+   [ai_critique.md](ai_critique.md) finding 4 it also waits until each node started the jar and the coordinator
+   registered both shards, all logged after the deploy began; the checks below ran before that change.)
 
 Each run writes the result of every step to the run's **Summary** page, as in the screenshots below.
 
@@ -110,7 +112,8 @@ Run **#10** was started from **Actions → pipeline → Run workflow** on `main`
 - **The jar build is reproducible.** Run #9 built the same Java code as run #8 and got the same hash
   (`1a1a14594a7fd5e4`). The jar step still runs then (upload and reboot), but the wait step can't tell this boot from
   the previous one: it finds the hash from the earlier boot and finishes at once. That's fine for a template-only
-  change, because the nodes already run that jar.
+  change, because the nodes already run that jar. (Fixed later: the step now also needs a `Running as` line logged
+  after the deploy began, so it waits for the new boot; see [ai_critique.md](ai_critique.md) finding 4.)
 - **The test changes were removed afterwards.** Commits `5e91205` (log line) and `27c427f` (bucket tag) were only for
   these checks and were reverted in the next commit. The next deploy removes the `Project` tag from the bucket (another
   in-place update) and uploads a jar without the extra log line.

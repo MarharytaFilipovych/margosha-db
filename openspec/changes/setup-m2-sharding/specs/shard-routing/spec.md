@@ -14,7 +14,7 @@ The coordinator SHALL be able to run in single-node mode, selected when it start
 - **THEN** both operations succeed and no request is sent to any shard
 
 ### Requirement: Shard registration
-In sharded mode, the coordinator SHALL offer an API operation to register a shard with a shard ID and the address it serves on. Each shard SHALL call it when it starts, retrying until the coordinator accepts it. A registered shard SHALL be added to the ring.
+In sharded mode, the coordinator SHALL offer an API operation to register a shard with a shard ID and the address it serves on. Each shard SHALL call it when it starts, retrying until the coordinator accepts it, and SHALL then call it again at a fixed interval, so a coordinator that restarted gets its shards back. A registered shard SHALL be added to the ring; registering it again at the same address SHALL change nothing.
 
 #### Scenario: Shard registers on start
 - **WHEN** a shard starts while the coordinator is running
@@ -23,6 +23,10 @@ In sharded mode, the coordinator SHALL offer an API operation to register a shar
 #### Scenario: Coordinator not reachable yet
 - **WHEN** a shard starts before the coordinator is up
 - **THEN** the shard keeps retrying and is registered once the coordinator is up
+
+#### Scenario: Coordinator restarts
+- **WHEN** the coordinator restarts while the shards keep running
+- **THEN** each shard is registered again within the re-registration interval, without restarting the shard, and requests are routed to it again
 
 ### Requirement: Consistent hashing ring
 In sharded mode, the coordinator SHALL map record keys to shards with a consistent hashing ring in which each shard owns several virtual nodes. The hash function and the number of virtual nodes per shard SHALL be the ones chosen in the hash function ADR, and SHALL be configurable.
