@@ -81,7 +81,7 @@
 ## 13. Deliverables (apply to every milestone)
 
 - [x] README: M2 section with how to bring it up, how to verify it, what changed since M1; verify the commands run as written in a new lab session
-- [ ] Demo
+- [x] Demo
 - [x] Transcript of the AI critique of the architecture
 
 ## Workflow follow-up
