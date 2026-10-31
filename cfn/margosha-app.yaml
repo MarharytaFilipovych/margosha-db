@@ -1,8 +1,9 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
   Margosha DB application: artifacts bucket, coordinator (public subnet),
-  shard A and shard B (private subnets A and B), and the YCSB client while
-  benchmarking (BenchClient=true). Needs the margosha-vpc stack.
+  shard A and shard B as replica sets of a leader and two followers spread over
+  private subnets A and B, and the YCSB client while benchmarking
+  (BenchClient=true). Needs the margosha-vpc stack.
 
 Parameters:
   NetworkStackName:
@@ -42,6 +43,19 @@ Parameters:
     Default: "false"
     AllowedValues: ["true", "false"]
     Description: Create the YCSB client (t3.small) only while benchmarking.
+  WriteQuorum:
+    Type: Number
+    Default: 2
+    AllowedValues: [1, 2, 3]
+    Description: >
+      Replicas, the leader included, that must store a write
+      before it is confirmed. Passed to every node as a tag; with N = 3 the
+      nodes refuse to start unless R + W > 3.
+  ReadQuorum:
+    Type: Number
+    Default: 2
+    AllowedValues: [1, 2, 3]
+    Description: Replicas a read asks. Passed to every node as a tag.
 
 Conditions:
   HasOperator: !Not [!Equals [!Ref OperatorCidr, ""]]
@@ -129,6 +143,16 @@ Resources:
         - Key: Name
           Value: margosha-shard-sg
 
+  ShardApiFromReplicas:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref ShardSecurityGroup
+      Description: API from other replicas (replication)
+      IpProtocol: tcp
+      FromPort: !Ref ApiPort
+      ToPort: !Ref ApiPort
+      SourceSecurityGroupId: !Ref ShardSecurityGroup
+
   BenchSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Condition: CreateBenchClient
@@ -186,13 +210,17 @@ Resources:
             java -version
 
             useradd --system --home-dir /opt/margosha --shell /sbin/nologin margosha || true
-            mkdir -p /opt/margosha /etc/margosha
-            chown margosha:margosha /opt/margosha /etc/margosha
+            # /var/lib/margosha: the replica's replication log, the coordinator's table file.
+            # On the instance's own disk, so it survives reboots, deploys and lab stop/start.
+            mkdir -p /opt/margosha /etc/margosha /var/lib/margosha
+            chown margosha:margosha /opt/margosha /etc/margosha /var/lib/margosha
+            chmod 750 /var/lib/margosha
 
             cat > /etc/margosha/stack.env <<'EOF'
             BUCKET=${ArtifactsBucket}
             PORT=${ApiPort}
             REGION=${AWS::Region}
+            DATA_DIR=/var/lib/margosha
             EOF
 
             # Before every start: settings from the instance tags, then the jar from S3.
@@ -210,19 +238,45 @@ Resources:
             tag() { imds "meta-data/tags/instance/$1"; }
 
             ROLE=$(tag MargoshaRole) || { echo "margosha: no MargoshaRole tag"; exit 1; }
+
+            # W and R (ADR 0007), the same on every node. N stays 3 (the app's default).
+            WRITE_QUORUM=$(tag MargoshaWriteQuorum)
+            READ_QUORUM=$(tag MargoshaReadQuorum)
+            if [ -z "$WRITE_QUORUM" ] || [ -z "$READ_QUORUM" ]; then
+              echo "margosha: missing quorum settings (W '$WRITE_QUORUM', R '$READ_QUORUM')"
+              exit 1
+            fi
+            COMMON="--server.port=$PORT --margosha.data-dir=$DATA_DIR"
+            COMMON="$COMMON --margosha.replication.write-quorum=$WRITE_QUORUM --margosha.replication.read-quorum=$READ_QUORUM"
+
             case "$ROLE" in
               coordinator)
-                ARGS="coordinator --mode=sharded --server.port=$PORT" ;;
+                ARGS="coordinator --mode=sharded $COMMON" ;;
               shard)
                 SHARD_ID=$(tag MargoshaShardId)
+                REPLICA_ID=$(tag MargoshaReplicaId)
+                REPLICA_ROLE=$(tag MargoshaReplicaRole)
                 COORDINATOR_IP=$(tag MargoshaCoordinatorIp)
                 HOST=$(imds meta-data/local-ipv4)
-                if [ -z "$SHARD_ID" ] || [ -z "$COORDINATOR_IP" ] || [ -z "$HOST" ]; then
-                  echo "margosha: missing shard settings (id '$SHARD_ID', coordinator '$COORDINATOR_IP', host '$HOST')"
+                if [ -z "$SHARD_ID" ] || [ -z "$REPLICA_ID" ] || [ -z "$REPLICA_ROLE" ] || [ -z "$COORDINATOR_IP" ] || [ -z "$HOST" ]; then
+                  echo "margosha: missing replica settings (shard '$SHARD_ID', replica '$REPLICA_ID', role '$REPLICA_ROLE', coordinator '$COORDINATOR_IP', host '$HOST')"
                   exit 1
                 fi
-                ARGS="shard --server.port=$PORT --margosha.shard.id=$SHARD_ID"
-                ARGS="$ARGS --margosha.coordinator.url=http://$COORDINATOR_IP:$PORT --margosha.shard.host=$HOST" ;;
+                ARGS="shard $COMMON --margosha.shard.id=$SHARD_ID --margosha.replica.id=$REPLICA_ID"
+                ARGS="$ARGS --margosha.replica.role=$REPLICA_ROLE"
+                ARGS="$ARGS --margosha.coordinator.url=http://$COORDINATOR_IP:$PORT --margosha.shard.host=$HOST"
+                case "$REPLICA_ROLE" in
+                  leader) ;;
+                  follower)
+                    LEADER_IP=$(tag MargoshaLeaderIp)
+                    if [ -z "$LEADER_IP" ]; then
+                      echo "margosha: follower $REPLICA_ID has no MargoshaLeaderIp tag"
+                      exit 1
+                    fi
+                    ARGS="$ARGS --margosha.replica.leader-url=http://$LEADER_IP:$PORT" ;;
+                  *)
+                    echo "margosha: unknown replica role '$REPLICA_ROLE'"; exit 1 ;;
+                esac ;;
               *)
                 echo "margosha: unknown role '$ROLE'"; exit 1 ;;
             esac
@@ -296,6 +350,10 @@ Resources:
           Value: margosha-coordinator
         - Key: MargoshaRole
           Value: coordinator
+        - Key: MargoshaWriteQuorum
+          Value: !Ref WriteQuorum
+        - Key: MargoshaReadQuorum
+          Value: !Ref ReadQuorum
 
   ShardA:
     Type: AWS::EC2::Instance
@@ -309,13 +367,81 @@ Resources:
         - !Ref ShardSecurityGroup
       Tags:
         - Key: Name
-          Value: margosha-shard-a
+          Value: margosha-shard-a-1
         - Key: MargoshaRole
           Value: shard
         - Key: MargoshaShardId
           Value: shard-a
+        - Key: MargoshaReplicaId
+          Value: shard-a-1
+        - Key: MargoshaReplicaRole
+          Value: leader
         - Key: MargoshaCoordinatorIp
           Value: !GetAtt Coordinator.PrivateIp
+        - Key: MargoshaWriteQuorum
+          Value: !Ref WriteQuorum
+        - Key: MargoshaReadQuorum
+          Value: !Ref ReadQuorum
+
+  ShardA2:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref NodeLaunchTemplate
+        Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
+      SubnetId: !ImportValue
+        Fn::Sub: "${NetworkStackName}-PrivateSubnetBId"
+      SecurityGroupIds:
+        - !Ref ShardSecurityGroup
+      Tags:
+        - Key: Name
+          Value: margosha-shard-a-2
+        - Key: MargoshaRole
+          Value: shard
+        - Key: MargoshaShardId
+          Value: shard-a
+        - Key: MargoshaReplicaId
+          Value: shard-a-2
+        - Key: MargoshaReplicaRole
+          Value: follower
+        - Key: MargoshaLeaderIp
+          Value: !GetAtt ShardA.PrivateIp
+        - Key: MargoshaCoordinatorIp
+          Value: !GetAtt Coordinator.PrivateIp
+        - Key: MargoshaWriteQuorum
+          Value: !Ref WriteQuorum
+        - Key: MargoshaReadQuorum
+          Value: !Ref ReadQuorum
+
+  ShardA3:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref NodeLaunchTemplate
+        Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
+      SubnetId: !ImportValue
+        Fn::Sub: "${NetworkStackName}-PrivateSubnetAId"
+      SecurityGroupIds:
+        - !Ref ShardSecurityGroup
+      Tags:
+        - Key: Name
+          Value: margosha-shard-a-3
+        - Key: MargoshaRole
+          Value: shard
+        - Key: MargoshaShardId
+          Value: shard-a
+        - Key: MargoshaReplicaId
+          Value: shard-a-3
+        - Key: MargoshaReplicaRole
+          Value: follower
+        - Key: MargoshaLeaderIp
+          Value: !GetAtt ShardA.PrivateIp
+        - Key: MargoshaCoordinatorIp
+          Value: !GetAtt Coordinator.PrivateIp
+        - Key: MargoshaWriteQuorum
+          Value: !Ref WriteQuorum
+        - Key: MargoshaReadQuorum
+          Value: !Ref ReadQuorum
 
   ShardB:
     Type: AWS::EC2::Instance
@@ -329,13 +455,81 @@ Resources:
         - !Ref ShardSecurityGroup
       Tags:
         - Key: Name
-          Value: margosha-shard-b
+          Value: margosha-shard-b-1
         - Key: MargoshaRole
           Value: shard
         - Key: MargoshaShardId
           Value: shard-b
+        - Key: MargoshaReplicaId
+          Value: shard-b-1
+        - Key: MargoshaReplicaRole
+          Value: leader
         - Key: MargoshaCoordinatorIp
           Value: !GetAtt Coordinator.PrivateIp
+        - Key: MargoshaWriteQuorum
+          Value: !Ref WriteQuorum
+        - Key: MargoshaReadQuorum
+          Value: !Ref ReadQuorum
+
+  ShardB2:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref NodeLaunchTemplate
+        Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
+      SubnetId: !ImportValue
+        Fn::Sub: "${NetworkStackName}-PrivateSubnetAId"
+      SecurityGroupIds:
+        - !Ref ShardSecurityGroup
+      Tags:
+        - Key: Name
+          Value: margosha-shard-b-2
+        - Key: MargoshaRole
+          Value: shard
+        - Key: MargoshaShardId
+          Value: shard-b
+        - Key: MargoshaReplicaId
+          Value: shard-b-2
+        - Key: MargoshaReplicaRole
+          Value: follower
+        - Key: MargoshaLeaderIp
+          Value: !GetAtt ShardB.PrivateIp
+        - Key: MargoshaCoordinatorIp
+          Value: !GetAtt Coordinator.PrivateIp
+        - Key: MargoshaWriteQuorum
+          Value: !Ref WriteQuorum
+        - Key: MargoshaReadQuorum
+          Value: !Ref ReadQuorum
+
+  ShardB3:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref NodeLaunchTemplate
+        Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
+      SubnetId: !ImportValue
+        Fn::Sub: "${NetworkStackName}-PrivateSubnetBId"
+      SecurityGroupIds:
+        - !Ref ShardSecurityGroup
+      Tags:
+        - Key: Name
+          Value: margosha-shard-b-3
+        - Key: MargoshaRole
+          Value: shard
+        - Key: MargoshaShardId
+          Value: shard-b
+        - Key: MargoshaReplicaId
+          Value: shard-b-3
+        - Key: MargoshaReplicaRole
+          Value: follower
+        - Key: MargoshaLeaderIp
+          Value: !GetAtt ShardB.PrivateIp
+        - Key: MargoshaCoordinatorIp
+          Value: !GetAtt Coordinator.PrivateIp
+        - Key: MargoshaWriteQuorum
+          Value: !Ref WriteQuorum
+        - Key: MargoshaReadQuorum
+          Value: !Ref ReadQuorum
 
   BenchClientInstance:
     Type: AWS::EC2::Instance
@@ -392,11 +586,36 @@ Outputs:
     Description: Instance ID of the coordinator.
     Value: !Ref Coordinator
   ShardAInstanceId:
-    Description: Instance ID of shard A.
+    Description: Instance ID of shard-a-1, the leader of shard A.
     Value: !Ref ShardA
+  ShardA2InstanceId:
+    Description: Instance ID of shard-a-2, a follower of shard A.
+    Value: !Ref ShardA2
+  ShardA3InstanceId:
+    Description: Instance ID of shard-a-3, a follower of shard A.
+    Value: !Ref ShardA3
   ShardBInstanceId:
-    Description: Instance ID of shard B.
+    Description: Instance ID of shard-b-1, the leader of shard B.
     Value: !Ref ShardB
+  ShardB2InstanceId:
+    Description: Instance ID of shard-b-2, a follower of shard B.
+    Value: !Ref ShardB2
+  ShardB3InstanceId:
+    Description: Instance ID of shard-b-3, a follower of shard B.
+    Value: !Ref ShardB3
+  NodeInstanceIds:
+    Description: >
+      All 7 node instance IDs (coordinator first, then the replicas), comma-separated,
+      for the pipeline to reboot and check every node.
+    Value: !Join
+      - ","
+      - - !Ref Coordinator
+        - !Ref ShardA
+        - !Ref ShardA2
+        - !Ref ShardA3
+        - !Ref ShardB
+        - !Ref ShardB2
+        - !Ref ShardB3
   CoordinatorPrivateIp:
     Description: Private IP of the coordinator (stays the same across stop/start).
     Value: !GetAtt Coordinator.PrivateIp
