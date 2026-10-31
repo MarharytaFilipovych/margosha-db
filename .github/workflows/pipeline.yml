@@ -52,6 +52,7 @@ jobs:
       APP_STACK: margosha-app
       JAR: app/node/target/margosha.jar
       BINDING_JAR: app/ycsb-binding/target/margosha-ycsb-binding.jar
+      REPLICAS: shard-a-1 shard-a-2 shard-a-3 shard-b-1 shard-b-2 shard-b-3
     steps:
       - name: Check out the repository
         uses: actions/checkout@v5
@@ -119,14 +120,16 @@ jobs:
           {
             echo "JAR_HASH=$HASH"
             echo "COORD=$(out CoordinatorInstanceId)"
-            echo "SHARD_A=$(out ShardAInstanceId)"
-            echo "SHARD_B=$(out ShardBInstanceId)"
+            # All 7 nodes, coordinator first, comma-separated (NodeInstanceIds output).
+            echo "NODES=$(out NodeInstanceIds)"
           } >> "$GITHUB_ENV"
 
-      - name: Reboot the coordinator and the shards
+      - name: Reboot or start every node
         run: |
+          IFS=',' read -ra nodes <<< "$NODES"
+          echo "Nodes: ${nodes[*]}"
           reboot=()
-          for id in "$COORD" "$SHARD_A" "$SHARD_B"; do
+          for id in "${nodes[@]}"; do
             if [[ "$NODES_BEFORE" == *"$id"* ]]; then
               state=$(aws ec2 describe-instances --instance-ids "$id" --query "Reservations[0].Instances[0].State.Name" --output text)
               if [ "$state" = "stopped" ]; then
@@ -144,7 +147,7 @@ jobs:
             aws ec2 reboot-instances --instance-ids "${reboot[@]}"
           fi
 
-      - name: Wait for the nodes to start the new jar
+      - name: Wait for every node to start the new jar and every replica to register
         timeout-minutes: 15
         run: |
           console() { aws ec2 get-console-output --instance-id "$1" --latest --output text 2>/dev/null || true; }
@@ -157,7 +160,8 @@ jobs:
             exit 1
           }
 
-          for id in "$COORD" "$SHARD_A" "$SHARD_B"; do
+          IFS=',' read -ra nodes <<< "$NODES"
+          for id in "${nodes[@]}"; do
             until
               log=$(console "$id")
               [[ "$log" == *"sha256 $JAR_HASH"* ]] && [ -n "$(since 'Running as' <<< "$log")" ]
@@ -169,13 +173,20 @@ jobs:
             echo "$id: runs the jar with sha256 $JAR_HASH (started at $(since 'Running as' <<< "$log" | tail -n 1) UTC)"
           done
 
+          # Every replica registers again when it or the coordinator restarts (a deploy restarts both),
+          # and the coordinator logs "Registered replica <id> (<role>) of shard <shard> at <address>".
+          read -ra replicas <<< "$REPLICAS"
           until
             log=$(console "$COORD")
-            [ -n "$(since '(Registered|Updated) shard shard-a ' <<< "$log")" ] && [ -n "$(since '(Registered|Updated) shard shard-b ' <<< "$log")" ]
+            missing=()
+            for replica in "${replicas[@]}"; do
+              [ -n "$(since "(Registered|Updated) replica $replica " <<< "$log")" ] || missing+=("$replica")
+            done
+            [ ${#missing[@]} -eq 0 ]
           do
-            [ "$(date +%s)" -lt "$deadline" ] || give_up "The coordinator did not register both shards" "$COORD"
-            echo "coordinator: waiting for shard-a and shard-b to register, checking again in 15 s"
+            [ "$(date +%s)" -lt "$deadline" ] || give_up "The coordinator did not register ${missing[*]}" "$COORD"
+            echo "coordinator: waiting for ${missing[*]} to register, checking again in 15 s"
             sleep 15
           done
-          echo "coordinator: shard-a and shard-b registered"
-          echo "- nodes \`$COORD\` (coordinator), \`$SHARD_A\`, \`$SHARD_B\` started the new jar; shard-a and shard-b registered with the coordinator" >> "$GITHUB_STEP_SUMMARY"
+          echo "coordinator: all ${#replicas[@]} replicas registered (${replicas[*]})"
+          echo "- all ${#nodes[@]} nodes started the new jar (${nodes[*]}); replicas ${replicas[*]} registered with the coordinator" >> "$GITHUB_STEP_SUMMARY"
