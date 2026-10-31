@@ -10,7 +10,6 @@ import static com.margosha.node.data.TestData.json;
 import static com.margosha.node.data.TestData.shard;
 import static com.margosha.node.data.TestData.silentServer;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -24,12 +23,14 @@ import java.time.Duration;
 import com.margosha.api.client.ShardClient;
 import com.margosha.api.exception.ApiException;
 import com.margosha.api.model.ApiError;
-import com.margosha.api.model.Attributes;
 import com.margosha.api.model.ErrorCode;
+import com.margosha.api.model.ReplicaExists;
 import com.margosha.api.model.ReplicaRecord;
+import com.margosha.api.model.ShardRegistration;
 import com.margosha.node.common.exception.RecordAlreadyExistsException;
 import com.margosha.node.common.exception.RecordNotFoundException;
 import com.margosha.node.coordinator.exception.ShardUnavailableException;
+import com.margosha.node.coordinator.model.ReplicaAnswer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -40,59 +41,91 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.client.response.DefaultResponseCreator;
 import org.springframework.web.client.RestClient;
 
-class RemoteShardStorageServiceTest {
+class RemoteReplicaTest {
 
 	private static final String BASE_URL = "http://shard-a.test:8081";
 	private static final String USER_42_RECORD = BASE_URL + "/tables/" + USERS + "/records/" + USER_42.partitionKey();
+	private static final ShardRegistration LEADER_A = shard(SHARD_A, 8081);
+	private static final String DID_NOT_ANSWER = "Replica shard-a-1 of shard shard-a did not answer";
 
 	@Nested
-	class ShardAnswers {
+	class ReplicaAnswers {
 
 		private MockRestServiceServer server;
-		private RemoteShardStorageService remoteShard;
+		private RemoteReplica replica;
 
 		@BeforeEach
 		void setUp() {
 			RestClient.Builder builder = RestClient.builder();
 			server = MockRestServiceServer.bindTo(builder).build();
-			remoteShard = new RemoteShardStorageService(SHARD_A, new ShardClient(builder, BASE_URL));
+			replica = new RemoteReplica(LEADER_A, new ShardClient(builder, BASE_URL));
 		}
 
 		@Test
-		void readReturnsTheShardsAttributes() {
+		void readReturnsTheAttributesWithTheirVersion() {
 			// Arrange
 			server.expect(requestTo(USER_42_RECORD)).andExpect(method(HttpMethod.GET))
-					.andRespond(respond(HttpStatus.OK, new ReplicaRecord(ANN_ATTRIBUTES, 1)));
+					.andRespond(respond(HttpStatus.OK, new ReplicaRecord(ANN_ATTRIBUTES, 7)));
 
 			// Act
-			Attributes attributes = remoteShard.read(USERS, USER_42);
+			ReplicaAnswer answer = replica.read(USERS, USER_42);
 
 			// Assert
-			assertThat(attributes).isEqualTo(ANN_ATTRIBUTES);
+			assertThat(answer).isEqualTo(ReplicaAnswer.found(7, ANN_ATTRIBUTES));
 			server.verify();
 		}
 
 		@Test
-		void recordNotFoundOnTheShardIsRecordNotFound() {
+		void notFoundWithAVersionIsAnAnswerNotAnError() {
 			// Arrange
 			server.expect(requestTo(USER_42_RECORD))
+					.andRespond(respond(HttpStatus.NOT_FOUND, new ApiError(ErrorCode.RECORD_NOT_FOUND, "deleted", 9L)));
+
+			// Act
+			ReplicaAnswer answer = replica.read(USERS, USER_42);
+
+			// Assert
+			assertThat(answer).isEqualTo(ReplicaAnswer.notFound(9));
+		}
+
+		@Test
+		void existsReturnsTheAnswerWithItsVersion() {
+			// Arrange
+			server.expect(requestTo(USER_42_RECORD + "/exists"))
+					.andRespond(respond(HttpStatus.OK, new ReplicaExists(true, 4)));
+
+			// Act
+			ReplicaAnswer answer = replica.exists(USERS, USER_42);
+
+			// Assert
+			assertThat(answer).isEqualTo(new ReplicaAnswer(4, true, null));
+		}
+
+		@Test
+		void notFoundOnAWriteIsRecordNotFound() {
+			// Arrange
+			server.expect(requestTo(USER_42_RECORD)).andExpect(method(HttpMethod.PUT))
 					.andRespond(respond(HttpStatus.NOT_FOUND, new ApiError(ErrorCode.RECORD_NOT_FOUND, "missing")));
 
-			// Act & Assert
-			assertThatThrownBy(() -> remoteShard.read(USERS, USER_42))
-					.isInstanceOf(RecordNotFoundException.class)
+			// Act
+			Throwable thrown = catchThrowable(() -> replica.update(USERS, USER_42, ANN_ATTRIBUTES));
+
+			// Assert
+			assertThat(thrown).isInstanceOf(RecordNotFoundException.class)
 					.hasMessage(new RecordNotFoundException(USERS, USER_42).getMessage());
 		}
 
 		@Test
-		void conflictOnTheShardIsRecordAlreadyExists() {
+		void conflictIsRecordAlreadyExists() {
 			// Arrange
 			server.expect(requestTo(USER_42_RECORD)).andExpect(method(HttpMethod.POST))
 					.andRespond(respond(HttpStatus.CONFLICT, new ApiError(ErrorCode.RECORD_ALREADY_EXISTS, "exists")));
 
-			// Act & Assert
-			assertThatThrownBy(() -> remoteShard.create(USERS, USER_42, ANN_ATTRIBUTES))
-					.isInstanceOf(RecordAlreadyExistsException.class);
+			// Act
+			Throwable thrown = catchThrowable(() -> replica.create(USERS, USER_42, ANN_ATTRIBUTES));
+
+			// Assert
+			assertThat(thrown).isInstanceOf(RecordAlreadyExistsException.class);
 		}
 
 		@Test
@@ -103,20 +136,20 @@ class RemoteShardStorageServiceTest {
 					.andRespond(respond(HttpStatus.SERVICE_UNAVAILABLE, new ApiError(ErrorCode.SHARD_UNAVAILABLE, message)));
 
 			// Act
-			Throwable thrown = catchThrowable(() -> remoteShard.create(USERS, USER_42, ANN_ATTRIBUTES));
+			Throwable thrown = catchThrowable(() -> replica.create(USERS, USER_42, ANN_ATTRIBUTES));
 
 			// Assert
 			assertThat(thrown).isInstanceOf(ShardUnavailableException.class).hasMessage(message);
 		}
 
 		@Test
-		void otherShardErrorIsPassedOnUnchanged() {
+		void otherReplicaErrorIsPassedOnUnchanged() {
 			// Arrange
 			server.expect(requestTo(USER_42_RECORD))
 					.andRespond(respond(HttpStatus.INTERNAL_SERVER_ERROR, new ApiError(ErrorCode.INTERNAL_ERROR, "boom")));
 
 			// Act
-			Throwable thrown = catchThrowable(() -> remoteShard.read(USERS, USER_42));
+			Throwable thrown = catchThrowable(() -> replica.read(USERS, USER_42));
 
 			// Assert
 			assertThat(thrown).isInstanceOfSatisfying(ApiException.class,
@@ -128,10 +161,11 @@ class RemoteShardStorageServiceTest {
 			// Arrange
 			server.expect(requestTo(USER_42_RECORD)).andRespond(withException(new IOException("connection reset")));
 
-			// Act & Assert
-			assertThatThrownBy(() -> remoteShard.read(USERS, USER_42))
-					.isInstanceOf(ShardUnavailableException.class)
-					.hasMessage("Shard shard-a did not answer");
+			// Act
+			Throwable thrown = catchThrowable(() -> replica.read(USERS, USER_42));
+
+			// Assert
+			assertThat(thrown).isInstanceOf(ShardUnavailableException.class).hasMessage(DID_NOT_ANSWER);
 		}
 	}
 
@@ -139,14 +173,14 @@ class RemoteShardStorageServiceTest {
 	class RealConnection {
 
 		@Test
-		void shardThatDoesNotAnswerIsUnavailableAfterTheTimeout() throws IOException {
-			try (ServerSocket hangingShard = silentServer()) {
+		void replicaThatDoesNotAnswerIsUnavailableAfterTheTimeout() throws IOException {
+			try (ServerSocket hangingReplica = silentServer()) {
 				// Arrange
-				RemoteShardStorageService remoteShard = RemoteShardStorageService.connect(shard(SHARD_A, hangingShard.getLocalPort()), SHARD_TIMEOUT);
+				RemoteReplica replica = RemoteReplica.connect(shard(SHARD_A, hangingReplica.getLocalPort()), SHARD_TIMEOUT);
 				long start = System.nanoTime();
 
 				// Act
-				Throwable thrown = catchThrowable(() -> remoteShard.read(USERS, USER_42));
+				Throwable thrown = catchThrowable(() -> replica.read(USERS, USER_42));
 
 				// Assert
 				Duration waited = Duration.ofNanos(System.nanoTime() - start);
@@ -156,14 +190,15 @@ class RemoteShardStorageServiceTest {
 		}
 
 		@Test
-		void stoppedShardIsUnavailable() {
+		void stoppedReplicaIsUnavailable() {
 			// Arrange
-			RemoteShardStorageService remoteShard = RemoteShardStorageService.connect(shard(SHARD_A, freePort()), SHARD_TIMEOUT);
+			RemoteReplica replica = RemoteReplica.connect(shard(SHARD_A, freePort()), SHARD_TIMEOUT);
 
-			// Act & Assert
-			assertThatThrownBy(() -> remoteShard.create(USERS, USER_42, ANN_ATTRIBUTES))
-					.isInstanceOf(ShardUnavailableException.class)
-					.hasMessage("Shard shard-a did not answer");
+			// Act
+			Throwable thrown = catchThrowable(() -> replica.create(USERS, USER_42, ANN_ATTRIBUTES));
+
+			// Assert
+			assertThat(thrown).isInstanceOf(ShardUnavailableException.class).hasMessage(DID_NOT_ANSWER);
 		}
 	}
 

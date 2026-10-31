@@ -42,6 +42,7 @@ import org.springframework.test.annotation.DirtiesContext;
 class ShardUnavailableTest {
 
 	private static final int KEY_COUNT = 50;
+	private static final String READ_FAILED_ON_B = "Only 0 of the 1 replicas a read needs answered for shard shard-b";
 
 	@LocalServerPort
 	private int port;
@@ -89,7 +90,7 @@ class ShardUnavailableTest {
 					.toList();
 
 			// Assert
-			assertThat(shardBErrors).isNotEmpty().allSatisfy(error -> assertShardUnavailable(error, "Shard shard-b did not answer"));
+			assertThat(shardBErrors).isNotEmpty().allSatisfy(error -> assertShardUnavailable(error, READ_FAILED_ON_B));
 			assertThat(shardAErrors).isNotEmpty().containsOnlyNulls();
 			assertThat(shardA.isRunning()).isTrue();
 		}
@@ -108,7 +109,7 @@ class ShardUnavailableTest {
 			ApiException error = apiError(() -> client.createRecord(users, user(keyOfShardB)));
 
 			// Assert
-			assertShardUnavailable(error, "Shard shard-b did not answer");
+			assertShardUnavailable(error, "Replica shard-b-1 of shard shard-b did not answer");
 			assertThat(shardA.storage().exists(users, keyOfShardB)).isFalse();
 		}
 	}
@@ -131,7 +132,7 @@ class ShardUnavailableTest {
 			TableRecord readFromShardA = client.readRecord(users, keyOfShardA);
 
 			// Assert
-			assertShardUnavailable(error, "Shard shard-b did not answer");
+			assertShardUnavailable(error, READ_FAILED_ON_B);
 			assertThat(waited).isGreaterThanOrEqualTo(SHARD_TIMEOUT);
 			assertThat(readFromShardA).isEqualTo(user(keyOfShardA));
 		}

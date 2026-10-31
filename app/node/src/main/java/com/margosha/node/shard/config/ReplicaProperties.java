@@ -1,6 +1,6 @@
 package com.margosha.node.shard.config;
 
-import com.margosha.node.shard.replication.model.ReplicaRole;
+import com.margosha.api.model.ReplicaRole;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties("margosha.replica")

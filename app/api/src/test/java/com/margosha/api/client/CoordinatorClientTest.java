@@ -333,7 +333,7 @@ class CoordinatorClientTest {
         @Test
         void invalidRegistrationThrowsValidationError() {
             // Arrange
-            ShardRegistration invalid = new ShardRegistration("", "");
+            ShardRegistration invalid = new ShardRegistration("", "", null, "");
             expectRequest(HttpMethod.POST, SHARDS, invalid)
                     .andRespond(respondWithError(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR));
 

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.ServerSocket;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
@@ -17,6 +18,7 @@ import com.margosha.api.client.ShardClient;
 import com.margosha.api.exception.ApiException;
 import com.margosha.api.model.Attributes;
 import com.margosha.api.model.PrimaryKey;
+import com.margosha.api.model.ReplicaRole;
 import com.margosha.api.model.ShardRegistration;
 import com.margosha.api.model.TableDefinition;
 import com.margosha.api.model.TableRecord;
@@ -84,8 +86,18 @@ public final class TestData {
 		return "http://localhost:" + port;
 	}
 
+	/** The leader {@code <shardId>-1} of a shard, at localhost:{@code port}. */
 	public static ShardRegistration shard(String shardId, int port) {
-		return new ShardRegistration(shardId, localAddress(port));
+		return new ShardRegistration(shardId, shardId + "-1", ReplicaRole.LEADER, localAddress(port));
+	}
+
+	public static ShardRegistration follower(String shardId, String replicaId, int port) {
+		return new ShardRegistration(shardId, replicaId, ReplicaRole.FOLLOWER, localAddress(port));
+	}
+
+	/** A new, empty folder under target/ for one node's data. */
+	public static Path testDataDir(String name) {
+		return Path.of("target", "test-data", unique(name));
 	}
 
 	public static ShardClient shardClient(int port) {

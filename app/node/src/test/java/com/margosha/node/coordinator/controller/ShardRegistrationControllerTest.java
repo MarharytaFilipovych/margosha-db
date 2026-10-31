@@ -13,6 +13,7 @@ import java.util.stream.Stream;
 
 import com.margosha.api.model.ApiError;
 import com.margosha.api.model.ErrorCode;
+import com.margosha.api.model.ReplicaRole;
 import com.margosha.api.model.ShardRegistration;
 import com.margosha.node.coordinator.service.ShardRegistryService;
 import org.junit.jupiter.api.Test;
@@ -45,7 +46,7 @@ class ShardRegistrationControllerTest {
 	@Test
 	void validRegistrationReachesTheRegistry() throws Exception {
 		// Arrange
-		ShardRegistration shard = new ShardRegistration("shard-a", "http://10.0.1.15:8080");
+		ShardRegistration shard = new ShardRegistration("shard-a", "shard-a-1", ReplicaRole.LEADER, "http://10.0.1.15:8080");
 		when(shards.register(any())).thenReturn(shard);
 
 		// Act & Assert
@@ -57,16 +58,22 @@ class ShardRegistrationControllerTest {
 		verify(shards).register(shard);
 	}
 
+	private static final String REPLICA = "\"replicaId\":\"shard-a-1\",\"role\":\"leader\",";
+
 	static Stream<Arguments> invalidRegistrations() {
 		return Stream.of(
-				Arguments.of("{\"address\":\"http://localhost:8081\"}", "Shard ID must not be empty"),
-				Arguments.of("{\"shardId\":\" \",\"address\":\"http://localhost:8081\"}", "Shard ID must not be empty"),
-				Arguments.of("{\"shardId\":\"shard-a\"}", "Shard address must not be empty"),
-				Arguments.of("{\"shardId\":\"shard-a\",\"address\":\"\"}", NOT_AN_HTTP_URL),
-				Arguments.of("{\"shardId\":\"shard-a\",\"address\":\"localhost:8081\"}", NOT_AN_HTTP_URL),
-				Arguments.of("{\"shardId\":\"shard-a\",\"address\":\"ftp://localhost:8081\"}", NOT_AN_HTTP_URL),
-				Arguments.of("{\"shardId\":\"shard-a\",\"address\":\"http://bad host\"}", NOT_AN_HTTP_URL),
-				Arguments.of("{\"shardId\":\"shard-a\",\"address\":\"http://\"}", NOT_AN_HTTP_URL));
+				Arguments.of("{" + REPLICA + "\"address\":\"http://localhost:8081\"}", "Shard ID must not be empty"),
+				Arguments.of("{\"shardId\":\" \"," + REPLICA + "\"address\":\"http://localhost:8081\"}", "Shard ID must not be empty"),
+				Arguments.of("{\"shardId\":\"shard-a\",\"replicaId\":\" \",\"role\":\"leader\",\"address\":\"http://localhost:8081\"}",
+						"Replica ID must not be empty"),
+				Arguments.of("{\"shardId\":\"shard-a\",\"replicaId\":\"shard-a-1\",\"address\":\"http://localhost:8081\"}",
+						"Replica role must be leader or follower"),
+				Arguments.of("{\"shardId\":\"shard-a\"," + REPLICA.substring(0, REPLICA.length() - 1) + "}", "Shard address must not be empty"),
+				Arguments.of("{\"shardId\":\"shard-a\"," + REPLICA + "\"address\":\"\"}", NOT_AN_HTTP_URL),
+				Arguments.of("{\"shardId\":\"shard-a\"," + REPLICA + "\"address\":\"localhost:8081\"}", NOT_AN_HTTP_URL),
+				Arguments.of("{\"shardId\":\"shard-a\"," + REPLICA + "\"address\":\"ftp://localhost:8081\"}", NOT_AN_HTTP_URL),
+				Arguments.of("{\"shardId\":\"shard-a\"," + REPLICA + "\"address\":\"http://bad host\"}", NOT_AN_HTTP_URL),
+				Arguments.of("{\"shardId\":\"shard-a\"," + REPLICA + "\"address\":\"http://\"}", NOT_AN_HTTP_URL));
 	}
 
 	@ParameterizedTest

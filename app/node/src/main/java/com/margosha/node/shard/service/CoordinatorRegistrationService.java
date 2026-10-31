@@ -8,6 +8,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.margosha.api.client.CoordinatorClient;
 import com.margosha.api.model.ShardRegistration;
+import com.margosha.node.shard.replication.model.ReplicaIdentity;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +25,7 @@ public class CoordinatorRegistrationService implements ApplicationListener<WebSe
 	private final CoordinatorClient coordinator;
 
 	@NonNull
-	private final String shardId;
+	private final ReplicaIdentity identity;
 
 	@NonNull
 	private final String host;
@@ -54,7 +55,8 @@ public class CoordinatorRegistrationService implements ApplicationListener<WebSe
 			return; // a second server (e.g. a management port) is not where records are served
 		}
 		int port = event.getWebServer().getPort();
-		ShardRegistration registration = new ShardRegistration(shardId, "http://" + host + ":" + port);
+		ShardRegistration registration =new ShardRegistration(identity.shardId(), identity.replicaId(), identity.role(),
+				"http://" + host + ":" + port);
 		executor.execute(() -> attempt(registration, backoff.first()));
 	}
 
@@ -62,14 +64,15 @@ public class CoordinatorRegistrationService implements ApplicationListener<WebSe
 		try {
 			coordinator.registerShard(registration);
 			if (!registered) {
-				log.info("Registered shard {} at {}", registration.shardId(), registration.address());
+				log.info("Registered replica {} ({}) of shard {} at {}", registration.replicaId(),
+						registration.role().argument(), registration.shardId(), registration.address());
 			}
 			registered = true;
 			schedule(() -> attempt(registration, backoff.first()), refreshInterval);
 		} catch (RuntimeException e) {
 			registered = false;
-			log.warn("Coordinator did not accept shard {} yet, retrying in {}: {}",
-					registration.shardId(), pause, e.getMessage());
+			log.warn("Coordinator did not accept replica {} of shard {} yet, retrying in {}: {}",
+					registration.replicaId(), registration.shardId(), pause, e.getMessage());
 			schedule(() -> attempt(registration, backoff.after(pause)), pause);
 		}
 	}
@@ -78,7 +81,7 @@ public class CoordinatorRegistrationService implements ApplicationListener<WebSe
 		try {
 			executor.schedule(next, delay.toMillis(), TimeUnit.MILLISECONDS);
 		} catch (RejectedExecutionException stopped) {
-			log.info("Shard is stopping; registration of {} ends", shardId);
+			log.info("Replica is stopping; registration of {} ends", identity.replicaId());
 		}
 	}
 

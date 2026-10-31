@@ -5,16 +5,15 @@ import static org.springframework.util.StringUtils.hasText;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-
-import com.margosha.api.client.CoordinatorClient;
-import com.margosha.node.shard.service.CoordinatorRegistrationService;
-import com.margosha.node.shard.service.RetryBackoff;
-import com.margosha.node.common.storage.RecordStorage;
 import java.nio.file.Path;
 import java.time.Duration;
 
+import com.margosha.api.client.CoordinatorClient;
 import com.margosha.api.client.ShardClient;
 import com.margosha.node.common.config.ReplicationProperties;
+import com.margosha.node.common.storage.RecordStorage;
+import com.margosha.node.shard.service.CoordinatorRegistrationService;
+import com.margosha.node.shard.service.RetryBackoff;
 import com.margosha.node.shard.replication.follower.FollowerRecordStorage;
 import com.margosha.node.shard.replication.follower.FollowerReplicator;
 import com.margosha.node.shard.replication.leader.LeaderRecordStorage;
@@ -24,7 +23,6 @@ import com.margosha.node.shard.replication.storage.ReplicaStorage;
 import com.margosha.node.shard.service.ReplicaReadService;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -83,12 +81,13 @@ public class ShardConfig {
 	}
 
 	@Bean
-	@ConditionalOnExpression("'${margosha.coordinator.url:}' != '' and '${margosha.replica.role}'.equalsIgnoreCase('leader')")
+	@ConditionalOnProperty(name = "margosha.coordinator.url")
 	public CoordinatorRegistrationService coordinatorRegistrationService(
-			@Value("${margosha.coordinator.url}") String coordinatorUrl, ShardProperties shard) {
+			@Value("${margosha.coordinator.url}") String coordinatorUrl,
+			ShardProperties shard, ReplicaIdentity identity) {
 		CoordinatorClient coordinator = new CoordinatorClient(
 				withTimeout(shard.registerTimeout()), coordinatorUrl);
-		return new CoordinatorRegistrationService(coordinator, shard.id(),
+		return new CoordinatorRegistrationService(coordinator, identity,
 				hasText(shard.host()) ? shard.host() : localAddress(),
 				new RetryBackoff(shard.registerRetryInterval(), shard.registerRetryMaxInterval()),
 				shard.registerRefreshInterval());

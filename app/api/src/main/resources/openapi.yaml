@@ -1,32 +1,48 @@
 openapi: 3.0.3
 info:
   title: Margosha DB API
-  version: 0.1.0
+  version: 0.3.0
   description: |
-    API of the Margosha DB coordinator (ADR 0004).
+    API of the Margosha DB coordinator (ADR 0004), and the internal API of its replicas.
     Clients register tables and do CRUD over records (plus EXISTS).
-    Shards register themselves with the coordinator when they start.
+    Replicas register themselves with the coordinator when they start, and again every 10 s.
 
     Keys and attribute values are strings.
     A table has a partition key and, optionally, a sort key.
     The sort key value is sent as the `sortKey` query parameter.
 
-    Shards serve the record operations under the same record path, called by the coordinator.
-    Shards don't keep table definitions: they have no `POST /tables` and don't return `TABLE_NOT_FOUND`.
-    The coordinator checks the table and the keys before it forwards a request to a shard.
+    Replication (M3, ADRs 0007-0011): each shard is a replica set of a leader and followers (N = 3).
+    The coordinator sends CREATE / UPDATE / DELETE to the owning shard's leader, which answers only after
+    W replicas (itself included) stored the write. READ and EXISTS go to R replicas of the shard, and the
+    answer with the highest version wins. The client API below does not change.
 
-    Because a shard does not know which attributes are the key, the coordinator always sends the key
+    A 503 on a write means its outcome is unknown: the leader may have stored it without enough follower
+    confirmations, and it may become visible later. Read the record to find out.
+
+    Replicas serve the record operations under the same record path, called by the coordinator.
+    Replicas don't keep table definitions: they have no `POST /tables` and don't return `TABLE_NOT_FOUND`.
+    The coordinator checks the table and the keys before it forwards a request to a replica.
+
+    Because a replica does not know which attributes are the key, the coordinator always sends the key
     in the path (`/tables/{tableName}/records/{partitionKey}?sortKey=...`) and only the non-key
-    attributes in the body (the `Attributes` schema). On a shard:
+    attributes in the body (the `Attributes` schema). On a replica:
     - CREATE is `POST` on the record path (not on `/records`), body `Attributes`, answer 201 with the attributes.
-    - READ returns the stored `Attributes`, without the key attributes; the coordinator adds them back.
-    - UPDATE returns the stored `Attributes`; EXISTS and DELETE are the same as on the coordinator.
-    - Errors: `RECORD_NOT_FOUND` (404), `RECORD_ALREADY_EXISTS` (409), `VALIDATION_ERROR` (400).
+    - READ returns a `ReplicaRecord`: the stored `Attributes` (without the key attributes) and their version.
+      A deleted record, or one the replica never received, is 404 `RECORD_NOT_FOUND` with `version` in the
+      error: the delete's version, or 0.
+    - EXISTS returns a `ReplicaExists`: `exists` and the version of the key's last write (0 if never written).
+    - UPDATE returns the stored `Attributes`; DELETE is the same as on the coordinator.
+    - Only the leader takes writes; a follower answers 421 `NOT_LEADER`. A write the followers did not
+      confirm in time is 503 `SHARD_UNAVAILABLE` (outcome unknown).
+    - Errors: `RECORD_NOT_FOUND` (404), `RECORD_ALREADY_EXISTS` (409), `VALIDATION_ERROR` (400),
+      `NOT_LEADER` (421), `SHARD_UNAVAILABLE` (503).
 
 tags:
   - name: tables
   - name: records
   - name: shards
+  - name: replication
+    description: Internal API between replicas (ADR 0008) and for checks; not called by clients.
 
 paths:
   /tables:
@@ -208,26 +224,97 @@ paths:
     post:
       tags: [shards]
       operationId: registerShard
-      summary: Register a shard
+      summary: Register a replica of a shard
       description: |
-        Called by each shard when it starts.
-        Registering a shard ID that is already registered replaces its address.
+        Called by each replica when it starts, and again at a fixed interval, so a restarted coordinator
+        gets its replicas back. A shard joins the ring when its first replica registers.
+        Registering again with the same details changes nothing; with a new address or role, the replica's
+        entry is replaced. A second, different leader for a shard is rejected (400), and the registered
+        leader is kept.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/ShardRegistration'
-            example: { shardId: shard-a, address: 'http://10.0.1.15:8081' }
+            examples:
+              leader:
+                value: { shardId: shard-a, replicaId: shard-a-1, role: leader, address: 'http://10.0.1.15:8080' }
+              follower:
+                value: { shardId: shard-a, replicaId: shard-a-2, role: follower, address: 'http://10.0.2.20:8080' }
       responses:
         '200':
-          description: Shard registered.
+          description: Replica registered.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ShardRegistration'
         '400':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /replication/log:
+    get:
+      tags: [replication]
+      operationId: fetchLog
+      summary: A follower fetches the leader's log entries after its position (leader only)
+      description: |
+        Long-polling (ADR 0008): when there is no entry after `after`, the leader holds the request until one
+        arrives or the long-poll time passes (5 s by default), then answers with no entries.
+        `after` is the last entry the follower stored, so it is also its confirmation of every entry up to it
+        (ADR 0011). A follower answers 421 `NOT_LEADER`.
+      parameters:
+        - name: after
+          in: query
+          required: true
+          description: The follower's position, the version of the last entry it stored (0 when its log is empty).
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: follower
+          in: query
+          required: true
+          description: The follower's replica ID.
+          schema:
+            type: string
+            minLength: 1
+        - name: max
+          in: query
+          required: false
+          description: At most this many entries in the answer.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 500
+      responses:
+        '200':
+          description: The entries after `after`, in log order (possibly none).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplicationBatch'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '421':
+          $ref: '#/components/responses/NotLeader'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /replication/status:
+    get:
+      tags: [replication]
+      operationId: replicaStatus
+      summary: What a replica reports about itself
+      responses:
+        '200':
+          description: The replica's role, position, its followers' confirmed positions (leader) and counters.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplicaStatus'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -303,16 +390,120 @@ components:
 
     ShardRegistration:
       type: object
-      required: [shardId, address]
+      required: [shardId, replicaId, role, address]
       properties:
         shardId:
           type: string
           minLength: 1
           description: Fixed ID of the shard, for example shard-a. Its ring positions are computed from it (ADR 0005).
+        replicaId:
+          type: string
+          minLength: 1
+          description: Fixed ID of this replica, for example shard-a-2.
+        role:
+          $ref: '#/components/schemas/ReplicaRole'
         address:
           type: string
           minLength: 1
-          description: Base URL the shard serves on.
+          description: Base URL the replica serves on.
+      additionalProperties: false
+
+    ReplicaRole:
+      type: string
+      enum: [leader, follower]
+      description: The replica's fixed role in its shard's replica set (no failover in M3).
+
+    ReplicaRecord:
+      type: object
+      description: A replica's answer to READ.
+      required: [attributes, version]
+      properties:
+        attributes:
+          $ref: '#/components/schemas/Attributes'
+        version:
+          type: integer
+          format: int64
+          description: Version of the write that set these attributes (its position in the shard's log).
+      additionalProperties: false
+
+    ReplicaExists:
+      type: object
+      description: A replica's answer to EXISTS.
+      required: [exists, version]
+      properties:
+        exists:
+          type: boolean
+        version:
+          type: integer
+          format: int64
+          description: Version of the key's last write, a delete included; 0 when the replica never received one.
+      additionalProperties: false
+
+    ReplicationEntry:
+      type: object
+      description: One entry of the leader's log, the result of a write (ADRs 0009, 0010).
+      required: [version, table, partitionKey, deleted]
+      properties:
+        version:
+          type: integer
+          format: int64
+          description: The entry's position in the shard's log, which is the record's new version.
+        table:
+          type: string
+        partitionKey:
+          type: string
+        sortKey:
+          type: string
+          description: Only for tables with a sort key.
+        attributes:
+          $ref: '#/components/schemas/Attributes'
+        deleted:
+          type: boolean
+          description: True for a delete (a tombstone); it then has no attributes.
+      additionalProperties: false
+
+    ReplicationBatch:
+      type: object
+      required: [entries, leaderLastVersion]
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReplicationEntry'
+        leaderLastVersion:
+          type: integer
+          format: int64
+          description: The leader's last entry, to see how far behind the follower is.
+      additionalProperties: false
+
+    ReplicaStatus:
+      type: object
+      required: [shardId, replicaId, role, lastVersion, followerPositions, readsServed, entriesReceived]
+      properties:
+        shardId:
+          type: string
+        replicaId:
+          type: string
+        role:
+          $ref: '#/components/schemas/ReplicaRole'
+        lastVersion:
+          type: integer
+          format: int64
+          description: The last entry in the replica's log, which is its position.
+        followerPositions:
+          type: object
+          description: On a leader, the position each follower last confirmed, by replica ID; empty on a follower.
+          additionalProperties:
+            type: integer
+            format: int64
+        readsServed:
+          type: integer
+          format: int64
+          description: READ and EXISTS requests answered since the replica started.
+        entriesReceived:
+          type: integer
+          format: int64
+          description: On a follower, log entries received from the leader since it started; 0 on a leader.
       additionalProperties: false
 
     Error:
@@ -329,8 +520,15 @@ components:
             - RECORD_ALREADY_EXISTS
             - INTERNAL_ERROR
             - SHARD_UNAVAILABLE
+            - NOT_LEADER
         message:
           type: string
+        version:
+          type: integer
+          format: int64
+          description: |
+            Only in a replica's 404 for READ: the version it holds for the key (the delete's version, or 0 when
+            it never received a write for it). Never sent to clients of the coordinator.
       additionalProperties: false
 
   responses:
@@ -373,13 +571,26 @@ components:
           example: { code: INTERNAL_ERROR, message: 'Unexpected server error' }
     ShardUnavailable:
       description: |
-        Sharded mode only: no shard is registered, or the shard that owns the key
-        did not answer within the timeout. The request is not sent to another shard.
-        For CREATE, UPDATE and DELETE the outcome is unknown: a shard that answered
-        too late may still have applied the write. Read the record before retrying;
-        a retried CREATE can get 409 for the client's own record.
+        Sharded mode only: no shard is registered; for a write, the owning shard has no registered leader,
+        its leader did not answer within the timeout, or W replicas did not store the write in time; for a read,
+        fewer than R replicas of the owning shard answered. The request is not sent to another shard.
+        On a write, the outcome is unknown: the leader may have stored it, and it may become visible later.
+        Read the record before retrying; a retried CREATE can get 409 for the client's own record.
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
-          example: { code: SHARD_UNAVAILABLE, message: 'Shard shard-b did not answer' }
+          examples:
+            leaderDown:
+              value: { code: SHARD_UNAVAILABLE, message: 'Replica shard-b-1 of shard shard-b did not answer' }
+            writeNotConfirmed:
+              value: { code: SHARD_UNAVAILABLE, message: 'Write 57 was stored by the leader but not confirmed by 1 follower(s) in time; its outcome is unknown' }
+            readQuorum:
+              value: { code: SHARD_UNAVAILABLE, message: 'Only 1 of the 2 replicas a read needs answered for shard shard-b' }
+    NotLeader:
+      description: Replicas only. This replica is a follower; writes and the log go to the shard's leader.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example: { code: NOT_LEADER, message: "Replica shard-a-2 is a follower of shard shard-a; send this to the shard's leader" }

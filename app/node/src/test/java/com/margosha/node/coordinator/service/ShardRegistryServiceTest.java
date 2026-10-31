@@ -3,13 +3,13 @@ package com.margosha.node.coordinator.service;
 import static com.margosha.node.data.TestData.SHARD_A;
 import static com.margosha.node.data.TestData.SHARD_B;
 import static com.margosha.node.data.TestData.USER_42;
+import static com.margosha.node.data.TestData.follower;
 import static com.margosha.node.data.TestData.shard;
 import static com.margosha.node.data.TestData.userKeys;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -18,43 +18,123 @@ import java.util.stream.Stream;
 
 import com.margosha.api.model.ErrorCode;
 import com.margosha.api.model.PrimaryKey;
+import com.margosha.api.model.ReplicaRole;
 import com.margosha.api.model.ShardRegistration;
+import com.margosha.node.common.exception.ValidationException;
 import com.margosha.node.coordinator.exception.ShardUnavailableException;
-import com.margosha.node.common.storage.InMemoryRecordStorage;
-import com.margosha.node.common.storage.RecordStorage;
+import com.margosha.node.coordinator.storage.ReplicaClient;
+import com.margosha.node.data.FakeReplica;
 import com.margosha.ring.RingSettings;
 import org.junit.jupiter.api.Test;
 
 class ShardRegistryServiceTest {
 
-	private static final ShardRegistration SHARD_A_1 = shard(SHARD_A, 8081);
-	private static final ShardRegistration SHARD_A_2 = shard(SHARD_A, 9091);
-	private static final ShardRegistration SHARD_B_1 = shard(SHARD_B, 8082);
+	private static final ShardRegistration LEADER_A = shard(SHARD_A, 8081);
+	private static final ShardRegistration FOLLOWER_A_2 = follower(SHARD_A, SHARD_A + "-2", 8082);
+	private static final ShardRegistration FOLLOWER_A_3 = follower(SHARD_A, SHARD_A + "-3", 8083);
+	private static final ShardRegistration LEADER_B = shard(SHARD_B, 9091);
 
 	private final List<ShardRegistration> connected = new ArrayList<>();
-	private final Map<ShardRegistration, RecordStorage> shardStorages = new HashMap<>();
-	private final ShardRegistryService registry = new ShardRegistryService(RingSettings.load().newRing(), shard -> {
-		connected.add(shard);
-		return shardStorages.computeIfAbsent(shard, s -> new InMemoryRecordStorage());
+	private final ShardRegistryService registry = new ShardRegistryService(RingSettings.load().newRing(), replica -> {
+		connected.add(replica);
+		return new FakeReplica(replica);
 	});
 
 	@Test
-	void registeredShardOwnsTheRing() {
+	void firstReplicaPutsItsShardOnTheRing() {
+		// Arrange
+		ShardRegistration replica = FOLLOWER_A_2;
+
 		// Act
-		ShardRegistration registered = registry.register(SHARD_A_1);
+		ShardRegistration registered = registry.register(replica);
 
 		// Assert
-		assertThat(registered).isEqualTo(SHARD_A_1);
+		assertThat(registered).isEqualTo(replica);
 		assertThat(registry.shards()).containsExactly(SHARD_A);
 		assertThat(registry.shardIdFor(USER_42)).isEqualTo(SHARD_A);
-		assertThat(registry.ownerOf(USER_42)).isSameAs(shardStorages.get(SHARD_A_1));
+	}
+
+	@Test
+	void replicaSetHoldsTheLeaderAndTheFollowers() {
+		// Arrange
+		Stream.of(FOLLOWER_A_3, LEADER_A, FOLLOWER_A_2).forEach(registry::register);
+
+		// Act
+		ReplicaSet replicaSet = registry.replicaSetFor(USER_42);
+
+		// Assert
+		assertThat(replicaSet.getShardId()).isEqualTo(SHARD_A);
+		assertThat(replicaSet.leader().registration()).isEqualTo(LEADER_A);
+		assertThat(registrations(replicaSet.replicas())).containsExactly(LEADER_A, FOLLOWER_A_2, FOLLOWER_A_3);
+		assertThat(registry.shards()).containsExactly(SHARD_A);
+	}
+
+	@Test
+	void shardWithoutARegisteredLeaderHasNoWriter() {
+		// Arrange
+		registry.register(FOLLOWER_A_2);
+
+		// Act
+		Throwable thrown = catchThrowable(() -> registry.replicaSetFor(USER_42).leader());
+
+		// Assert
+		assertThat(thrown).isInstanceOf(ShardUnavailableException.class)
+				.hasMessage("Shard shard-a has no registered leader");
+	}
+
+	@Test
+	void secondLeaderForAShardIsRejectedAndTheFirstIsKept() {
+		// Arrange
+		registry.register(LEADER_A);
+		ShardRegistration secondLeader = new ShardRegistration(SHARD_A, SHARD_A + "-9", ReplicaRole.LEADER,
+				"http://localhost:8089");
+
+		// Act
+		Throwable thrown = catchThrowable(() -> registry.register(secondLeader));
+
+		// Assert
+		assertThat(thrown).isInstanceOf(ValidationException.class)
+				.hasMessage("Shard shard-a already has leader shard-a-1; replica shard-a-9 cannot register as a second leader");
+		assertThat(registry.replicaSetFor(USER_42).leader().registration()).isEqualTo(LEADER_A);
+		assertThat(connected).containsExactly(LEADER_A);
+	}
+
+	@Test
+	void registeringAgainWithTheSameDetailsChangesNothing() {
+		// Arrange
+		registry.register(LEADER_A);
+		ReplicaClient before = registry.replicaSetFor(USER_42).leader();
+
+		// Act
+		registry.register(LEADER_A);
+		registry.register(LEADER_A);
+
+		// Assert
+		assertThat(connected).containsExactly(LEADER_A);
+		assertThat(registry.replicaSetFor(USER_42).leader()).isSameAs(before);
+	}
+
+	@Test
+	void replicaRegisteringWithANewAddressReplacesItsEntry() {
+		// Arrange
+		registry.register(LEADER_A);
+		ShardRegistration moved = new ShardRegistration(SHARD_A, LEADER_A.replicaId(), ReplicaRole.LEADER,
+				"http://localhost:7071");
+
+		// Act
+		registry.register(moved);
+
+		// Assert
+		assertThat(connected).containsExactly(LEADER_A, moved);
+		assertThat(registrations(registry.replicaSetFor(USER_42).replicas())).containsExactly(moved);
+		assertThat(registry.replicaSetFor(USER_42).leader().registration()).isEqualTo(moved);
 	}
 
 	@Test
 	void keysAreSplitBetweenTwoShards() {
 		// Arrange
-		registry.register(SHARD_A_1);
-		registry.register(SHARD_B_1);
+		registry.register(LEADER_A);
+		registry.register(LEADER_B);
 
 		// Act
 		Map<String, List<PrimaryKey>> keysByShard = userKeys(100).stream()
@@ -63,14 +143,14 @@ class ShardRegistryServiceTest {
 		// Assert
 		assertThat(keysByShard.keySet()).containsExactlyInAnyOrder(SHARD_A, SHARD_B);
 		keysByShard.get(SHARD_B).forEach(key ->
-				assertThat(registry.ownerOf(key)).isSameAs(shardStorages.get(SHARD_B_1)));
+				assertThat(registry.replicaSetFor(key).leader().registration()).isEqualTo(LEADER_B));
 	}
 
 	@Test
 	void sameKeyAlwaysGoesToTheSameShard() {
 		// Arrange
-		registry.register(SHARD_A_1);
-		registry.register(SHARD_B_1);
+		registry.register(LEADER_A);
+		registry.register(LEADER_B);
 
 		// Act
 		Set<String> owners = Stream.generate(() -> registry.shardIdFor(USER_42)).limit(20).collect(Collectors.toSet());
@@ -80,40 +160,33 @@ class ShardRegistryServiceTest {
 	}
 
 	@Test
-	void registeringKnownShardAgainReplacesItsAddress() {
+	void readsStartOneReplicaFurtherEachTime() {
 		// Arrange
-		registry.register(SHARD_A_1);
+		Stream.of(LEADER_A, FOLLOWER_A_2, FOLLOWER_A_3).forEach(registry::register);
+		ReplicaSet replicaSet = registry.replicaSetFor(USER_42);
 
 		// Act
-		registry.register(SHARD_A_2);
+		List<List<ShardRegistration>> orders = Stream.generate(() -> registrations(replicaSet.readOrder()))
+				.limit(4).toList();
 
 		// Assert
-		assertThat(registry.shards()).containsExactly(SHARD_A);
-		assertThat(connected).containsExactly(SHARD_A_1, SHARD_A_2);
-		assertThat(registry.ownerOf(USER_42)).isSameAs(shardStorages.get(SHARD_A_2));
-	}
-
-	@Test
-	void registeringKnownShardAgainAtTheSameAddressKeepsItsConnection() {
-		// Arrange
-		registry.register(SHARD_A_1);
-		RecordStorage before = registry.ownerOf(USER_42);
-
-		// Act
-		registry.register(SHARD_A_1);
-		registry.register(SHARD_A_1);
-
-		// Assert
-		assertThat(registry.shards()).containsExactly(SHARD_A);
-		assertThat(connected).containsExactly(SHARD_A_1);
-		assertThat(registry.ownerOf(USER_42)).isSameAs(before);
+		assertThat(orders).containsExactly(
+				List.of(LEADER_A, FOLLOWER_A_2, FOLLOWER_A_3),
+				List.of(FOLLOWER_A_2, FOLLOWER_A_3, LEADER_A),
+				List.of(FOLLOWER_A_3, LEADER_A, FOLLOWER_A_2),
+				List.of(LEADER_A, FOLLOWER_A_2, FOLLOWER_A_3));
 	}
 
 	@Test
 	void noRegisteredShardIsShardUnavailable() {
-		// Act & Assert
-		assertThatThrownBy(() -> registry.ownerOf(USER_42))
-				.isInstanceOfSatisfying(ShardUnavailableException.class, e -> {
+		// Arrange
+		ShardRegistryService empty = registry;
+
+		// Act
+		Throwable thrown = catchThrowable(() -> empty.replicaSetFor(USER_42));
+
+		// Assert
+		assertThat(thrown).isInstanceOfSatisfying(ShardUnavailableException.class, e -> {
 					assertThat(e.getCode()).isEqualTo(ErrorCode.SHARD_UNAVAILABLE);
 					assertThat(e.getStatus().value()).isEqualTo(503);
 				})
@@ -121,4 +194,8 @@ class ShardRegistryServiceTest {
 	}
 
 	// Invalid registrations are rejected by @Valid in the controller: ShardRegistrationControllerTest.
+
+	private static List<ShardRegistration> registrations(List<ReplicaClient> replicas) {
+		return replicas.stream().map(ReplicaClient::registration).toList();
+	}
 }

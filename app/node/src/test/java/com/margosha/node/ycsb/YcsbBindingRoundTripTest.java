@@ -2,11 +2,12 @@ package com.margosha.node.ycsb;
 
 import static com.margosha.node.data.TestData.SHARD_A;
 import static com.margosha.node.data.TestData.SHARD_B;
-import static com.margosha.node.data.TestData.client;
-import static com.margosha.node.data.TestData.localAddress;
+import static com.margosha.node.data.TestData.testDataDir;
 import static com.margosha.node.data.TestData.unique;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -17,55 +18,50 @@ import java.util.Random;
 import java.util.Set;
 import java.util.Vector;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
-import com.margosha.api.client.CoordinatorClient;
 import com.margosha.api.model.PrimaryKey;
 import com.margosha.api.model.TableDefinition;
-import com.margosha.node.annotation.ShardedCoordinatorTest;
 import com.margosha.node.coordinator.service.ShardRegistryService;
 import com.margosha.node.data.InProcessNode;
+import com.margosha.node.data.InProcessReplicaSet;
 import com.margosha.ycsb.MargoshaDbClient;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.web.server.LocalServerPort;
 import site.ycsb.ByteIterator;
 import site.ycsb.DB;
 import site.ycsb.Status;
 import site.ycsb.StringByteIterator;
 
-@ShardedCoordinatorTest
 class YcsbBindingRoundTripTest {
 
 	private static final String KEY_ATTRIBUTE = "ycsb_key";
 	private static final int RECORD_COUNT = 200;
 	private static final int FIELD_COUNT = 10;
 	private static final int FIELD_LENGTH = 100;
-
-	@LocalServerPort
-	private int port;
-
-	@Autowired
-	private ShardRegistryService shardRegistry;
+	private static final Duration REGISTRATION_WAIT = Duration.ofSeconds(15);
 
 	private final String table = unique("usertable");
 	private final Random random = new Random(42);
-	private InProcessNode shardA;
-	private InProcessNode shardB;
+	private InProcessNode coordinator;
+	private ShardRegistryService shardRegistry;
+	private InProcessReplicaSet shardA;
+	private InProcessReplicaSet shardB;
 	private DB db;
 
 	@BeforeEach
 	void setUp() throws Exception {
-		shardA = InProcessNode.shard(SHARD_A);
-		shardB = InProcessNode.shard(SHARD_B);
-		CoordinatorClient coordinator = client(port);
-		coordinator.registerShard(shardA.registration());
-		coordinator.registerShard(shardB.registration());
-		coordinator.registerTable(TableDefinition.of(table, KEY_ATTRIBUTE));
+		coordinator = InProcessNode.replicatedCoordinator(0, testDataDir("coordinator"));
+		shardRegistry = coordinator.shardRegistry();
+		shardA = InProcessReplicaSet.start(SHARD_A, coordinator.address());
+		shardB = InProcessReplicaSet.start(SHARD_B, coordinator.address());
+		await().atMost(REGISTRATION_WAIT).until(() -> Stream.of(SHARD_A, SHARD_B).allMatch(shardId ->
+				shardRegistry.replicaSet(shardId).map(set -> set.replicas().size() == 3).orElse(false)));
+		coordinator.client().registerTable(TableDefinition.of(table, KEY_ATTRIBUTE));
 
 		Properties properties = new Properties();
-		properties.setProperty(MargoshaDbClient.URL_PROPERTY, localAddress(port));
+		properties.setProperty(MargoshaDbClient.URL_PROPERTY, coordinator.address());
 		properties.setProperty(MargoshaDbClient.PARTITION_KEY_PROPERTY, KEY_ATTRIBUTE);
 		db = new MargoshaDbClient();
 		db.setProperties(properties);
@@ -77,6 +73,7 @@ class YcsbBindingRoundTripTest {
 		db.cleanup();
 		shardB.close();
 		shardA.close();
+		coordinator.close();
 	}
 
 	@Test

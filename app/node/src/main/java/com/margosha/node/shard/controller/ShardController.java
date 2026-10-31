@@ -5,11 +5,11 @@ import static com.margosha.api.util.PathConstants.RECORD;
 
 import com.margosha.api.model.Attributes;
 import com.margosha.api.model.PrimaryKey;
-import jakarta.validation.constraints.NotBlank;
 import com.margosha.api.model.ReplicaExists;
 import com.margosha.api.model.ReplicaRecord;
 import com.margosha.node.common.storage.RecordStorage;
 import com.margosha.node.shard.service.ReplicaReadService;
+import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
@@ -43,14 +43,14 @@ public class ShardController {
 
 	@GetMapping(RECORD)
 	public ReplicaRecord readRecord(@PathVariable String tableName,
-									@PathVariable String partitionKey,
+									@PathVariable @NotBlank(message = "Missing partition key value") String partitionKey,
 									@RequestParam(required = false) String sortKey) {
 		return replicaReadService.read(tableName, key(partitionKey, sortKey));
 	}
 
 	@GetMapping(EXISTS)
 	public ReplicaExists recordExists(@PathVariable String tableName,
-									  @PathVariable String partitionKey,
+									  @PathVariable @NotBlank(message = "Missing partition key value") String partitionKey,
 									  @RequestParam(required = false) String sortKey) {
 		return replicaReadService.exists(tableName, key(partitionKey, sortKey));
 	}

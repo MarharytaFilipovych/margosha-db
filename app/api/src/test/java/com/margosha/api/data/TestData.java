@@ -1,6 +1,7 @@
 package com.margosha.api.data;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -13,6 +14,12 @@ import com.margosha.api.model.Attributes;
 import com.margosha.api.model.ErrorCode;
 import com.margosha.api.model.ExistsResult;
 import com.margosha.api.model.PrimaryKey;
+import com.margosha.api.model.ReplicaExists;
+import com.margosha.api.model.ReplicaRecord;
+import com.margosha.api.model.ReplicaRole;
+import com.margosha.api.model.ReplicaStatus;
+import com.margosha.api.model.ReplicationBatch;
+import com.margosha.api.model.ReplicationEntry;
 import com.margosha.api.model.ShardRegistration;
 import com.margosha.api.model.TableDefinition;
 import com.margosha.api.model.TableRecord;
@@ -71,7 +78,7 @@ public final class TestData {
     }
 
     public static ShardRegistration shardA() {
-        return new ShardRegistration("shard-a", "http://10.0.1.15:8081");
+        return new ShardRegistration("shard-a", "shard-a-1", ReplicaRole.LEADER, "http://10.0.1.15:8081");
     }
 
     public static ApiError error(ErrorCode code) {
@@ -99,7 +106,25 @@ public final class TestData {
                 Arguments.of(Attributes.of(Map.of()), "{}"),
                 Arguments.of(new ExistsResult(true), "{\"exists\":true}"),
                 Arguments.of(new ExistsResult(false), "{\"exists\":false}"),
-                Arguments.of(shardA(), "{\"shardId\":\"shard-a\",\"address\":\"http://10.0.1.15:8081\"}"));
+                Arguments.of(shardA(), "{\"shardId\":\"shard-a\",\"replicaId\":\"shard-a-1\",\"role\":\"leader\","
+                        + "\"address\":\"http://10.0.1.15:8081\"}"),
+                Arguments.of(new ShardRegistration("shard-a", "shard-a-2", ReplicaRole.FOLLOWER, "http://10.0.2.20:8081"),
+                        "{\"shardId\":\"shard-a\",\"replicaId\":\"shard-a-2\",\"role\":\"follower\","
+                                + "\"address\":\"http://10.0.2.20:8081\"}"),
+                Arguments.of(new ReplicaRecord(renamed(), 7), "{\"attributes\":{\"name\":\"Bob\"},\"version\":7}"),
+                Arguments.of(new ReplicaExists(false, 4), "{\"exists\":false,\"version\":4}"),
+                Arguments.of(new ApiError(ErrorCode.RECORD_NOT_FOUND, "deleted", 9L),
+                        "{\"code\":\"RECORD_NOT_FOUND\",\"message\":\"deleted\",\"version\":9}"),
+                Arguments.of(new ReplicationBatch(List.of(
+                                new ReplicationEntry(6, "users", "42", null, Map.of("name", "Bob"), false),
+                                new ReplicationEntry(7, "orders", "c1", "o7", null, true)), 7),
+                        "{\"entries\":[{\"version\":6,\"table\":\"users\",\"partitionKey\":\"42\","
+                                + "\"attributes\":{\"name\":\"Bob\"},\"deleted\":false},"
+                                + "{\"version\":7,\"table\":\"orders\",\"partitionKey\":\"c1\",\"sortKey\":\"o7\","
+                                + "\"deleted\":true}],\"leaderLastVersion\":7}"),
+                Arguments.of(new ReplicaStatus("shard-a", "shard-a-1", "leader", 12, Map.of("shard-a-2", 12L), 40, 0),
+                        "{\"shardId\":\"shard-a\",\"replicaId\":\"shard-a-1\",\"role\":\"leader\",\"lastVersion\":12,"
+                                + "\"followerPositions\":{\"shard-a-2\":12},\"readsServed\":40,\"entriesReceived\":0}"));
         Stream<Arguments> errors = Arrays.stream(ErrorCode.values()).map(code -> Arguments.of(
                 error(code), "{\"code\":\"" + code + "\",\"message\":\"Test error " + code + "\"}"));
         return Stream.concat(models, errors);
