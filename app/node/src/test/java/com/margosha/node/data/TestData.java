@@ -138,4 +138,24 @@ public final class TestData {
 	public static String json(Object value) {
 		return JSON.writeValueAsString(value);
 	}
+
+	public static void eventually(Duration timeout, Runnable assertion) {
+		long deadline = System.nanoTime() + timeout.toNanos();
+		while (true) {
+			try {
+				assertion.run();
+				return;
+			} catch (AssertionError e) {
+				if (System.nanoTime() > deadline) {
+					throw e;
+				}
+				try {
+					Thread.sleep(20);
+				} catch (InterruptedException interrupted) {
+					Thread.currentThread().interrupt();
+					throw e;
+				}
+			}
+		}
+	}
 }

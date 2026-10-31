@@ -73,6 +73,9 @@ public class RemoteShardStorageService implements RecordStorage {
 			if (e.code() == ErrorCode.RECORD_ALREADY_EXISTS) {
 				throw new RecordAlreadyExistsException(table, key);
 			}
+			if (e.code() == ErrorCode.SHARD_UNAVAILABLE) {
+				throw new ShardUnavailableException(e.error().message());
+			}
 			throw e;
 		}
 	}

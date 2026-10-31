@@ -1,5 +1,6 @@
 package com.margosha.node.common.exception;
 
+import com.margosha.api.model.ApiError;
 import com.margosha.api.model.ErrorCode;
 import com.margosha.api.model.PrimaryKey;
 import lombok.Getter;
@@ -15,6 +16,11 @@ public abstract class NodeException extends RuntimeException {
 		super(message);
 		this.code = code;
 		this.status = status;
+	}
+
+	/** The error body sent to the caller; subclasses add details such as a version. */
+	public ApiError toApiError() {
+		return new ApiError(code, getMessage());
 	}
 
 	protected static String describe(PrimaryKey key) {

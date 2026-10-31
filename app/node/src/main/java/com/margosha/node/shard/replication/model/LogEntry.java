@@ -4,6 +4,7 @@ import java.util.Objects;
 
 import com.margosha.api.model.Attributes;
 import com.margosha.api.model.PrimaryKey;
+import com.margosha.api.model.ReplicationEntry;
 
 public record LogEntry(long version, String table, PrimaryKey key, Attributes attributes) {
 
@@ -25,5 +26,17 @@ public record LogEntry(long version, String table, PrimaryKey key, Attributes at
 
 	public boolean deleted() {
 		return attributes == null;
+	}
+
+	public static LogEntry from(ReplicationEntry entry) {
+		PrimaryKey key = new PrimaryKey(entry.partitionKey(), entry.sortKey());
+		return entry.deleted()
+				? delete(entry.version(), entry.table(), key)
+				: put(entry.version(), entry.table(), key, Attributes.of(entry.attributes()));
+	}
+
+	public ReplicationEntry toReplicationEntry() {
+		return new ReplicationEntry(version, table, key.partitionKey(), key.sortKey(),
+				deleted() ? null : attributes.values(), deleted());
 	}
 }

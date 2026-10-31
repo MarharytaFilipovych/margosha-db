@@ -26,6 +26,7 @@ import com.margosha.api.exception.ApiException;
 import com.margosha.api.model.ApiError;
 import com.margosha.api.model.Attributes;
 import com.margosha.api.model.ErrorCode;
+import com.margosha.api.model.ReplicaRecord;
 import com.margosha.node.common.exception.RecordAlreadyExistsException;
 import com.margosha.node.common.exception.RecordNotFoundException;
 import com.margosha.node.coordinator.exception.ShardUnavailableException;
@@ -61,7 +62,7 @@ class RemoteShardStorageServiceTest {
 		void readReturnsTheShardsAttributes() {
 			// Arrange
 			server.expect(requestTo(USER_42_RECORD)).andExpect(method(HttpMethod.GET))
-					.andRespond(respond(HttpStatus.OK, ANN_ATTRIBUTES));
+					.andRespond(respond(HttpStatus.OK, new ReplicaRecord(ANN_ATTRIBUTES, 1)));
 
 			// Act
 			Attributes attributes = remoteShard.read(USERS, USER_42);
@@ -92,6 +93,20 @@ class RemoteShardStorageServiceTest {
 			// Act & Assert
 			assertThatThrownBy(() -> remoteShard.create(USERS, USER_42, ANN_ATTRIBUTES))
 					.isInstanceOf(RecordAlreadyExistsException.class);
+		}
+
+		@Test
+		void writeTheLeaderCouldNotConfirmIsShardUnavailable() {
+			// Arrange
+			String message = "Write 7 was stored by the leader but not confirmed by 1 follower(s) in time; its outcome is unknown";
+			server.expect(requestTo(USER_42_RECORD)).andExpect(method(HttpMethod.POST))
+					.andRespond(respond(HttpStatus.SERVICE_UNAVAILABLE, new ApiError(ErrorCode.SHARD_UNAVAILABLE, message)));
+
+			// Act
+			Throwable thrown = catchThrowable(() -> remoteShard.create(USERS, USER_42, ANN_ATTRIBUTES));
+
+			// Assert
+			assertThat(thrown).isInstanceOf(ShardUnavailableException.class).hasMessage(message);
 		}
 
 		@Test

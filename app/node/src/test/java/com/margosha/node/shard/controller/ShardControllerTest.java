@@ -22,9 +22,13 @@ import com.margosha.api.exception.ApiException;
 import com.margosha.api.model.Attributes;
 import com.margosha.api.model.ErrorCode;
 import com.margosha.api.model.PrimaryKey;
+import com.margosha.api.model.ReplicaExists;
+import com.margosha.api.model.ReplicaRecord;
+import com.margosha.api.model.ReplicaStatus;
 import com.margosha.node.annotation.ShardNodeTest;
-import com.margosha.node.common.storage.InMemoryRecordStorage;
 import com.margosha.node.common.storage.RecordStorage;
+import com.margosha.node.shard.replication.leader.LeaderRecordStorage;
+import com.margosha.node.shard.replication.storage.ReplicaStorage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +43,9 @@ class ShardControllerTest {
 	@Autowired
 	private RecordStorage storage;
 
+	@Autowired
+	private ReplicaStorage replica;
+
 	private ShardClient shard;
 	private final String users = unique(USERS);
 	private final String orders = unique(ORDERS);
@@ -49,9 +56,105 @@ class ShardControllerTest {
 	}
 
 	@Test
-	void shardKeepsRecordsInItsOwnMemory() {
+	void shardIsALeaderKeepingItsRecordsInItsReplicationLog() {
+		// Arrange
+		long before = replica.lastVersion();
+
+		// Act
+		shard.createRecord(users, USER_42, ANN_ATTRIBUTES);
+
 		// Assert
-		assertThat(storage).isInstanceOf(InMemoryRecordStorage.class);
+		assertThat(storage).isInstanceOf(LeaderRecordStorage.class);
+		assertThat(replica.lastVersion()).isEqualTo(before + 1);
+		assertThat(replica.entriesAfter(before, 10)).singleElement()
+				.satisfies(entry -> assertThat(entry.attributes()).isEqualTo(ANN_ATTRIBUTES));
+	}
+
+	@Test
+	void readReturnsTheAttributesWithTheirVersion() {
+		// Arrange
+		shard.createRecord(users, USER_42, ANN_ATTRIBUTES);
+		long created = replica.lastVersion();
+		shard.updateRecord(users, USER_42, BOB_ATTRIBUTES);
+		long updated = replica.lastVersion();
+
+		// Act
+		ReplicaRecord read = shard.readVersioned(users, USER_42);
+
+		// Assert
+		assertThat(updated).isGreaterThan(created);
+		assertThat(read).isEqualTo(new ReplicaRecord(BOB_ATTRIBUTES, updated));
+	}
+
+	@Test
+	void readOfAKeyNeverWrittenIsNotFoundWithVersionZero() {
+		// Arrange
+		shard.createRecord(users, USER_7, ANN_ATTRIBUTES);
+
+		// Act
+		ApiException error = apiError(() -> shard.readVersioned(users, USER_42));
+
+		// Assert
+		assertThat(error.isNotFound()).isTrue();
+		assertThat(error.code()).isEqualTo(ErrorCode.RECORD_NOT_FOUND);
+		assertThat(error.error().version()).isZero();
+	}
+
+	@Test
+	void readOfADeletedRecordIsNotFoundWithTheDeletesVersion() {
+		// Arrange
+		shard.createRecord(users, USER_42, ANN_ATTRIBUTES);
+		shard.deleteRecord(users, USER_42);
+		long deleted = replica.lastVersion();
+
+		// Act
+		ApiException error = apiError(() -> shard.readVersioned(users, USER_42));
+
+		// Assert
+		assertThat(error.isNotFound()).isTrue();
+		assertThat(error.code()).isEqualTo(ErrorCode.RECORD_NOT_FOUND);
+		assertThat(error.error().version()).isEqualTo(deleted);
+	}
+
+	@Test
+	void existsReturnsWhetherTheRecordExistsAndItsVersion() {
+		// Arrange
+		shard.createRecord(users, USER_42, ANN_ATTRIBUTES);
+		long created = replica.lastVersion();
+		shard.createRecord(users, USER_7, BOB_ATTRIBUTES);
+		shard.deleteRecord(users, USER_7);
+		long deleted = replica.lastVersion();
+
+		// Act
+		ReplicaExists present = shard.existsVersioned(users, USER_42);
+		ReplicaExists removed = shard.existsVersioned(users, USER_7);
+		ReplicaExists neverWritten = shard.existsVersioned(orders, ORDER_42_1);
+
+		// Assert
+		assertThat(present).isEqualTo(new ReplicaExists(true, created));
+		assertThat(removed).isEqualTo(new ReplicaExists(false, deleted));
+		assertThat(neverWritten).isEqualTo(new ReplicaExists(false, 0));
+	}
+
+	@Test
+	void statusCountersChangeAfterAWriteAndARead() {
+		// Arrange
+		ReplicaStatus before = shard.status();
+
+		// Act
+		shard.createRecord(users, USER_42, ANN_ATTRIBUTES);
+		ReplicaStatus afterWrite = shard.status();
+		shard.readRecord(users, USER_42);
+		ReplicaStatus afterRead = shard.status();
+
+		// Assert
+		assertThat(before.shardId()).isEqualTo("test-shard");
+		assertThat(before.role()).isEqualTo("leader");
+		assertThat(before.followerPositions()).isEmpty();
+		assertThat(afterWrite.lastVersion()).isEqualTo(before.lastVersion() + 1);
+		assertThat(afterWrite.readsServed()).isEqualTo(before.readsServed());
+		assertThat(afterRead.readsServed()).isEqualTo(afterWrite.readsServed() + 1);
+		assertThat(afterRead.lastVersion()).isEqualTo(afterWrite.lastVersion());
 	}
 
 	@Test

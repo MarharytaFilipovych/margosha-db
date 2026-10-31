@@ -24,7 +24,7 @@ public class ApiExceptionHandler {
 	@ExceptionHandler(NodeException.class)
 	public ResponseEntity<ApiError> handleNodeException(NodeException e) {
 		log.error("NodeException occurred", e);
-		return error(e.getStatus(), e.getCode(), e.getMessage());
+		return ResponseEntity.status(e.getStatus()).body(e.toApiError());
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)

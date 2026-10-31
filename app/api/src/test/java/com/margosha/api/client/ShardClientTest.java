@@ -1,5 +1,7 @@
 package com.margosha.api.client;
 
+import static com.margosha.api.util.PathConstants.REPLICATION_LOG;
+import static com.margosha.api.util.PathConstants.REPLICATION_STATUS;
 import static com.margosha.api.util.PathConstants.TABLES;
 import static com.margosha.api.data.TestData.BASE_URL;
 import static com.margosha.api.data.TestData.ORDERS;
@@ -20,10 +22,18 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 import com.margosha.api.exception.ApiException;
+import com.margosha.api.model.ApiError;
 import com.margosha.api.model.Attributes;
 import com.margosha.api.model.ErrorCode;
+import com.margosha.api.model.ReplicaExists;
+import com.margosha.api.model.ReplicaRecord;
+import com.margosha.api.model.ReplicaStatus;
+import com.margosha.api.model.ReplicationBatch;
+import com.margosha.api.model.ReplicationEntry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -109,13 +119,28 @@ class ShardClientTest {
         void returnsTheStoredAttributes() {
             // Arrange
             expectRequest(HttpMethod.GET, ORDER_RECORD)
-                    .andRespond(respond(HttpStatus.OK, orderAttributes()));
+                    .andRespond(respond(HttpStatus.OK, new ReplicaRecord(orderAttributes(), 7)));
 
             // Act
             Attributes result = client.readRecord(ORDERS, orderKey());
 
             // Assert
             assertThat(result).isEqualTo(orderAttributes());
+            server.verify();
+        }
+
+        @Test
+        void versionedReadReturnsTheAttributesWithTheirVersion() {
+            // Arrange
+            expectRequest(HttpMethod.GET, USER_RECORD)
+                    .andRespond(respondJson(HttpStatus.OK,
+                            "{\"attributes\":{\"name\":\"Ann\",\"city\":\"Kyiv\"},\"version\":7}"));
+
+            // Act
+            ReplicaRecord result = client.readVersioned(USERS, userKey());
+
+            // Assert
+            assertThat(result).isEqualTo(new ReplicaRecord(userAttributes(), 7));
             server.verify();
         }
 
@@ -131,6 +156,21 @@ class ShardClientTest {
             // Assert
             assertApiError(thrown, HttpStatus.NOT_FOUND, ErrorCode.RECORD_NOT_FOUND);
         }
+
+        @Test
+        void deletedRecordThrowsRecordNotFoundWithItsVersion() {
+            // Arrange
+            expectRequest(HttpMethod.GET, USER_RECORD)
+                    .andRespond(respondJson(HttpStatus.NOT_FOUND,
+                            "{\"code\":\"RECORD_NOT_FOUND\",\"message\":\"deleted\",\"version\":9}"));
+
+            // Act
+            Throwable thrown = catchThrowable(() -> client.readVersioned(USERS, userKey()));
+
+            // Assert
+            assertThat(thrown).isInstanceOfSatisfying(ApiException.class,
+                    e -> assertThat(e.error()).isEqualTo(new ApiError(ErrorCode.RECORD_NOT_FOUND, "deleted", 9L)));
+        }
     }
 
     @Nested
@@ -140,13 +180,77 @@ class ShardClientTest {
         void returnsWhatTheShardAnswers() {
             // Arrange
             expectRequest(HttpMethod.GET, USER_EXISTS)
-                    .andRespond(respondJson(HttpStatus.OK, "{\"exists\":true}"));
+                    .andRespond(respondJson(HttpStatus.OK, "{\"exists\":true,\"version\":3}"));
 
             // Act
             boolean exists = client.recordExists(USERS, userKey());
 
             // Assert
             assertThat(exists).isTrue();
+            server.verify();
+        }
+
+        @Test
+        void versionedExistsReturnsTheVersion() {
+            // Arrange
+            expectRequest(HttpMethod.GET, USER_EXISTS)
+                    .andRespond(respondJson(HttpStatus.OK, "{\"exists\":false,\"version\":4}"));
+
+            // Act
+            ReplicaExists result = client.existsVersioned(USERS, userKey());
+
+            // Assert
+            assertThat(result).isEqualTo(new ReplicaExists(false, 4));
+            server.verify();
+        }
+    }
+
+    @Nested
+    class Replication {
+
+        @Test
+        void fetchLogAsksForTheEntriesAfterThePosition() {
+            // Arrange
+            ReplicationEntry entry = new ReplicationEntry(6, USERS, "42", null, userAttributes().values(), false);
+            server.expect(requestTo(BASE_URL + REPLICATION_LOG + "?after=5&follower=shard-a-2&max=100"))
+                    .andExpect(method(HttpMethod.GET))
+                    .andRespond(respond(HttpStatus.OK, new ReplicationBatch(List.of(entry), 6)));
+
+            // Act
+            ReplicationBatch batch = client.fetchLog(5, "shard-a-2", 100);
+
+            // Assert
+            assertThat(batch.entries()).containsExactly(entry);
+            assertThat(batch.leaderLastVersion()).isEqualTo(6);
+            server.verify();
+        }
+
+        @Test
+        void followerAnswersNotLeader() {
+            // Arrange
+            server.expect(requestTo(BASE_URL + REPLICATION_LOG + "?after=0&follower=shard-a-3&max=10"))
+                    .andRespond(respondWithError(HttpStatus.MISDIRECTED_REQUEST, ErrorCode.NOT_LEADER));
+
+            // Act
+            Throwable thrown = catchThrowable(() -> client.fetchLog(0, "shard-a-3", 10));
+
+            // Assert
+            assertApiError(thrown, HttpStatus.MISDIRECTED_REQUEST, ErrorCode.NOT_LEADER);
+        }
+
+        @Test
+        void statusReturnsWhatTheReplicaReports() {
+            // Arrange
+            ReplicaStatus status = new ReplicaStatus("shard-a", "shard-a-1", "leader", 12,
+                    Map.of("shard-a-2", 12L, "shard-a-3", 11L), 40, 0);
+            server.expect(requestTo(BASE_URL + REPLICATION_STATUS)).andExpect(method(HttpMethod.GET))
+                    .andRespond(respond(HttpStatus.OK, status));
+
+            // Act
+            ReplicaStatus result = client.status();
+
+            // Assert
+            assertThat(result).isEqualTo(status);
             server.verify();
         }
     }

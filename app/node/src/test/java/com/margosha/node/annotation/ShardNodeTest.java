@@ -11,6 +11,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 @Retention(RetentionPolicy.RUNTIME)
 @SpringBootTest(
 		useMainMethod = SpringBootTest.UseMainMethod.ALWAYS,
-		args = {"shard"},
+		args = {"shard",
+				"--margosha.shard.id=test-shard",
+				"--margosha.data-dir=target/test-data/${random.uuid}",
+				"--margosha.replication.factor=1",
+				"--margosha.replication.write-quorum=1",
+				"--margosha.replication.read-quorum=1"},
 		webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 public @interface ShardNodeTest { }

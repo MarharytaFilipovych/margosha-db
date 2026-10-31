@@ -11,12 +11,11 @@ import com.margosha.api.model.Attributes;
 import com.margosha.api.model.PrimaryKey;
 import com.margosha.node.common.exception.RecordAlreadyExistsException;
 import com.margosha.node.common.exception.RecordNotFoundException;
-import com.margosha.node.common.storage.RecordStorage;
 import com.margosha.node.shard.replication.log.ReplicationLog;
 import com.margosha.node.shard.replication.model.LogEntry;
 import com.margosha.node.shard.replication.model.VersionedRecord;
 
-public final class ReplicaStorage implements RecordStorage, AutoCloseable {
+public final class ReplicaStorage implements AutoCloseable {
 
 	public static final String LOG_FILE = "replication.log";
 
@@ -32,19 +31,17 @@ public final class ReplicaStorage implements RecordStorage, AutoCloseable {
 		return new ReplicaStorage(Objects.requireNonNull(dataDir, "dataDir"));
 	}
 
-	@Override
-	public void create(String table, PrimaryKey key, Attributes attributes) {
+	public LogEntry create(String table, PrimaryKey key, Attributes attributes) {
 		requireArguments(table, key);
 		Objects.requireNonNull(attributes, "attributes");
 		synchronized (writeLock) {
 			if (isPresent(current(table, key))) {
 				throw new RecordAlreadyExistsException(table, key);
 			}
-			put(log.appendNext(table, key, attributes));
+			return record(log.appendNext(table, key, attributes));
 		}
 	}
 
-	@Override
 	public Attributes read(String table, PrimaryKey key) {
 		requireArguments(table, key);
 		VersionedRecord record = current(table, key);
@@ -54,32 +51,29 @@ public final class ReplicaStorage implements RecordStorage, AutoCloseable {
 		return record.attributes();
 	}
 
-	@Override
 	public boolean exists(String table, PrimaryKey key) {
 		requireArguments(table, key);
 		return isPresent(current(table, key));
 	}
 
-	@Override
-	public void update(String table, PrimaryKey key, Attributes attributes) {
+	public LogEntry update(String table, PrimaryKey key, Attributes attributes) {
 		requireArguments(table, key);
 		Objects.requireNonNull(attributes, "attributes");
 		synchronized (writeLock) {
 			if (!isPresent(current(table, key))) {
 				throw new RecordNotFoundException(table, key);
 			}
-			put(log.appendNext(table, key, attributes));
+			return record(log.appendNext(table, key, attributes));
 		}
 	}
 
-	@Override
-	public void delete(String table, PrimaryKey key) {
+	public LogEntry delete(String table, PrimaryKey key) {
 		requireArguments(table, key);
 		synchronized (writeLock) {
 			if (!isPresent(current(table, key))) {
 				throw new RecordNotFoundException(table, key);
 			}
-			put(log.appendNext(table, key, null));
+			return record(log.appendNext(table, key, null));
 		}
 	}
 
@@ -110,6 +104,11 @@ public final class ReplicaStorage implements RecordStorage, AutoCloseable {
 	@Override
 	public void close() {
 		log.close();
+	}
+
+	private LogEntry record(LogEntry entry) {
+		put(entry);
+		return entry;
 	}
 
 	private void put(LogEntry entry) {

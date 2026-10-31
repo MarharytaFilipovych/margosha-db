@@ -17,7 +17,9 @@ public class NodeApplication {
 	private static final String USAGE = """
 			Usage:
 			  java -jar margosha.jar coordinator --mode=single|sharded
-			  java -jar margosha.jar shard --margosha.shard.id=<id> --margosha.coordinator.url=<url>""";
+			  java -jar margosha.jar shard --margosha.shard.id=<id> --margosha.coordinator.url=<url>
+			      --margosha.replica.id=<id> --margosha.replica.role=leader|follower --margosha.data-dir=<folder>
+			      [--margosha.replica.leader-url=<url>, for a follower]""";
 
 	public static void main(String[] args) {
 		try {
