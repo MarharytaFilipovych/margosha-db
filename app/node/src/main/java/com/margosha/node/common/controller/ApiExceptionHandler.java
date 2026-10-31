@@ -1,11 +1,11 @@
-package com.margosha.node.controller;
+package com.margosha.node.common.controller;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 import com.margosha.api.model.ApiError;
 import com.margosha.api.model.ErrorCode;
-import com.margosha.node.exception.NodeException;
+import com.margosha.node.common.exception.NodeException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSourceResolvable;
 import org.springframework.http.HttpStatus;

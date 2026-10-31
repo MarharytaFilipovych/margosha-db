@@ -1,4 +1,4 @@
-package com.margosha.node.storage;
+package com.margosha.node.common.storage;
 
 import java.util.Map;
 import java.util.Objects;
@@ -6,8 +6,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import com.margosha.api.model.Attributes;
 import com.margosha.api.model.PrimaryKey;
-import com.margosha.node.exception.RecordAlreadyExistsException;
-import com.margosha.node.exception.RecordNotFoundException;
+import com.margosha.node.common.exception.RecordAlreadyExistsException;
+import com.margosha.node.common.exception.RecordNotFoundException;
 
 public class InMemoryRecordStorage implements RecordStorage {
 

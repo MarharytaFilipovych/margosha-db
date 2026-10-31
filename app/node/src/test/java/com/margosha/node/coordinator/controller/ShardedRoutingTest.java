@@ -34,7 +34,7 @@ import com.margosha.api.model.TableRecord;
 import com.margosha.node.annotation.ShardedCoordinatorTest;
 import com.margosha.node.data.InProcessNode;
 import com.margosha.node.coordinator.service.ShardRegistryService;
-import com.margosha.node.storage.RecordStorage;
+import com.margosha.node.common.storage.RecordStorage;
 import com.margosha.node.coordinator.storage.ShardRoutingService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

@@ -25,7 +25,7 @@ import java.util.stream.Stream;
 import com.margosha.api.model.ApiError;
 import com.margosha.api.model.ErrorCode;
 import com.margosha.api.model.ExistsResult;
-import com.margosha.node.exception.RecordNotFoundException;
+import com.margosha.node.common.exception.RecordNotFoundException;
 import com.margosha.node.coordinator.service.RecordService;
 import com.margosha.node.coordinator.service.TableRegistryService;
 import org.junit.jupiter.api.Test;

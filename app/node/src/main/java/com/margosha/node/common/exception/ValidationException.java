@@ -1,4 +1,4 @@
-package com.margosha.node.exception;
+package com.margosha.node.common.exception;
 
 import com.margosha.api.model.ErrorCode;
 import org.springframework.http.HttpStatus;

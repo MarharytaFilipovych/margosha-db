@@ -14,7 +14,7 @@ import com.margosha.api.exception.ApiException;
 import com.margosha.api.model.ErrorCode;
 import com.margosha.api.model.PrimaryKey;
 import com.margosha.node.annotation.SingleModeCoordinatorTest;
-import com.margosha.node.storage.RecordStorage;
+import com.margosha.node.common.storage.RecordStorage;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;

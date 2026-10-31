@@ -10,7 +10,7 @@ import com.margosha.api.model.ShardRegistration;
 import com.margosha.node.NodeApplication;
 import com.margosha.node.shard.service.CoordinatorRegistrationService;
 import com.margosha.node.coordinator.service.ShardRegistryService;
-import com.margosha.node.storage.RecordStorage;
+import com.margosha.node.common.storage.RecordStorage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ConfigurableApplicationContext;
 

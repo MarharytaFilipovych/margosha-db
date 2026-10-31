@@ -7,8 +7,8 @@ import com.margosha.api.model.Attributes;
 import com.margosha.api.model.PrimaryKey;
 import com.margosha.api.model.TableDefinition;
 import com.margosha.api.model.TableRecord;
-import com.margosha.node.storage.RecordStorage;
-import com.margosha.node.exception.ValidationException;
+import com.margosha.node.common.storage.RecordStorage;
+import com.margosha.node.common.exception.ValidationException;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 

@@ -20,8 +20,8 @@ import com.margosha.api.model.ErrorCode;
 import com.margosha.api.model.PrimaryKey;
 import com.margosha.api.model.ShardRegistration;
 import com.margosha.node.coordinator.exception.ShardUnavailableException;
-import com.margosha.node.storage.InMemoryRecordStorage;
-import com.margosha.node.storage.RecordStorage;
+import com.margosha.node.common.storage.InMemoryRecordStorage;
+import com.margosha.node.common.storage.RecordStorage;
 import com.margosha.ring.RingSettings;
 import org.junit.jupiter.api.Test;
 

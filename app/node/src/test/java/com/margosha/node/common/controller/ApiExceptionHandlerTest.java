@@ -1,4 +1,4 @@
-package com.margosha.node.controller;
+package com.margosha.node.common.controller;
 
 import static com.margosha.node.data.TestData.ORDERS;
 import static com.margosha.node.data.TestData.ORDER_42_1;
@@ -10,12 +10,12 @@ import java.util.stream.Stream;
 
 import com.margosha.api.model.ApiError;
 import com.margosha.api.model.ErrorCode;
-import com.margosha.node.exception.NodeException;
-import com.margosha.node.exception.RecordAlreadyExistsException;
-import com.margosha.node.exception.RecordNotFoundException;
+import com.margosha.node.common.exception.NodeException;
+import com.margosha.node.common.exception.RecordAlreadyExistsException;
+import com.margosha.node.common.exception.RecordNotFoundException;
 import com.margosha.node.coordinator.exception.TableAlreadyExistsException;
 import com.margosha.node.coordinator.exception.TableNotFoundException;
-import com.margosha.node.exception.ValidationException;
+import com.margosha.node.common.exception.ValidationException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;

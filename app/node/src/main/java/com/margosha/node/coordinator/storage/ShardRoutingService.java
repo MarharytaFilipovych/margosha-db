@@ -1,6 +1,6 @@
 package com.margosha.node.coordinator.storage;
 
-import com.margosha.node.storage.RecordStorage;
+import com.margosha.node.common.storage.RecordStorage;
 import com.margosha.api.model.Attributes;
 import com.margosha.api.model.PrimaryKey;
 import com.margosha.node.coordinator.service.ShardRegistryService;

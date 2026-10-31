@@ -9,7 +9,6 @@ import com.margosha.node.coordinator.exception.TableNotFoundException;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
-/** Table definitions, kept in memory on the coordinator. The definition is validated in the controller ({@code @Valid}). */
 @Service
 @Profile("coordinator")
 public class TableRegistryService {

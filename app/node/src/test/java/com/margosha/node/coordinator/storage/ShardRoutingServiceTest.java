@@ -9,7 +9,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.margosha.node.storage.RecordStorage;
+import com.margosha.node.common.storage.RecordStorage;
 import com.margosha.api.model.Attributes;
 import com.margosha.node.coordinator.exception.ShardUnavailableException;
 import com.margosha.node.coordinator.service.ShardRegistryService;

@@ -1,4 +1,4 @@
-package com.margosha.node.storage;
+package com.margosha.node.common.storage;
 
 import static com.margosha.node.data.TestData.ANN_ATTRIBUTES;
 import static com.margosha.node.data.TestData.BOB_ATTRIBUTES;
@@ -21,8 +21,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import com.margosha.api.model.Attributes;
-import com.margosha.node.exception.RecordAlreadyExistsException;
-import com.margosha.node.exception.RecordNotFoundException;
+import com.margosha.node.common.exception.RecordAlreadyExistsException;
+import com.margosha.node.common.exception.RecordNotFoundException;
 import org.junit.jupiter.api.Test;
 
 class InMemoryRecordStorageTest {

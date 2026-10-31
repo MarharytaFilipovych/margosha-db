@@ -26,11 +26,11 @@ import java.util.Map;
 
 import com.margosha.api.model.Attributes;
 import com.margosha.api.model.TableRecord;
-import com.margosha.node.exception.RecordAlreadyExistsException;
-import com.margosha.node.exception.RecordNotFoundException;
+import com.margosha.node.common.exception.RecordAlreadyExistsException;
+import com.margosha.node.common.exception.RecordNotFoundException;
 import com.margosha.node.coordinator.exception.TableNotFoundException;
-import com.margosha.node.exception.ValidationException;
-import com.margosha.node.storage.RecordStorage;
+import com.margosha.node.common.exception.ValidationException;
+import com.margosha.node.common.storage.RecordStorage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

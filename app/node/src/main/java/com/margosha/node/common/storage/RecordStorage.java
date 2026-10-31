@@ -1,4 +1,4 @@
-package com.margosha.node.storage;
+package com.margosha.node.common.storage;
 
 import com.margosha.api.model.Attributes;
 import com.margosha.api.model.PrimaryKey;

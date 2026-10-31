@@ -10,9 +10,9 @@
 
 ## 2. Log-structured storage (after ADRs 0009 and 0010)
 
-- [ ] 2.1 Implement the replication log in `node` as decided in ADRs 0009 and 0010: append an entry with the next version, read the entries after a position, rebuild from the log on start, and handle a write cut off by a crash as the ADR says; verify unit tests for append / read-after / rebuild / a write cut off by a crash / a damaged entry that is not the last one
-- [ ] 2.2 Implement the replica storage on top of the log: per-table maps of key → version + attributes or a deleted marker, rebuilt from the log on start, served from memory, plus an "apply entry" path for followers; verify unit tests that a store rebuilt from its log holds the same records and versions, and that a deleted record reads as not found with its version
-- [ ] 2.3 Keep single-node mode on the M2 in-memory storage; verify the existing single-mode tests still pass unchanged
+- [x] 2.1 Implement the replication log in `node` as decided in ADRs 0009 and 0010: append an entry with the next version, read the entries after a position, rebuild from the log on start, and handle a write cut off by a crash as the ADR says; verify unit tests for append / read-after / rebuild / a write cut off by a crash / a damaged entry that is not the last one
+- [x] 2.2 Implement the replica storage on top of the log: per-table maps of key → version + attributes or a deleted marker, rebuilt from the log on start, served from memory, plus an "apply entry" path for followers; verify unit tests that a store rebuilt from its log holds the same records and versions, and that a deleted record reads as not found with its version
+- [x] 2.3 Keep single-node mode on the M2 in-memory storage; verify the existing single-mode tests still pass unchanged
 
 ## 3. Replication between leader and followers (after ADRs 0007, 0008 and 0011)
 

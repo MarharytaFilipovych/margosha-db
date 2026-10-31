@@ -1,6 +1,6 @@
 package com.margosha.node.coordinator.exception;
 
-import com.margosha.node.exception.NodeException;
+import com.margosha.node.common.exception.NodeException;
 import com.margosha.api.model.ErrorCode;
 import org.springframework.http.HttpStatus;
 

@@ -8,7 +8,7 @@ import java.util.function.Function;
 import com.margosha.api.model.PrimaryKey;
 import com.margosha.api.model.ShardRegistration;
 import com.margosha.node.coordinator.exception.ShardUnavailableException;
-import com.margosha.node.storage.RecordStorage;
+import com.margosha.node.common.storage.RecordStorage;
 import com.margosha.ring.HashRing;
 import com.margosha.ring.RoutingKeys;
 import lombok.NonNull;
