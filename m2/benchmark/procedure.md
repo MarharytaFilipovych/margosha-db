@@ -36,8 +36,11 @@ The API has no scan, so workload E is out. Of the others:
 - D inserts new records during the run, so memory keeps growing on 1 GiB nodes and results depend on how full they are.
 - F (read-modify-write) sends the same two requests as A, but in pairs; it adds nothing that A doesn't measure.
 
-UPDATE replaces all attributes, while YCSB's update sends one field, so an updated record keeps only that field. That
-doesn't change the latency or throughput measured; YCSB doesn't check the values (`dataintegrity` is off).
+UPDATE replaces all attributes, while YCSB's update sends one field, so an updated record keeps only that field.
+Later reads of an updated record return less data, which makes the run slightly lighter than standard workload A and
+favors Margosha DB a little. YCSB doesn't check the values (`dataintegrity` is off), so nothing fails. For runs that are
+compared with other databases, add `-p writeallfields=true` to the run phase so each update sends all ten fields and
+records keep their size ([AI critique](../ai_critique.md), finding 8).
 
 ---
 

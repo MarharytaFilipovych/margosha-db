@@ -2,16 +2,15 @@ package com.margosha.node.shard.config;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.time.Duration;
 
 import com.margosha.api.client.CoordinatorClient;
-import com.margosha.api.util.RestClientBuilders;
+import com.margosha.api.util.RestClientBuilder;
 import com.margosha.node.shard.service.CoordinatorRegistrationService;
 import com.margosha.node.shard.service.RetryBackoff;
 import com.margosha.node.storage.InMemoryRecordStorage;
 import com.margosha.node.storage.RecordStorage;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -20,6 +19,7 @@ import static org.springframework.util.StringUtils.hasText;
 
 @Configuration(proxyBeanMethods = false)
 @Profile("shard")
+@EnableConfigurationProperties(ShardSettings.class)
 public class ShardConfig {
 
 	@Bean
@@ -29,17 +29,14 @@ public class ShardConfig {
 
 	@Bean
 	@ConditionalOnProperty(name = "margosha.coordinator.url")
-	public CoordinatorRegistrationService coordinatorRegistrationService(
-			@Value("${margosha.coordinator.url}") String coordinatorUrl,
-			@Value("${margosha.shard.id}") String shardId,
-			@Value("${margosha.shard.host:}") String host,
-			@Value("${margosha.shard.register-timeout}") Duration timeout,
-			@Value("${margosha.shard.register-retry-interval}") Duration retryInterval,
-			@Value("${margosha.shard.register-retry-max-interval}") Duration maxRetryInterval,
-			@Value("${margosha.shard.register-refresh-interval}") Duration refreshInterval) {
-		CoordinatorClient coordinator = new CoordinatorClient(RestClientBuilders.withTimeout(timeout), coordinatorUrl);
-		return new CoordinatorRegistrationService(coordinator, shardId, hasText(host) ? host : localAddress(),
-				new RetryBackoff(retryInterval, maxRetryInterval), refreshInterval);
+	public CoordinatorRegistrationService coordinatorRegistrationService(ShardSettings settings) {
+		ShardSettings.Shard shard = settings.shard();
+		CoordinatorClient coordinator = new CoordinatorClient(
+				RestClientBuilder.withTimeout(shard.registerTimeout()), settings.coordinator().url());
+		return new CoordinatorRegistrationService(coordinator, shard.id(),
+				hasText(shard.host()) ? shard.host() : localAddress(),
+				new RetryBackoff(shard.registerRetryInterval(), shard.registerRetryMaxInterval()),
+				shard.registerRefreshInterval());
 	}
 
 	private static String localAddress() {

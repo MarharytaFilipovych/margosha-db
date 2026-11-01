@@ -13,14 +13,12 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.DisposableBean;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.boot.web.server.context.WebServerInitializedEvent;
 import org.springframework.context.ApplicationListener;
 
 @Slf4j
 @RequiredArgsConstructor
-public class CoordinatorRegistrationService implements ApplicationListener<ApplicationReadyEvent>, DisposableBean {
-
-	private static final String LOCAL_SERVER_PORT = "local.server.port";
+public class CoordinatorRegistrationService implements ApplicationListener<WebServerInitializedEvent>, DisposableBean {
 
 	@NonNull
 	private final CoordinatorClient coordinator;
@@ -46,12 +44,16 @@ public class CoordinatorRegistrationService implements ApplicationListener<Appli
 	@Getter
 	private volatile boolean registered;
 
+	/**
+	 * Called once the embedded web server is listening, so its real port is known
+	 * (also when it was started on a random port, {@code server.port=0}, as in the tests).
+	 */
 	@Override
-	public void onApplicationEvent(ApplicationReadyEvent event) {
-		Integer port = event.getApplicationContext().getEnvironment().getProperty(LOCAL_SERVER_PORT, Integer.class);
-		if (port == null) {
-			throw new IllegalStateException("The shard has no web server port to register");
+	public void onApplicationEvent(WebServerInitializedEvent event) {
+		if (event.getApplicationContext().getServerNamespace() != null) {
+			return; // a second server (e.g. a management port) is not where records are served
 		}
+		int port = event.getWebServer().getPort();
 		ShardRegistration registration = new ShardRegistration(shardId, "http://" + host + ":" + port);
 		executor.execute(() -> attempt(registration, backoff.first()));
 	}

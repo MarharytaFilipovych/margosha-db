@@ -4,20 +4,13 @@ import static com.margosha.node.data.TestData.CUSTOMER_ID;
 import static com.margosha.node.data.TestData.ORDERS_TABLE;
 import static com.margosha.node.data.TestData.USERS;
 import static com.margosha.node.data.TestData.USERS_TABLE;
-import static com.margosha.node.data.TestData.USER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import java.util.stream.Stream;
 
 import com.margosha.api.model.TableDefinition;
 import com.margosha.node.coordinator.exception.TableAlreadyExistsException;
 import com.margosha.node.coordinator.exception.TableNotFoundException;
-import com.margosha.node.exception.ValidationException;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 
 class TableRegistryServiceTest {
 
@@ -42,29 +35,7 @@ class TableRegistryServiceTest {
 		assertThat(registry.get(ORDERS_TABLE.name())).isEqualTo(ORDERS_TABLE);
 	}
 
-	static Stream<Arguments> invalidDefinitions() {
-		return Stream.of(
-				Arguments.of(null, "Table definition is required"),
-				Arguments.of(TableDefinition.of(null, USER_ID), "Table name must not be empty"),
-				Arguments.of(TableDefinition.of("", USER_ID), "Table name must not be empty"),
-				Arguments.of(TableDefinition.of("  ", USER_ID), "Table name must not be empty"),
-				Arguments.of(TableDefinition.of(USERS, null), "Partition key of table users must not be empty"),
-				Arguments.of(TableDefinition.of(USERS, " "), "Partition key of table users must not be empty"),
-				Arguments.of(new TableDefinition(USERS, USER_ID, " "), "Sort key of table users must not be empty if given"),
-				Arguments.of(new TableDefinition(USERS, USER_ID, USER_ID), "Sort key of table users must differ from the partition key"));
-	}
-
-	@ParameterizedTest
-	@MethodSource("invalidDefinitions")
-	void invalidDefinitionIsRejectedAndNotStored(TableDefinition table, String message) {
-		// Act & Assert
-		assertThatThrownBy(() -> registry.register(table))
-				.isInstanceOf(ValidationException.class)
-				.hasMessage(message);
-
-		// Assert
-		assertThatThrownBy(() -> registry.get(USERS)).isInstanceOf(TableNotFoundException.class);
-	}
+	// Invalid definitions are rejected by @Valid in the controller: CoordinatorControllerTest.
 
 	@Test
 	void registeringExistingNameFailsAndKeepsTheTable() {

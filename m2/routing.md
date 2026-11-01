@@ -42,9 +42,10 @@ use (`RecordStorage`, `InMemoryRecordStorage`, the shared exceptions, `ApiExcept
 
 Example: `GET /tables/users/records/42` on a coordinator with `shard-a` and `shard-b` registered.
 
-1. **Table and key check** (coordinator, `RecordService`): the table `users` must exist, and the key must
-   match its definition (partition key only, no `sortKey`). Errors here (`TABLE_NOT_FOUND`, `VALIDATION_ERROR`)
-   never reach a shard.
+1. **Table and key check** (coordinator): a blank partition key in the path is rejected by `@NotBlank` in
+   `CoordinatorController`; then `RecordService` checks that the table `users` exists and that the key matches its
+   definition (partition key only, no `sortKey`). Errors here (`TABLE_NOT_FOUND`, `VALIDATION_ERROR`) never reach a
+   shard.
 2. **Routing key** (`RoutingKeys.of`): the partition key `42`. The sort key is not used, so all records of one
    partition are on the same shard (ADR 0006).
 3. **Owner on the ring** (`HashRing.shardFor`): `murmur3("42")` is looked up on the ring; the first virtual node
@@ -85,7 +86,10 @@ A shard registers itself when it starts: `POST /shards` with `{"shardId":"shard-
   the connection but never answers counts as a failed attempt instead of stopping registration
   (`ShardRegistrationTest.shardKeepsRetryingWhenCoordinatorDoesNotAnswer`).
 - Registering a known shard ID again only replaces its address; the ring does not change.
-- A registration without an ID or without an `http(s)://host` address is rejected with `400 VALIDATION_ERROR`.
+- A registration without an ID or without an `http(s)://host` address is rejected with `400 VALIDATION_ERROR`
+  (Bean Validation annotations on `ShardRegistration`, checked by `@Valid` in `ShardRegistrationController`).
+- The shard registers as soon as its web server is listening (`WebServerInitializedEvent`), with the port the server
+  actually got, so a random port (`--server.port=0`, used in the tests) works too.
 
 The coordinator keeps the shard list in memory. After a coordinator restart the list is empty until the shards
 register again; in M2 all nodes restart together (deploy, start of a lab session), so this happens on its own.
@@ -103,6 +107,22 @@ there is no replica in M2, and another shard would answer "not found" or store t
 - Shard that accepts the connection but never answers: 503 after the timeout
   (`ShardUnavailableTest.shardThatDoesNotAnswerFailsAfterTheTimeout`).
 - No shard registered: `503 "No shard is registered"` (`noRegisteredShardIsShardUnavailable`).
+
+**A `503` on a write means "outcome unknown", not "nothing happened".** When the shard could not be reached at all, the
+request never arrived and nothing changed. When the shard got the request but answered too late, it may still apply
+the write after the coordinator has given up: the record is then created, updated or deleted although the client got
+`503`. A client that retries has to expect this:
+
+| Retried operation | What the retry can answer if the first attempt was applied |
+|---|---|
+| CREATE | `409 RECORD_ALREADY_EXISTS` for the client's own record |
+| UPDATE | success; writing the same attributes again is harmless |
+| DELETE | `404 RECORD_NOT_FOUND`; the record is already gone |
+
+So after a `503` on a write, a client should READ the record to see what happened instead of treating the write as
+failed. The coordinator answers `503` in both cases, so the client cannot tell them apart. A later milestone can make
+CREATE retries safe with idempotency keys: the client sends a unique ID with each write, and the shard answers a repeated
+ID with the first result instead of `409` ([AI critique](ai_critique.md), finding 9).
 
 ## Adding a shard
 

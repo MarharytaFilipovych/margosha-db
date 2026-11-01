@@ -13,7 +13,7 @@ import com.margosha.api.exception.ApiException;
 import com.margosha.api.model.Attributes;
 import com.margosha.api.model.PrimaryKey;
 import com.margosha.api.model.TableRecord;
-import com.margosha.api.util.RestClientBuilders;
+import com.margosha.api.util.RestClientBuilder;
 import org.springframework.web.client.RestClientException;
 import site.ycsb.ByteIterator;
 import site.ycsb.DB;
@@ -48,7 +48,7 @@ public class MargoshaDbClient extends DB {
         } catch (NumberFormatException e) {
             throw new DBException(TIMEOUT_PROPERTY + " must be a number of milliseconds", e);
         }
-        client = new CoordinatorClient(RestClientBuilders.withTimeout(timeout), url);
+        client = new CoordinatorClient(RestClientBuilder.withTimeout(timeout), url);
     }
 
     @Override

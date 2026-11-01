@@ -375,6 +375,9 @@ components:
       description: |
         Sharded mode only: no shard is registered, or the shard that owns the key
         did not answer within the timeout. The request is not sent to another shard.
+        For CREATE, UPDATE and DELETE the outcome is unknown: a shard that answered
+        too late may still have applied the write. Read the record before retrying;
+        a retried CREATE can get 409 for the client's own record.
       content:
         application/json:
           schema:

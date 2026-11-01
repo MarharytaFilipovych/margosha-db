@@ -1,7 +1,9 @@
 # S3 gateway endpoint
 
 **Template:** [margosha-vpc-stack.yaml](../cfn/margosha-vpc-stack.yaml) (resource `S3GatewayEndpoint`)
+
 **Stack name:** `margosha-vpc` (same stack as in [vpc_creation.md](../m1/vpc_creation.md), now with the endpoint)
+
 **Region:** `us-east-1`
 
 The shards run in the private subnets, which have no route to the internet and no NAT Gateway.
@@ -36,14 +38,7 @@ The endpoint policy limits what can be reached *through the endpoint* (on top of
 ## How to read the commands
 
 Each step has a **Windows (PowerShell)** and a **macOS (Terminal)** version. Where a command is the same in both,
-there is one block marked **Both**. The differences are only shell syntax:
-
-| | Windows (PowerShell) | macOS (zsh/bash) |
-|---|---|---|
-| Continue a command on the next line | `` ` `` (backtick) at the end of the line | `\` at the end of the line |
-| Save a command's output in a variable | `$VPC_ID = aws ...` | `VPC_ID=$(aws ...)` |
-| Filter output lines | `Select-String "text"` | `grep "text"` |
-| Temp folder | `$env:TEMP` | `/tmp` |
+there is one block marked **Both**. The differences are only shell syntax.
 
 Variables only live in the window that set them, so run the verification steps in one window.
 
@@ -98,11 +93,11 @@ Go to the `cfn/` folder.
 
 Windows (PowerShell):
 ```powershell
-cd "C:\4 course uni\margosha-db\cfn"
+cd ".\cfn"
 ```
 macOS (Terminal), with the repo wherever you cloned it:
 ```bash
-cd ~/margosha-db/cfn
+cd ./cfn
 ```
 
 Lint and validate — Both:

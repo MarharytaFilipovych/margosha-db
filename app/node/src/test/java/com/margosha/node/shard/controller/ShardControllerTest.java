@@ -21,6 +21,7 @@ import com.margosha.api.client.ShardClient;
 import com.margosha.api.exception.ApiException;
 import com.margosha.api.model.Attributes;
 import com.margosha.api.model.ErrorCode;
+import com.margosha.api.model.PrimaryKey;
 import com.margosha.node.annotation.ShardNodeTest;
 import com.margosha.node.storage.InMemoryRecordStorage;
 import com.margosha.node.storage.RecordStorage;
@@ -139,6 +140,17 @@ class ShardControllerTest {
 		assertThat(read.code()).isEqualTo(ErrorCode.RECORD_NOT_FOUND);
 		assertThat(update.code()).isEqualTo(ErrorCode.RECORD_NOT_FOUND);
 		assertThat(delete.code()).isEqualTo(ErrorCode.RECORD_NOT_FOUND);
+	}
+
+	@Test
+	void blankPartitionKeyIsValidationError() {
+		// Act
+		ApiException error = apiError(() -> shard.readRecord(users, PrimaryKey.of(" ")));
+
+		// Assert
+		assertThat(error.isValidationError()).isTrue();
+		assertThat(error.code()).isEqualTo(ErrorCode.VALIDATION_ERROR);
+		assertThat(error.error().message()).isEqualTo("Missing partition key value");
 	}
 
 	@Test

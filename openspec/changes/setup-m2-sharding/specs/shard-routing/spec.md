@@ -68,7 +68,7 @@ In this milestone, registering a new shard SHALL change only where new requests 
 - **THEN** records whose keys moved to the new shard are reported as not found until they are written again
 
 ### Requirement: Shard unavailable
-In sharded mode, a record operation SHALL fail with a service-unavailable error when no shard is registered, or when the shard that owns the key does not answer within a configured timeout. The coordinator SHALL NOT send the request to another shard instead.
+In sharded mode, a record operation SHALL fail with a service-unavailable error when no shard is registered, or when the shard that owns the key does not answer within a configured timeout. The coordinator SHALL NOT send the request to another shard instead. For a write that timed out, the error does not mean the write was not applied: the owning shard may still apply it after the timeout, so the outcome is unknown to the client.
 
 #### Scenario: No shard registered
 - **WHEN** a client creates a record in sharded mode while no shard is registered

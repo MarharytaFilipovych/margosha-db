@@ -20,14 +20,10 @@ import com.margosha.api.model.ErrorCode;
 import com.margosha.api.model.PrimaryKey;
 import com.margosha.api.model.ShardRegistration;
 import com.margosha.node.coordinator.exception.ShardUnavailableException;
-import com.margosha.node.exception.ValidationException;
 import com.margosha.node.storage.InMemoryRecordStorage;
 import com.margosha.node.storage.RecordStorage;
 import com.margosha.ring.RingSettings;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 
 class ShardRegistryServiceTest {
 
@@ -124,30 +120,5 @@ class ShardRegistryServiceTest {
 				.hasMessage("No shard is registered");
 	}
 
-	static Stream<Arguments> invalidRegistrations() {
-		return Stream.of(
-				Arguments.of(null, "Shard registration is required"),
-				Arguments.of(new ShardRegistration(null, "http://localhost:8081"), "Shard ID must not be empty"),
-				Arguments.of(new ShardRegistration(" ", "http://localhost:8081"), "Shard ID must not be empty"),
-				Arguments.of(new ShardRegistration(SHARD_A, ""), "Address of shard shard-a must not be empty"),
-				Arguments.of(new ShardRegistration(SHARD_A, "localhost:8081"),
-						"Address of shard shard-a must be an http(s) URL with a host"),
-				Arguments.of(new ShardRegistration(SHARD_A, "ftp://localhost:8081"),
-						"Address of shard shard-a must be an http(s) URL with a host"),
-				Arguments.of(new ShardRegistration(SHARD_A, "http://bad host"),
-						"Address of shard shard-a must be an http(s) URL with a host"));
-	}
-
-	@ParameterizedTest
-	@MethodSource("invalidRegistrations")
-	void invalidRegistrationIsRejectedAndNotAdded(ShardRegistration shard, String message) {
-		// Act & Assert
-		assertThatThrownBy(() -> registry.register(shard))
-				.isInstanceOf(ValidationException.class)
-				.hasMessage(message);
-
-		// Assert
-		assertThat(connected).isEmpty();
-		assertThat(registry.shards()).isEmpty();
-	}
+	// Invalid registrations are rejected by @Valid in the controller: ShardRegistrationControllerTest.
 }

@@ -290,7 +290,7 @@ flowchart TD
     start["java -jar margosha.jar &lt;role&gt; ..."] --> role{role}
 
     role -- coordinator --> cfgC["CoordinatorConfig"]
-    cfgC --> common["CoordinatorController<br/>RecordService<br/>TableRegistryService"]
+    cfgC --> common["CoordinatorController<br/>RecordService<br/>TableRegistryService (@Service)"]
     cfgC --> mode{"--mode"}
     mode -- single --> single["RecordStorage = InMemoryRecordStorage"]
     mode -- sharded --> sharded["RecordStorage = ShardRoutingService<br/>ShardRegistryService (HashRing)<br/>ShardRegistrationController (POST /shards)"]
@@ -303,6 +303,16 @@ flowchart TD
     all["ApiExceptionHandler: every role and mode"]
 ```
 
+How the beans are made:
+- Classes used in only one role carry `@Profile` and are found by component scanning: the controllers
+  (`@RestController`) and `TableRegistryService` (`@Service`, coordinator only).
+- Everything that depends on the mode, or is shared between roles, is a `@Bean` method in `CoordinatorConfig` or
+  `ShardConfig`: `InMemoryRecordStorage` is used both by a shard and by a single-mode coordinator, and
+  `ShardRegistryService` needs a `HashRing` and a timeout that are not beans.
+- Settings come from `margosha.*` properties through two `@ConfigurationProperties` records: `CoordinatorSettings`
+  (`margosha.shard.timeout`) and `ShardSettings` (`margosha.coordinator.url`, `margosha.shard.id`, `.host`, the
+  registration timeout and intervals).
+
 ### Shard registration (sharded mode, when a shard starts)
 
 ```mermaid
@@ -313,12 +323,12 @@ sequenceDiagram
     participant SR as ShardRegistryService
     participant RS as RemoteShardStorageService
 
-    Note over S: ApplicationReadyEvent: web server is up, port known
+    Note over S: WebServerInitializedEvent: web server is listening, real port known
     loop until accepted, 2 s timeout per attempt, pause 2 s doubling up to 30 s
         S->>CC: registerShard(shardId, http://host:port)
         CC->>SRC: POST /shards
+        SRC->>SRC: @Valid: ID not blank, address http(s)://host (else 400 VALIDATION_ERROR)
         SRC->>SR: register(shard)
-        SR->>SR: validate id and address
         alt new shard, or new address
             SR->>RS: connect(shard, timeout)
             SR->>SR: ring.addShard(shardId)
@@ -398,6 +408,22 @@ sequenceDiagram
 ```
 
 CREATE, EXISTS, UPDATE and DELETE take the same path; only the HTTP method and body differ. Errors are turned into JSON answers by `ApiExceptionHandler` on the coordinator.
+
+### Where requests are validated
+
+Every failed check answers `400 VALIDATION_ERROR` with the reason in `message`; several reasons are joined with `; `.
+
+| What | Checked by | Where |
+|---|---|---|
+| Table definition: name and partition key not blank, sort key not blank if given and not equal to the partition key | Bean Validation annotations, `@Valid` on the request body | `TableDefinition`, `CoordinatorController.registerTable` |
+| Shard registration: ID not blank, address an `http(s)://host[:port]` URL | Bean Validation annotations, `@Valid` on the request body | `ShardRegistration`, `ShardRegistrationController` |
+| Partition key in the path not blank | `@NotBlank` on the path variable | `CoordinatorController`, `ShardController` |
+| Record body and keys against the table definition: key values present, sort key required or not allowed, no key attributes in an UPDATE body | Code, because the rules depend on which table the request is for | `RecordService` |
+| Malformed JSON or missing body | Spring (`HttpMessageNotReadableException`) | `ApiExceptionHandler` |
+
+Annotation failures reach `ApiExceptionHandler` as `MethodArgumentNotValidException` (request body) or
+`HandlerMethodValidationException` (path variable). The controllers have no class-level `@Validated`: Spring MVC
+checks constraint annotations on controller parameters by itself.
 
 ## Deploy pipeline
 

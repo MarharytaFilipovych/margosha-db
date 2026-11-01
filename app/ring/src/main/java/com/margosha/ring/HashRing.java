@@ -9,6 +9,8 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+import static org.springframework.util.StringUtils.hasText;
+
 public final class HashRing {
 
     private record Snapshot(NavigableMap<Long, String> positions, Set<String> shards) { }
@@ -26,7 +28,7 @@ public final class HashRing {
     }
 
     public synchronized boolean addShard(String shardId) {
-        if (shardId == null || shardId.isBlank()) {
+        if (!hasText(shardId)) {
             throw new IllegalArgumentException("shardId must be set");
         }
         Snapshot current = snapshot;

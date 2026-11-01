@@ -1,8 +1,8 @@
 # End-to-end checks
 
-**Spec:** `openspec/changes/setup-m2-sharding`, section 12 of `tasks.md`.
+**Spec:** `openspec/changes/setup-m2-sharding`
 
-## 1. Fresh deploy from the pipeline (task 12.1)
+## 1. Fresh deploy from the pipeline
 
 **Goal:** with only `margosha-vpc` in the account, the pipeline alone creates the application stack, delivers the jar and
 starts the store, and the store works, with no console steps.

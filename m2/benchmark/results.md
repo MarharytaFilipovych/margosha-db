@@ -1,7 +1,9 @@
 # M2 benchmark results (baseline)
 
-**Spec:** `benchmarking` in `openspec/changes/setup-m2-sharding`; tasks 11.4–11.6.
+**Spec:** `benchmarking` in `openspec/changes/setup-m2-sharding`
+
 **How it was run:** [procedure.md](procedure.md) (the trial run that chose the parameters is at the end of it).
+
 **Raw output:** [raw/20261029T211121Z-workloada-r100000-o200000-t8/](raw/20261029T211121Z-workloada-r100000-o200000-t8/)
 
 This is the M2 baseline: one coordinator and two shards, records in memory, every request through the coordinator.
@@ -95,8 +97,12 @@ line.
   measured separately; likely causes are garbage collection pauses on the nodes and requests queueing for the
   coordinator's two vCPUs. The warm-up at the start of each phase also adds to the tail.
 - **Records live in memory.** The data was lost at the next reboot (as designed for M2); durability comes in M3.
-- YCSB's updates send one field, and UPDATE replaces all attributes, so after the run many records have only one field.
-  YCSB doesn't check values, and this doesn't change the latency or throughput.
+- **Updated records get smaller.** YCSB's updates send one field, and UPDATE replaces all attributes, so an updated
+  record keeps only that one 100-byte field instead of ten. Later reads of it return a tenth of the data, so the
+  numbers slightly favour Margosha and are not directly comparable with other databases' workload A results.
+  YCSB doesn't check values (`dataintegrity` is off), so no operation failed because of it. The next benchmark should
+  run with `writeallfields=true` (each update sends all ten fields), or the API gets a partial update that merges
+  attributes ([AI critique](../ai_critique.md), finding 8).
 
 ## After the benchmark
 

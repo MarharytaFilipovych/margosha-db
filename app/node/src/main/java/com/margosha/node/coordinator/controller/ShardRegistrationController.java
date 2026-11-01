@@ -4,6 +4,7 @@ import static com.margosha.api.util.PathConstants.SHARDS;
 
 import com.margosha.api.model.ShardRegistration;
 import com.margosha.node.coordinator.service.ShardRegistryService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
@@ -20,7 +21,7 @@ public class ShardRegistrationController {
 	private final ShardRegistryService shards;
 
 	@PostMapping(SHARDS)
-	public ShardRegistration registerShard(@RequestBody ShardRegistration shard) {
+	public ShardRegistration registerShard(@Valid @RequestBody ShardRegistration shard) {
 		return shards.register(shard);
 	}
 }

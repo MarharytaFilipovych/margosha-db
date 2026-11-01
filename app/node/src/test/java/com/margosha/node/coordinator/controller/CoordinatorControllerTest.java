@@ -20,6 +20,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.stream.Stream;
+
 import com.margosha.api.model.ApiError;
 import com.margosha.api.model.ErrorCode;
 import com.margosha.api.model.ExistsResult;
@@ -27,6 +29,9 @@ import com.margosha.node.exception.RecordNotFoundException;
 import com.margosha.node.coordinator.service.RecordService;
 import com.margosha.node.coordinator.service.TableRegistryService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
@@ -150,6 +155,45 @@ class CoordinatorControllerTest {
 				.andExpect(status().isNotFound())
 				.andExpect(content().json(json(new ApiError(ErrorCode.RECORD_NOT_FOUND, notFound.getMessage())),
 						JsonCompareMode.STRICT));
+	}
+
+	static Stream<Arguments> invalidTableDefinitions() {
+		return Stream.of(
+				Arguments.of("{\"partitionKey\":\"user_id\"}", "Table name must not be empty"),
+				Arguments.of("{\"name\":\"\",\"partitionKey\":\"user_id\"}", "Table name must not be empty"),
+				Arguments.of("{\"name\":\"  \",\"partitionKey\":\"user_id\"}", "Table name must not be empty"),
+				Arguments.of("{\"name\":\"users\"}", "Partition key must not be empty"),
+				Arguments.of("{\"name\":\"users\",\"partitionKey\":\" \"}", "Partition key must not be empty"),
+				Arguments.of("{\"name\":\"users\",\"partitionKey\":\"user_id\",\"sortKey\":\" \"}",
+						"Sort key must not be empty if given"),
+				Arguments.of("{\"name\":\"users\",\"partitionKey\":\"user_id\",\"sortKey\":\"user_id\"}",
+						"Sort key must differ from the partition key"),
+				Arguments.of("{}", "Partition key must not be empty; Table name must not be empty"));
+	}
+
+	@ParameterizedTest
+	@MethodSource("invalidTableDefinitions")
+	void invalidTableDefinitionIsRejectedBeforeReachingTheService(String body, String message) throws Exception {
+		// Act & Assert
+		mvc.perform(post(TABLES).contentType(MediaType.APPLICATION_JSON).content(body))
+				.andExpect(status().isBadRequest())
+				.andExpect(content().json(json(new ApiError(ErrorCode.VALIDATION_ERROR, message)),
+						JsonCompareMode.STRICT));
+
+		// Assert
+		verifyNoInteractions(tables);
+	}
+
+	@Test
+	void blankPartitionKeyInThePathIsRejectedBeforeReachingTheService() throws Exception {
+		// Act & Assert
+		mvc.perform(get(USERS_RECORDS + "/{partitionKey}", " "))
+				.andExpect(status().isBadRequest())
+				.andExpect(content().json(json(new ApiError(ErrorCode.VALIDATION_ERROR, "Missing partition key value")),
+						JsonCompareMode.STRICT));
+
+		// Assert
+		verifyNoInteractions(records);
 	}
 
 	@Test

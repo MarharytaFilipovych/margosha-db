@@ -1,8 +1,11 @@
 # Application infrastructure (`margosha-app`)
 
 **Template:** [margosha-app.yaml](../cfn/margosha-app.yaml)
+
 **Stack name:** `margosha-app` (needs [`margosha-vpc`](../cfn/margosha-vpc-stack.yaml) with the [S3 endpoint](s3_gateway_endpoint.md))
+
 **Region:** `us-east-1`
+
 **Spec:** `app-infrastructure` in `openspec/changes/setup-m2-sharding`; this note covers tasks 9.1–9.6.
 
 The stack holds everything the application needs on top of the network: the bucket the jar is delivered through,
@@ -102,8 +105,7 @@ Other unit settings: `TimeoutStartSec=infinity` (waiting for the jar can take lo
 goes to the **serial console**, so it can be read with `aws ec2 get-console-output` from a laptop, without SSH.
 The shards have no public IP and SSH to them only works through the coordinator, so this is how all checks below read the logs.
 
-Because the jar is downloaded on every start, a new version is deployed by uploading it and rebooting the nodes
-(design decision 9). A shard registers itself with the coordinator when it starts and retries until the coordinator
+Because the jar is downloaded on every start, a new version is deployed by uploading it and rebooting the nodes. A shard registers itself with the coordinator when it starts and retries until the coordinator
 answers, so the start order of the three nodes does not matter.
 
 ### The YCSB client
@@ -111,7 +113,7 @@ answers, so the start order of the three nodes does not matter.
 Not a database node, so it does not use the launch template, but it has the same disk, credit and profile settings.
 Its UserData installs Java 21 (retried), downloads YCSB 0.17.0 from GitHub (it is in the public subnet), checks that
 `/opt/ycsb/lib/core-*.jar` exists, writes `MARGOSHA_URL` (coordinator's private address) and `MARGOSHA_BUCKET` to
-`/etc/profile.d/margosha-bench.sh`, and prints `BENCH-READY` to the console. The YCSB binding jar is added in task 11.
+`/etc/profile.d/margosha-bench.sh`, and prints `BENCH-READY` to the console.
 
 ## Design choices
 
@@ -119,7 +121,7 @@ Its UserData installs Java 21 (retried), downloads YCSB 0.17.0 from GitHub (it i
   instance tags; `!GetAtt Coordinator.PrivateIp` sits in the shards' tags. The tags are re-read on every boot, so a
   changed tag is picked up on the next reboot. *Cost:* changing the launch template (the boot script or the machine
   settings) **replaces** the coordinator and the shards; they get new IDs and IPs. Records are in memory and lost on any
-  restart anyway (design decision 5), so this is accepted.
+  restart anyway, so this is accepted.
 - **Pinned AMI.** With an SSM-parameter AMI, CloudFormation resolves "latest" on every update, and an update after
   Amazon publishes a new AMI would replace all nodes, including a plain `BenchClient` switch. To move to a newer AMI on
   purpose: `aws ssm get-parameter --name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64`, then
@@ -131,7 +133,7 @@ Its UserData installs Java 21 (retried), downloads YCSB 0.17.0 from GitHub (it i
   bench client. SSH to a shard: `ssh -A -J ec2-user@<coordinator-public-ip> ec2-user@<shard-private-ip>` with
   `labsuser.pem` loaded into the SSH agent.
 - **Bucket and instances in one stack.** On the first deploy the bucket is empty when the nodes boot; they wait for the
-  jar (task 9.3 below shows this) instead of needing a separate bucket stack.
+  jar instead of needing a separate bucket stack.
 
 ---
 
@@ -141,16 +143,7 @@ Run from the repo root, all in one terminal window (the variables do not survive
 on **2026-10-29** from Windows, Learner Lab account `797089401427`, after [`margosha-vpc`](s3_gateway_endpoint.md) was created.
 
 Each step has a **Windows (PowerShell)** and a **macOS (Terminal)** version. They run the same `aws` calls; only the
-shell syntax differs:
-
-| | Windows (PowerShell) | macOS (zsh/bash) |
-|---|---|---|
-| Continue a command on the next line | `` ` `` (backtick) | `\` |
-| Save a command's output in a variable | `$VPC_ID = aws ...` | `VPC_ID=$(aws ...)` |
-| Filter output lines | `Select-String "text"` | `grep -E "text"` |
-| Call the API | `Invoke-WebRequest` (helper `Api`) | `curl` (helper `api`) |
-| Helpers | `Show-Log`, `Wait-Log`, `Api`, `Out` | `show_log`, `wait_log`, `api`, `out` |
-| Temp folder | `$env:TEMP` | `/tmp` |
+shell syntax differs.
 
 Credentials and region are set up as in the [S3 endpoint note](s3_gateway_endpoint.md#setup).
 
@@ -227,7 +220,7 @@ api() {
 `get-console-output --latest` returns the last 64 KB of the console, which can span the previous boot too: after a
 reboot, the lines of the new boot are the ones **after** the kernel's `RPC: Registered …` lines.
 
-### 1. Lint and validate (task 9.1)
+### 1. Lint and validate
 
 Windows (PowerShell):
 ```powershell
@@ -244,7 +237,7 @@ aws cloudformation validate-template --template-body file://cfn/margosha-app.yam
 ```
 **Result:** `cfn-lint` printed nothing (no findings); the template is valid with the 7 parameters and defaults listed above.
 
-### 2. Create the stack (task 9.3)
+### 2. Create the stack
 
 Windows (PowerShell):
 ```powershell
@@ -329,7 +322,7 @@ aws ec2 describe-volumes --filters "Name=attachment.instance-id,Values=$COORD,$S
 | `margosha-shard-a` | `t3.micro` | private A `subnet-0bfe08bb08c6efd0d` | `10.0.1.135` | **none** | `LabInstanceProfile` | `standard` | 8 GiB gp3 |
 | `margosha-shard-b` | `t3.micro` | private B `subnet-00472566adefe5b57` | `10.0.2.244` | **none** | `LabInstanceProfile` | `standard` | 8 GiB gp3 |
 
-### 5. The nodes wait for the jar (task 9.2)
+### 5. The nodes wait for the jar
 
 The bucket is empty right after the deploy.
 
@@ -354,7 +347,7 @@ show_log "$SHARD_A"
 The tags were read correctly (role, shard ID, coordinator's private IP, own IP), and the node retried about every 15 s.
 First-boot setup (Java install) finished 65–199 s after boot, depending on the node.
 
-### 6. Upload the jar; the nodes start and the shards register (tasks 9.2, 9.3)
+### 6. Upload the jar; the nodes start and the shards register
 
 The jar is built by `./mvnw verify` in `app/` (Windows: `.\mvnw.cmd -B verify`).
 
@@ -396,7 +389,7 @@ Shard A (shard B the same with `shard-b`, `10.0.2.244`):
 All three nodes downloaded the same jar (hash matches the local one) **through the S3 endpoint** (the shards have no
 other way out), started in under 4 s, and both shards were registered **30 s after the upload** (11:43:21 UTC).
 
-### 7. Create and read records through the coordinator (task 9.3)
+### 7. Create and read records through the coordinator
 
 Windows (PowerShell):
 ```powershell
@@ -432,7 +425,7 @@ for i in $(seq 1 20); do api GET "/tables/users/records/u$i"; done | cut -c1-3 |
 With two shards on the ring, 20 keys land on both of them, so all 40 calls succeeding means both shards answer the
 coordinator. The request went laptop → coordinator's public IP (allowed by `OperatorCidr`) → shard's private IP.
 
-### 8. Access checks (task 9.4)
+### 8. Access checks
 
 **Security group rules:**
 
@@ -537,7 +530,7 @@ PROBE done
 Together with steps 4 and 7: the shards have no public IP; from the public subnet only the coordinator can reach a
 shard's API (the coordinator's own requests in step 7 worked); the coordinator answers on its private IP.
 
-### 9. Reboot: every boot downloads the jar again (task 9.2)
+### 9. Reboot: every boot downloads the jar again
 
 All three are rebooted, as the pipeline will do. At the time of these checks, rebooting only the coordinator would make
 it forget the shards (the shard list is in memory, and a shard registered only when it started). Since the fix for
@@ -576,7 +569,7 @@ Shard A: `downloaded … sha256 04d13b6a38322f45` at 7.7 s, `Registered shard sh
 API: registering `users` returned `201` again (the table had been forgotten: everything is in memory), then `201` / `200`
 for the record. The coordinator runs the jar from the bucket on every boot: it was downloaded again 7.5 s after boot.
 
-### 10. Stop and start, as at the end of a lab session (task 9.5)
+### 10. Stop and start, as at the end of a lab session
 
 Windows (PowerShell):
 ```powershell
@@ -622,7 +615,7 @@ Both shards registered again 14 s after the start, with no change to the templat
 This works because the shards find the coordinator by its private IP, which survives stop/start. The operator has to
 look up the new public IP (the stack output `CoordinatorPublicIp` still shows the one from the last deploy).
 
-### 11. `BenchClient` on, then off (task 9.6)
+### 11. `BenchClient` on, then off
 
 **Instance IDs before:**
 

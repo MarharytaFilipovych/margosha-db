@@ -9,7 +9,7 @@ import com.margosha.api.model.Attributes;
 import com.margosha.api.model.ErrorCode;
 import com.margosha.api.model.PrimaryKey;
 import com.margosha.api.model.ShardRegistration;
-import com.margosha.api.util.RestClientBuilders;
+import com.margosha.api.util.RestClientBuilder;
 import com.margosha.node.coordinator.exception.ShardUnavailableException;
 import com.margosha.node.exception.RecordAlreadyExistsException;
 import com.margosha.node.exception.RecordNotFoundException;
@@ -29,7 +29,7 @@ public class RemoteShardStorageService implements RecordStorage {
 	private final ShardClient client;
 
 	public static RemoteShardStorageService connect(ShardRegistration shard, Duration timeout) {
-		ShardClient client = new ShardClient(RestClientBuilders.withTimeout(timeout), shard.address());
+		ShardClient client = new ShardClient(RestClientBuilder.withTimeout(timeout), shard.address());
 		return new RemoteShardStorageService(shard.shardId(), client);
 	}
 
