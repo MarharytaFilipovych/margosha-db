@@ -132,8 +132,9 @@ credentials in its secrets.
 with the session, so this is repeated in every new session.
 
 **2. Deploy.** Push to `main`, or start **Actions → pipeline → Run workflow** on `main`. The `deploy` job creates or
-updates `margosha-vpc` and `margosha-app`, uploads the jars, starts or reboots the nodes, and waits until all three run
-the new jar (3–5 minutes). The run's **Summary** page lists the stacks' results, the jar hashes and the node IDs.
+updates `margosha-vpc`, uploads the jars as a new version (the commit), deploys `margosha-app` with that version,
+starts or reboots the nodes, and waits until all of them run it (3–5 minutes). The run's **Summary** page lists the
+version, the stacks' results, the jar hash and the node IDs.
 
 **3. Open the API to your IP.** The API has no authentication, so it is closed to the internet by default. This adds two
 security group rules to the coordinator and replaces nothing:
@@ -432,12 +433,26 @@ checks constraint annotations on controller parameters by itself.
 | Job | Runs on | What it does |
 |---|---|---|
 | `check` | every push and pull request | `./mvnw verify`: builds the jar and runs the tests |
-| `deploy` | push to `main`, or started by hand on `main`; only after `check` passed; one run at a time | 1. `margosha-vpc` and 2. `margosha-app` with `aws cloudformation deploy --no-fail-on-empty-changeset`; 3. uploads the tested jars to `s3://margosha-artifacts-<account-id>/releases/`: `margosha.jar` (the nodes) and `margosha-ycsb-binding.jar` (the bench client, see [m2/benchmark/procedure.md](m2/benchmark/procedure.md)); 4. reboots the coordinator and the shards; 5. waits until all three nodes downloaded the new jar (its sha256 in their log) and started it (`Running as …`, logged after the deploy began), and the coordinator registered both shards; fails after 12 minutes otherwise, printing the node's last log lines |
+| `deploy` | push to `main`, or started by hand on `main`; only after `check` passed; one run at a time | 1. picks the version: the commit (`${GITHUB_SHA::7}`), or the one given to roll back; 2. deploys `margosha-vpc`; 3. uploads the tested jars to `s3://margosha-artifacts-<account-id>/releases/<version>/`: `margosha.jar` (the nodes) and `margosha-ycsb-binding.jar` (the bench client, see [m2/benchmark/procedure.md](m2/benchmark/procedure.md)); 4. deploys `margosha-app` with `--parameter-overrides AppVersion=<version>`; 5. reboots the coordinator and the replicas, which download `releases/<version>/margosha.jar` on boot; 6. waits until every node downloaded that version (its path and sha256 in their log) and started it (`Running as …`, logged after the deploy began), and the coordinator registered every replica; fails after 12 minutes otherwise, printing the node's last log lines |
 
 - Checks with screenshots (app-only change, template change, deploy by hand): [m2/deploy_pipeline.md](m2/deploy_pipeline.md).
 - A stack with no changes prints `No changes to deploy` and the run goes on. The run's **Summary** page lists each stack's result, the jar hash and the node IDs.
 - Parameters the pipeline does not pass keep their current values (`OperatorCidr`, `BenchClient`). A new stack gets the defaults, so the operator's access is closed until it is set by hand (see [m2/app_infrastructure.md](m2/app_infrastructure.md#2-create-the-stack-task-93)).
 - Nodes the deployment has just created (first deploy, or replaced by a template change) are not rebooted: they are still in their first-boot setup and download the jar when it is done. Stopped nodes are started instead of rebooted.
+- **The stack knows the version.** `margosha-app` has an `AppVersion` parameter; every node gets it as the `MargoshaVersion` tag and downloads `releases/<AppVersion>/margosha.jar` on every start. A new commit on `main` is a new version, so every push updates the stack and rolls the nodes out, whether it changed the application, a template, or both. Changing only the version updates tags, so no instance is replaced. Running the same commit again changes nothing, and the nodes are not rebooted if they already run that version.
+- Every version's jars stay in the bucket, and a node never runs "whatever was uploaded last": after a lab restart it starts the version the stack names.
+
+### Roll back to an earlier version
+
+Each run's **Summary** shows the version it deployed and the previous one. To go back:
+
+- GitHub: **Actions → pipeline → Run workflow**, branch `main`, fill in **version** (e.g. `1a2b3c4`), **Run workflow**.
+- GitHub CLI:
+  ```bash
+  gh workflow run pipeline.yml --ref main -f version=1a2b3c4
+  ```
+
+The run deploys the stack with `AppVersion=1a2b3c4` (the jar is taken from the bucket, not rebuilt), reboots the nodes and checks them as usual. This rolls back the application only; the templates stay as on `main`. To roll back a template change, revert the commit (`git revert`) and push. If a stack update fails, CloudFormation rolls the stack, version included, back by itself.
 
 ### Refresh the secrets (every new lab session)
 

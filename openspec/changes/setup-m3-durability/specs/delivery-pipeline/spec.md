@@ -20,3 +20,24 @@ After the build and tests pass on a push to `main`, or when started by hand, the
 #### Scenario: New jar does not start
 - **WHEN** a deployed jar fails to start on a node
 - **THEN** the pipeline run fails and names that node
+
+## ADDED Requirements
+
+### Requirement: Versioned releases
+Every deploy SHALL have a version, the commit it was built from. The pipeline SHALL upload the jars to `releases/<version>/` in the artifacts bucket and pass the version to the application stack as its `AppVersion` parameter; each node SHALL run the jar of the version the stack names. Every commit deployed from `main` SHALL therefore update the application stack and roll the nodes out, whether it changed application code, a template, or both. Deploying a version that the stack and every node already run SHALL not reboot the nodes.
+
+#### Scenario: Any change is rolled out
+- **WHEN** a commit that changes application code, a template, or both is pushed to `main`
+- **THEN** the application stack is updated with the new version and after the reboot every node runs that version's jar
+
+#### Scenario: Nothing changed
+- **WHEN** a deploy is started by hand for the commit that is already deployed, and every node runs it
+- **THEN** the stacks report no changes and no node is rebooted
+
+#### Scenario: Roll back to an earlier version
+- **WHEN** a deploy is started by hand with the version of an earlier deploy
+- **THEN** the application stack is deployed with that version, without rebuilding it, and every node runs that version's jar
+
+#### Scenario: Unknown version
+- **WHEN** a deploy is started by hand with a version that has no jar in the bucket
+- **THEN** the pipeline run fails before changing any stack and lists the versions in the bucket

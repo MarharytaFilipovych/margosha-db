@@ -56,6 +56,16 @@ Parameters:
     Default: 2
     AllowedValues: [1, 2, 3]
     Description: Replicas a read asks. Passed to every node as a tag.
+  AppVersion:
+    Type: String
+    AllowedPattern: ^[0-9a-f]{7,40}$
+    ConstraintDescription: a git commit hash (7 to 40 lowercase hex characters)
+    Description: >
+      Version of the application the nodes run: the commit the pipeline built.
+      Passed to every node as a tag; on every start a node downloads
+      releases/<AppVersion>/margosha.jar. Changing it updates only the tags (no
+      instance is replaced); the pipeline then reboots the nodes. To roll back,
+      deploy the stack again with an earlier version.
 
 Conditions:
   HasOperator: !Not [!Equals [!Ref OperatorCidr, ""]]
@@ -283,13 +293,19 @@ Resources:
             echo "MARGOSHA_ARGS=\"$ARGS\"" > /etc/margosha/node.env
             echo "margosha: role $ROLE, args: $ARGS"
 
-            JAR=s3://$BUCKET/releases/margosha.jar
+            # The version to run comes from the stack (AppVersion parameter -> tag).
+            VERSION=$(tag MargoshaVersion)
+            if [ -z "$VERSION" ]; then
+              echo "margosha: no MargoshaVersion tag"
+              exit 1
+            fi
+            JAR=s3://$BUCKET/releases/$VERSION/margosha.jar
             until aws s3 cp --region "$REGION" --only-show-errors "$JAR" /opt/margosha/margosha.jar.new; do
               echo "margosha: $JAR not available yet, retrying in 15s"
               sleep 15
             done
             mv -f /opt/margosha/margosha.jar.new /opt/margosha/margosha.jar
-            echo "margosha: downloaded $JAR, sha256 $(sha256sum /opt/margosha/margosha.jar | cut -c1-16)"
+            echo "margosha: version $VERSION, downloaded $JAR, sha256 $(sha256sum /opt/margosha/margosha.jar | cut -c1-16)"
             EOF
 
             cat > /usr/local/bin/margosha-run <<'EOF'
@@ -354,6 +370,8 @@ Resources:
           Value: !Ref WriteQuorum
         - Key: MargoshaReadQuorum
           Value: !Ref ReadQuorum
+        - Key: MargoshaVersion
+          Value: !Ref AppVersion
 
   ShardA:
     Type: AWS::EC2::Instance
@@ -382,6 +400,8 @@ Resources:
           Value: !Ref WriteQuorum
         - Key: MargoshaReadQuorum
           Value: !Ref ReadQuorum
+        - Key: MargoshaVersion
+          Value: !Ref AppVersion
 
   ShardA2:
     Type: AWS::EC2::Instance
@@ -412,6 +432,8 @@ Resources:
           Value: !Ref WriteQuorum
         - Key: MargoshaReadQuorum
           Value: !Ref ReadQuorum
+        - Key: MargoshaVersion
+          Value: !Ref AppVersion
 
   ShardA3:
     Type: AWS::EC2::Instance
@@ -442,6 +464,8 @@ Resources:
           Value: !Ref WriteQuorum
         - Key: MargoshaReadQuorum
           Value: !Ref ReadQuorum
+        - Key: MargoshaVersion
+          Value: !Ref AppVersion
 
   ShardB:
     Type: AWS::EC2::Instance
@@ -470,6 +494,8 @@ Resources:
           Value: !Ref WriteQuorum
         - Key: MargoshaReadQuorum
           Value: !Ref ReadQuorum
+        - Key: MargoshaVersion
+          Value: !Ref AppVersion
 
   ShardB2:
     Type: AWS::EC2::Instance
@@ -500,6 +526,8 @@ Resources:
           Value: !Ref WriteQuorum
         - Key: MargoshaReadQuorum
           Value: !Ref ReadQuorum
+        - Key: MargoshaVersion
+          Value: !Ref AppVersion
 
   ShardB3:
     Type: AWS::EC2::Instance
@@ -530,6 +558,8 @@ Resources:
           Value: !Ref WriteQuorum
         - Key: MargoshaReadQuorum
           Value: !Ref ReadQuorum
+        - Key: MargoshaVersion
+          Value: !Ref AppVersion
 
   BenchClientInstance:
     Type: AWS::EC2::Instance
@@ -580,8 +610,11 @@ Resources:
 
 Outputs:
   ArtifactsBucketName:
-    Description: Bucket for the jar (releases/margosha.jar) and benchmark results.
+    Description: Bucket for the jars (releases/<version>/) and benchmark results.
     Value: !Ref ArtifactsBucket
+  AppVersion:
+    Description: Version (commit) the nodes run, from s3://<bucket>/releases/<version>/.
+    Value: !Ref AppVersion
   CoordinatorInstanceId:
     Description: Instance ID of the coordinator.
     Value: !Ref Coordinator

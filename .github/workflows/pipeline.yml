@@ -4,6 +4,13 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      version:
+        description: >
+          Roll back: the version to deploy (a commit hash from an earlier run's Summary, e.g. 1a2b3c4).
+          Leave empty to deploy the commit the run is started on.
+        required: false
+        default: ''
 
 jobs:
   check:
@@ -53,12 +60,15 @@ jobs:
       JAR: app/node/target/margosha.jar
       BINDING_JAR: app/ycsb-binding/target/margosha-ycsb-binding.jar
       REPLICAS: shard-a-1 shard-a-2 shard-a-3 shard-b-1 shard-b-2 shard-b-3
+      # Empty on a push; set when a run is started by hand to roll back to an earlier version.
+      ROLLBACK_VERSION: ${{ inputs.version }}
     steps:
       - name: Check out the repository
         uses: actions/checkout@v5
 
       # The artifact keeps the paths below app/, so both jars land where the build put them.
       - name: Get the tested jars
+        if: ${{ !inputs.version }}
         uses: actions/download-artifact@v4
         with:
           name: margosha-jars
@@ -79,6 +89,36 @@ jobs:
             exit 1
           fi
 
+      # The version is the commit: every commit on main is a new version, so every push changes
+      # the app stack (its AppVersion parameter) and rolls the nodes out, whether the commit
+      # changed the application, a template, or both. Each version's jars stay in
+      # s3://<bucket>/releases/<version>/, so an earlier version can be deployed again.
+      - name: Choose the version
+        run: |
+          BUCKET="margosha-artifacts-$(aws sts get-caller-identity --query Account --output text)"
+          if [ -n "$ROLLBACK_VERSION" ]; then
+            VERSION="$ROLLBACK_VERSION"
+            if ! [[ "$VERSION" =~ ^[0-9a-f]{7,40}$ ]]; then
+              echo "::error::'$VERSION' is not a version: give the commit hash shown in an earlier run's Summary (e.g. 1a2b3c4)."
+              exit 1
+            fi
+            if ! aws s3api head-object --bucket "$BUCKET" --key "releases/$VERSION/margosha.jar" > /dev/null 2>&1; then
+              echo "::error::s3://$BUCKET/releases/$VERSION/margosha.jar does not exist. Versions in the bucket:"
+              aws s3 ls "s3://$BUCKET/releases/" || true
+              exit 1
+            fi
+            echo "Rolling back to version $VERSION"
+            echo "- **rollback** to version \`$VERSION\`" >> "$GITHUB_STEP_SUMMARY"
+          else
+            VERSION="${GITHUB_SHA::7}"
+            echo "Deploying version $VERSION (commit $GITHUB_SHA)"
+            echo "- version \`$VERSION\` (commit \`$GITHUB_SHA\`)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          {
+            echo "VERSION=$VERSION"
+            echo "BUCKET=$BUCKET"
+          } >> "$GITHUB_ENV"
+
       - name: Deploy the network stack (margosha-vpc)
         run: |
           aws cloudformation deploy \
@@ -87,36 +127,73 @@ jobs:
             --no-fail-on-empty-changeset | tee vpc-deploy.log
           echo "- \`$VPC_STACK\`: $(tail -n 1 vpc-deploy.log)" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Remember the current node instance IDs
+      - name: Remember the current nodes and version
         run: |
           ids=$(aws cloudformation describe-stacks --stack-name "$APP_STACK" \
             --query "Stacks[0].Outputs[?ends_with(OutputKey, 'InstanceId') && OutputKey!='BenchClientInstanceId'].OutputValue" \
             --output text 2>/dev/null || true)
+          previous=$(aws cloudformation describe-stacks --stack-name "$APP_STACK" \
+            --query "Stacks[0].Parameters[?ParameterKey=='AppVersion'].ParameterValue" \
+            --output text 2>/dev/null || true)
+          [ "$previous" = "None" ] && previous=""
           echo "Nodes before the deploy: ${ids:-none (new stack)}"
+          echo "Version before the deploy: ${previous:-none}"
+          if [ -n "$previous" ]; then
+            echo "- previous version: \`$previous\` (to roll back: **Run workflow** on \`main\` with version \`$previous\`)" >> "$GITHUB_STEP_SUMMARY"
+          fi
           echo "NODES_BEFORE=$ids" >> "$GITHUB_ENV"
           # Log lines older than this (minus 60 s for clock differences) belong to boots before this deploy.
           echo "SINCE=$(date -u -d '-60 seconds' +%Y-%m-%dT%H:%M:%S)" >> "$GITHUB_ENV"
 
-      - name: Deploy the application stack (margosha-app)
+      # Upload before the stack points at the version, so a node never looks for a jar that is not there yet.
+      # The bucket belongs to the app stack: on the very first deploy it does not exist yet, so the jars
+      # are uploaded right after the stack is created (the new nodes retry the download until then).
+      - name: Upload the jars to releases/<version>/
+        if: ${{ !inputs.version }}
         run: |
+          if aws s3api head-bucket --bucket "$BUCKET" 2> /dev/null; then
+            aws s3 cp "$JAR" "s3://$BUCKET/releases/$VERSION/margosha.jar" --only-show-errors
+            aws s3 cp "$BINDING_JAR" "s3://$BUCKET/releases/$VERSION/margosha-ycsb-binding.jar" --only-show-errors
+            echo "Uploaded the jars to s3://$BUCKET/releases/$VERSION/"
+          else
+            echo "The bucket $BUCKET does not exist yet (new stack): uploading after the stack is created"
+            echo "UPLOAD_AFTER_STACK=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Deploy the application stack (margosha-app) with the version
+        run: |
+          # Parameters not given here (OperatorCidr, BenchClient, ...) keep their current values.
           aws cloudformation deploy \
             --stack-name "$APP_STACK" \
             --template-file cfn/margosha-app.yaml \
+            --parameter-overrides "AppVersion=$VERSION" \
             --no-fail-on-empty-changeset | tee app-deploy.log
-          echo "- \`$APP_STACK\`: $(tail -n 1 app-deploy.log)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`$APP_STACK\` (AppVersion \`$VERSION\`): $(tail -n 1 app-deploy.log)" >> "$GITHUB_STEP_SUMMARY"
+          # No changes: same template and same version as already deployed (e.g. the same commit run again).
+          if grep -q "No changes to deploy" app-deploy.log; then
+            echo "APP_STACK_CHANGED=false" >> "$GITHUB_ENV"
+          else
+            echo "APP_STACK_CHANGED=true" >> "$GITHUB_ENV"
+          fi
 
-      - name: Upload the jars
+      - name: Upload the jars to the new bucket
+        if: ${{ env.UPLOAD_AFTER_STACK == 'true' }}
+        run: |
+          aws s3 cp "$JAR" "s3://$BUCKET/releases/$VERSION/margosha.jar" --only-show-errors
+          aws s3 cp "$BINDING_JAR" "s3://$BUCKET/releases/$VERSION/margosha-ycsb-binding.jar" --only-show-errors
+          echo "Uploaded the jars to s3://$BUCKET/releases/$VERSION/"
+
+      - name: Find the jar hash and the nodes
         run: |
           out() { aws cloudformation describe-stacks --stack-name "$APP_STACK" --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text; }
-          BUCKET=$(out ArtifactsBucketName)
+          # On a rollback the jar was built by an earlier run: take it from the bucket.
+          if [ ! -f "$JAR" ]; then
+            mkdir -p "$(dirname "$JAR")"
+            aws s3 cp "s3://$BUCKET/releases/$VERSION/margosha.jar" "$JAR" --only-show-errors
+          fi
           HASH=$(sha256sum "$JAR" | cut -c1-16)
-          aws s3 cp "$JAR" "s3://$BUCKET/releases/margosha.jar" --only-show-errors
-          echo "Uploaded $JAR to s3://$BUCKET/releases/margosha.jar, sha256 $HASH"
-          echo "- jar: \`s3://$BUCKET/releases/margosha.jar\`, sha256 \`$HASH\` (commit \`${GITHUB_SHA::7}\`)" >> "$GITHUB_STEP_SUMMARY"
-          BINDING_HASH=$(sha256sum "$BINDING_JAR" | cut -c1-16)
-          aws s3 cp "$BINDING_JAR" "s3://$BUCKET/releases/margosha-ycsb-binding.jar" --only-show-errors
-          echo "Uploaded $BINDING_JAR to s3://$BUCKET/releases/margosha-ycsb-binding.jar, sha256 $BINDING_HASH"
-          echo "- YCSB binding: \`s3://$BUCKET/releases/margosha-ycsb-binding.jar\`, sha256 \`$BINDING_HASH\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- jar: \`s3://$BUCKET/releases/$VERSION/margosha.jar\`, sha256 \`$HASH\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- YCSB binding: \`s3://$BUCKET/releases/$VERSION/margosha-ycsb-binding.jar\`" >> "$GITHUB_STEP_SUMMARY"
           {
             echo "JAR_HASH=$HASH"
             echo "COORD=$(out CoordinatorInstanceId)"
@@ -128,6 +205,27 @@ jobs:
         run: |
           IFS=',' read -ra nodes <<< "$NODES"
           echo "Nodes: ${nodes[*]}"
+
+          # Nothing changed (same template, same version): skip the rollout if every node
+          # is running and its last boot downloaded this version's jar.
+          if [ "$APP_STACK_CHANGED" = "false" ]; then
+            up_to_date=true
+            for id in "${nodes[@]}"; do
+              state=$(aws ec2 describe-instances --instance-ids "$id" --query "Reservations[0].Instances[0].State.Name" --output text)
+              log=$(aws ec2 get-console-output --instance-id "$id" --latest --output text 2>/dev/null || true)
+              if [ "$state" != "running" ] || [[ "$log" != *"releases/$VERSION/margosha.jar, sha256 $JAR_HASH"* ]]; then
+                echo "$id ($state) does not run version $VERSION yet"
+                up_to_date=false
+              fi
+            done
+            if [ "$up_to_date" = "true" ]; then
+              echo "Nothing changed: every node already runs version $VERSION. No reboot."
+              echo "- nothing changed: all ${#nodes[@]} nodes already run version \`$VERSION\`, not rebooted" >> "$GITHUB_STEP_SUMMARY"
+              echo "SKIP_WAIT=true" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          fi
+
           reboot=()
           for id in "${nodes[@]}"; do
             if [[ "$NODES_BEFORE" == *"$id"* ]]; then
@@ -148,6 +246,7 @@ jobs:
           fi
 
       - name: Wait for every node to start the new jar and every replica to register
+        if: ${{ env.SKIP_WAIT != 'true' }}
         timeout-minutes: 15
         run: |
           console() { aws ec2 get-console-output --instance-id "$1" --latest --output text 2>/dev/null || true; }
@@ -164,13 +263,13 @@ jobs:
           for id in "${nodes[@]}"; do
             until
               log=$(console "$id")
-              [[ "$log" == *"sha256 $JAR_HASH"* ]] && [ -n "$(since 'Running as' <<< "$log")" ]
+              [[ "$log" == *"releases/$VERSION/margosha.jar, sha256 $JAR_HASH"* ]] && [ -n "$(since 'Running as' <<< "$log")" ]
             do
-              [ "$(date +%s)" -lt "$deadline" ] || give_up "$id did not download and start the jar with sha256 $JAR_HASH" "$id"
-              echo "$id: new jar not downloaded or not started yet, checking again in 20 s"
+              [ "$(date +%s)" -lt "$deadline" ] || give_up "$id did not download and start version $VERSION (jar sha256 $JAR_HASH)" "$id"
+              echo "$id: version $VERSION not downloaded or not started yet, checking again in 20 s"
               sleep 20
             done
-            echo "$id: runs the jar with sha256 $JAR_HASH (started at $(since 'Running as' <<< "$log" | tail -n 1) UTC)"
+            echo "$id: runs version $VERSION, jar sha256 $JAR_HASH (started at $(since 'Running as' <<< "$log" | tail -n 1) UTC)"
           done
 
           # Every replica registers again when it or the coordinator restarts (a deploy restarts both),
@@ -189,4 +288,4 @@ jobs:
             sleep 15
           done
           echo "coordinator: all ${#replicas[@]} replicas registered (${replicas[*]})"
-          echo "- all ${#nodes[@]} nodes started the new jar (${nodes[*]}); replicas ${replicas[*]} registered with the coordinator" >> "$GITHUB_STEP_SUMMARY"
+          echo "- all ${#nodes[@]} nodes started version \`$VERSION\` (${nodes[*]}); replicas ${replicas[*]} registered with the coordinator" >> "$GITHUB_STEP_SUMMARY"

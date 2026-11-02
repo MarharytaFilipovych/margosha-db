@@ -13,7 +13,7 @@ RECORDS=${RECORDS:-100000}
 OPERATIONS=${OPERATIONS:-200000}
 THREADS=${THREADS:-8}
 SKIP_LOAD=${SKIP_LOAD:-0}
-COMMIT=${COMMIT:-unknown}           # the benchmarked commit (from the pipeline run's Summary)
+COMMIT=${COMMIT:-}                  # the benchmarked commit; empty = the deployed version (AppVersion)
 
 TABLE=usertable
 KEY_ATTRIBUTE=ycsb_key
@@ -35,10 +35,14 @@ RESULTS=$HOME/results/$(date -u +%Y%m%dT%H%M%SZ)-$WORKLOAD-r$RECORDS-o$OPERATION
 mkdir -p "$RESULTS"
 echo "Results: $RESULTS"
 
-# 1. The binding jar that the pipeline published with the deployed commit.
-aws s3 cp --only-show-errors "s3://$MARGOSHA_BUCKET/releases/margosha-ycsb-binding.jar" "$BINDING"
+# 1. The binding jar that the pipeline published with the deployed version (the app stack's AppVersion).
+STACK=${STACK:-margosha-app}
+VERSION=${VERSION:-$(aws cloudformation describe-stacks --stack-name "$STACK" \
+  --query "Stacks[0].Parameters[?ParameterKey=='AppVersion'].ParameterValue" --output text)}
+aws s3 cp --only-show-errors "s3://$MARGOSHA_BUCKET/releases/$VERSION/margosha-ycsb-binding.jar" "$BINDING"
 BINDING_SHA=$(sha256sum "$BINDING" | cut -c1-16)
-echo "Binding: s3://$MARGOSHA_BUCKET/releases/margosha-ycsb-binding.jar, sha256 $BINDING_SHA"
+COMMIT=${COMMIT:-$VERSION}
+echo "Binding: s3://$MARGOSHA_BUCKET/releases/$VERSION/margosha-ycsb-binding.jar, sha256 $BINDING_SHA"
 
 # 2. Register the table. A fresh store has no tables; 409 means records from an earlier load are still there.
 if [ "$SKIP_LOAD" != "1" ]; then
