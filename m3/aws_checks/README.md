@@ -20,4 +20,6 @@ Plain `aws` commands are written on one line, so they run as they are on **Windo
 | [Rebuild time on start](rebuild-time.md) | A replica rebuilds 176–305 log entries in 173–245 ms |
 | [One follower down](one-follower-down.md) | Reads and writes still work; the leader shows which follower is behind |
 | [Both followers down](both-followers-down.md) | Reads and writes to that shard get `503`; a write marked "outcome unknown" was in fact applied |
+| [Data survives an app-only deploy](data-survives-deploy.md) | Every record and every replica's last entry are the same after the deploy |
+| [Data survives stopping and starting all instances](data-survives-stop-start.md) | Every record is still there after all 7 nodes were stopped and started, as at the end of a lab session |
 | [Leader down](leader-down.md) | Reads still work; writes to that shard get `503`; the other shard is not affected |

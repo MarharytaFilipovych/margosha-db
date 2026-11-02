@@ -41,7 +41,7 @@
 - [x] 5.3 Deploy through the pipeline; verify on AWS the placement (each shard in both private subnets, leaders in different AZs, no public IPs), all 6 replicas registered, and a follower can reach its leader while the bench client cannot reach any replica
 - [x] 5.4 Verify replication on AWS with the status endpoint: after writes, every replica of a shard reaches the leader's last entry; stop one follower, write, start it, and show it received only the missed range; record the time to rebuild from the log on start
 - [x] 5.5 Verify failure behaviour on AWS: one follower down (reads and writes work), both followers of a shard down (writes 503 after the ack timeout, reads 503), leader down (writes 503, reads work); write the results with commands into `m3/aws_checks/`
-- [ ] 5.6 Verify durability on AWS: write records, push an application-only commit, and read them back after the deploy; also after stopping and starting all instances (end of a lab session); add the results to `m3/aws_checks/`
+- [x] 5.6 Verify durability on AWS: write records, push an application-only commit, and read them back after the deploy; also after stopping and starting all instances (end of a lab session); add the results to `m3/aws_checks/`
 
 ## 6. Benchmark (after group 5)
 
