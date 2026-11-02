@@ -84,8 +84,8 @@ jobs:
 
       - name: Check the credentials
         run: |
-          if ! aws sts get-caller-identity; then
-            echo "::error::The AWS credentials were rejected. The lab session has probably ended: start the lab and refresh the AWS_* secrets (README, 'Deploy pipeline')."
+          if ! aws sts get-caller-identity || ! aws cloudformation list-stacks --max-items 1 > /dev/null; then
+            echo "::error::The AWS credentials were rejected (expired, or cancelled by voc-cancel-cred). The lab session has ended or new credentials were issued: refresh the AWS_* secrets from the current lab session (README, 'Deploy pipeline') and run the deploy again."
             exit 1
           fi
 

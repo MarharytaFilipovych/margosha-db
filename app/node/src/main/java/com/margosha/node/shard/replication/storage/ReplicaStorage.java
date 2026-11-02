@@ -14,17 +14,26 @@ import com.margosha.node.common.exception.RecordNotFoundException;
 import com.margosha.node.shard.replication.log.ReplicationLog;
 import com.margosha.node.shard.replication.model.LogEntry;
 import com.margosha.node.shard.replication.model.VersionedRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class ReplicaStorage implements AutoCloseable {
 
 	public static final String LOG_FILE = "replication.log";
+
+	// Not "log": that name is the replication log below.
+	private static final Logger LOGGER = LoggerFactory.getLogger(ReplicaStorage.class);
 
 	private final Map<String, Map<PrimaryKey, VersionedRecord>> tables = new ConcurrentHashMap<>();
 	private final Object writeLock = new Object();
 	private final ReplicationLog log;
 
 	private ReplicaStorage(Path dataDir) {
+		long start = System.nanoTime();
 		this.log = ReplicationLog.open(dataDir.resolve(LOG_FILE), this::put);
+		// Rebuild time on start (read and check the whole log, replay it into memory).
+		LOGGER.info("Rebuilt the replica from its log: {} entries in {} ms", log.lastVersion(),
+				(System.nanoTime() - start) / 1_000_000);
 	}
 
 	public static ReplicaStorage open(Path dataDir) {

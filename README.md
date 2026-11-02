@@ -454,6 +454,63 @@ Each run's **Summary** shows the version it deployed and the previous one. To go
 
 The run deploys the stack with `AppVersion=1a2b3c4` (the jar is taken from the bucket, not rebuilt), reboots the nodes and checks them as usual. This rolls back the application only; the templates stay as on `main`. To roll back a template change, revert the commit (`git revert`) and push. If a stack update fails, CloudFormation rolls the stack, version included, back by itself.
 
+### Before pushing a template change: will it replace the nodes?
+
+Some template changes update an instance in place (tags, e.g. `AppVersion` or the quorums). Others **replace** it: a new
+instance with a new, empty disk, and the old one is terminated with its disk. That happens for anything in the launch
+template (boot script, AMI, instance type, disk) and for the subnet. Replacing the nodes:
+
+- needs the old and the new nodes running at the same time: 7 + 7 = 14, over the Learner Lab's limit of 9, so the
+  update fails ([m3/replication_checks.md](m3/replication_checks.md#finding-the-first-m3-deploy-breaks-the-learner-labs-9-instance-limit));
+- deletes the replicas' logs and the coordinator's table definitions (`/var/lib/margosha` is on the instance's disk),
+  so the store starts empty.
+
+Such a change has to be planned as a migration (back up the data, or accept and document the loss), not just pushed.
+To see what a change would do **before** pushing it, let CloudFormation prepare the update without running it. Run
+this from the repository root with the lab credentials. It changes nothing: it creates a change set, shows it, and
+deletes it.
+
+Windows (PowerShell):
+```powershell
+$out = aws cloudformation deploy --region us-east-1 --stack-name margosha-app `
+  --template-file cfn/margosha-app.yaml --no-execute-changeset
+$ARN = ($out | Select-String -Pattern 'arn:aws:cloudformation\S+').Matches.Value
+aws cloudformation describe-change-set --region us-east-1 --change-set-name $ARN `
+  --query "Changes[].ResourceChange.[LogicalResourceId,Action,Replacement]" --output table
+aws cloudformation delete-change-set --region us-east-1 --change-set-name $ARN
+```
+
+macOS / Linux:
+```bash
+ARN=$(aws cloudformation deploy --region us-east-1 --stack-name margosha-app \
+  --template-file cfn/margosha-app.yaml --no-execute-changeset | grep -o 'arn:aws:cloudformation[^ ]*')
+aws cloudformation describe-change-set --region us-east-1 --change-set-name "$ARN" \
+  --query "Changes[].ResourceChange.[LogicalResourceId,Action,Replacement]" --output table
+aws cloudformation delete-change-set --region us-east-1 --change-set-name "$ARN"
+```
+
+Parameters not given keep their current values, as in the pipeline. Add `--parameter-overrides AppVersion=<version>`
+to preview a new version too (the version change itself is always a `Modify` with `False`).
+
+How to read the table (one row per resource that would change):
+
+| `Action` | `Replacement` | Meaning for an instance (`Coordinator`, `ShardA` … `ShardB3`, `BenchClientInstance`) |
+|---|---|---|
+| `Modify` | `False` | Updated in place: same instance, disk and data kept. Safe to push |
+| `Modify` | `True` | Replaced: new empty disk, old one deleted |
+| `Modify` | `Conditional` | **Treat as replaced.** CloudFormation shows this for the nodes when the launch template changes, because the new template version is only known during the update. The nodes are then replaced |
+| `Add` | `None` | A new instance: counts toward the 9-instance limit |
+| `Remove` | `None` | The instance and its disk are deleted |
+
+Example: the first M3 deploy (M2 stack running, M3 template) showed `Coordinator`, `ShardA` and `ShardB` as
+`Modify / Conditional` and `ShardA2` … `ShardB3` as `Add`. That is 3 replaced + 4 new = 7 new instances while the 3
+old ones still run: 10 > 9, which is exactly why it failed.
+
+If any node shows `True` or `Conditional`, or the old nodes plus the added and replaced ones exceed 9, don't just
+push: decide what happens to the data, then terminate the old nodes first (the store is then down during the update).
+Stopping them is not enough: the lab's limit of 9 counts stopped instances too
+([m3/replication_checks.md](m3/replication_checks.md#finding-the-first-m3-deploy-breaks-the-learner-labs-9-instance-limit)).
+
 ### Refresh the secrets (every new lab session)
 
 The deploy job uses the Learner Lab session credentials. They stop working when the session ends, so copy the new ones before deploying.
@@ -463,15 +520,7 @@ The deploy job uses the Learner Lab session credentials. They stop working when 
 
 Or with the [GitHub CLI](https://cli.github.com/), after pasting the lab credentials into `~/.aws/credentials` as usual. The values are piped from the AWS CLI config, so they never appear on the screen or in the shell history:
 
-Windows (PowerShell):
-```powershell
-aws configure get aws_access_key_id     | gh secret set AWS_ACCESS_KEY_ID
-aws configure get aws_secret_access_key | gh secret set AWS_SECRET_ACCESS_KEY
-aws configure get aws_session_token     | gh secret set AWS_SESSION_TOKEN
-gh secret list
-```
-
-macOS (Terminal):
+Windows and macOS (same commands):
 ```bash
 aws configure get aws_access_key_id     | gh secret set AWS_ACCESS_KEY_ID
 aws configure get aws_secret_access_key | gh secret set AWS_SECRET_ACCESS_KEY
@@ -479,6 +528,10 @@ aws configure get aws_session_token     | gh secret set AWS_SESSION_TOKEN
 gh secret list
 ```
 `gh secret list` should show all three with today's date. If a deploy fails at **Check the credentials**, the secrets are from an old session.
+Old credentials are not always rejected outright: when a session ends or new ones are issued, the lab attaches the
+`voc-cancel-cred` policy to them, so `sts get-caller-identity` still answers but every other call fails with
+`AccessDenied ... explicit deny in an identity-based policy: .../voc-cancel-cred`. The check therefore also calls
+CloudFormation. Copy the credentials again after every **Start Lab**, even if the session seemed to be still running.
 
 ### Start a deployment by hand
 
