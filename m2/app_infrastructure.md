@@ -151,7 +151,7 @@ Credentials and region are set up as in the [S3 endpoint note](s3_gateway_endpoi
 
 Windows (PowerShell):
 ```powershell
-cd "C:\4 course uni\margosha-db"
+cd ~\margosha-db          # wherever the repo is cloned
 aws configure set region us-east-1
 aws sts get-caller-identity
 $env:Path += ";$env:APPDATA\Python\Python312\Scripts"

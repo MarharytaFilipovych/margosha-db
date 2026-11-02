@@ -18,3 +18,6 @@ Plain `aws` commands are written on one line, so they run as they are on **Windo
 | [Followers keep up with their leader](replicas-in-sync.md) | After writes, every follower is at its leader's last entry |
 | [A restarted follower gets only what it missed](missed-range.md) | A follower that was down for 111 writes received exactly those 111 |
 | [Rebuild time on start](rebuild-time.md) | A replica rebuilds 176–305 log entries in 173–245 ms |
+| [One follower down](one-follower-down.md) | Reads and writes still work; the leader shows which follower is behind |
+| [Both followers down](both-followers-down.md) | Reads and writes to that shard get `503`; a write marked "outcome unknown" was in fact applied |
+| [Leader down](leader-down.md) | Reads still work; writes to that shard get `503`; the other shard is not affected |

@@ -54,7 +54,7 @@ Credentials from the lab page go into `~/.aws/credentials` as usual. Then:
 
 Windows (PowerShell):
 ```powershell
-cd "C:\4 course uni\margosha-db"
+cd ~\margosha-db          # wherever the repo is cloned
 aws configure set region us-east-1
 aws sts get-caller-identity
 # Without these two lines the AWS CLI on Windows fails on the "→" in the node logs
