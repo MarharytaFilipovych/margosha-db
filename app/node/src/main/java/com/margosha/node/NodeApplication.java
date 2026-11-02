@@ -70,7 +70,7 @@ public class NodeApplication {
 		app.setDefaultProperties(properties);
 		ConfigurableApplicationContext context = app.run(springArgs.toArray(String[]::new));
 
-		log.info("Running as {}{}", role.argument(), mode != null ? " (mode: " + mode.argument() + ")" : "");
+		log.info("Running as {}{} (data kept on disk)", role.argument(), mode != null ? " (mode: " + mode.argument() + ")" : "");
 		return context;
 	}
 }
