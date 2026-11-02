@@ -461,7 +461,7 @@ instance with a new, empty disk, and the old one is terminated with its disk. Th
 template (boot script, AMI, instance type, disk) and for the subnet. Replacing the nodes:
 
 - needs the old and the new nodes running at the same time: 7 + 7 = 14, over the Learner Lab's limit of 9, so the
-  update fails ([m3/replication_checks.md](m3/replication_checks.md#finding-the-first-m3-deploy-breaks-the-learner-labs-9-instance-limit));
+  update fails ([m3/aws_checks/instance-limit.md](m3/aws_checks/instance-limit.md));
 - deletes the replicas' logs and the coordinator's table definitions (`/var/lib/margosha` is on the instance's disk),
   so the store starts empty.
 
@@ -509,7 +509,7 @@ old ones still run: 10 > 9, which is exactly why it failed.
 If any node shows `True` or `Conditional`, or the old nodes plus the added and replaced ones exceed 9, don't just
 push: decide what happens to the data, then terminate the old nodes first (the store is then down during the update).
 Stopping them is not enough: the lab's limit of 9 counts stopped instances too
-([m3/replication_checks.md](m3/replication_checks.md#finding-the-first-m3-deploy-breaks-the-learner-labs-9-instance-limit)).
+([m3/aws_checks/instance-limit.md](m3/aws_checks/instance-limit.md)).
 
 ### Refresh the secrets (every new lab session)
 

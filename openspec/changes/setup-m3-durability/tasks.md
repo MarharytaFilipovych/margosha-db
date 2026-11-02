@@ -39,9 +39,9 @@
 - [x] 5.1 `cfn/margosha-app.yaml`: 6 replica instances placed as in design.md decision 1 with their tags (shard ID, replica ID, role, leader IP, coordinator IP), parameters `WriteQuorum` / `ReadQuorum` passed as tags, shard security group allowing the API port from itself, outputs for all 7 instance IDs; boot script builds the replica arguments and creates the data directory; verify `cfn-lint` passes and a change set preview lists the 4 new replicas and the replaced nodes
 - [x] 5.2 Pipeline: reboot / start every node from the stack outputs, and wait until each runs the new jar and the coordinator logged all 6 replica registrations after the deploy began; verify the workflow works
 - [x] 5.3 Deploy through the pipeline; verify on AWS the placement (each shard in both private subnets, leaders in different AZs, no public IPs), all 6 replicas registered, and a follower can reach its leader while the bench client cannot reach any replica
-- [ ] 5.4 Verify replication on AWS with the status endpoint: after writes, every replica of a shard reaches the leader's last entry; stop one follower, write, start it, and show it received only the missed range; record the time to rebuild from the log on start
-- [ ] 5.5 Verify failure behaviour on AWS: one follower down (reads and writes work), both followers of a shard down (writes 503 after the ack timeout, reads 503), leader down (writes 503, reads work); write the results with commands into `m3/replication_checks.md`
-- [ ] 5.6 Verify durability on AWS: write records, push an application-only commit, and read them back after the deploy; also after stopping and starting all instances (end of a lab session); add the results to `m3/replication_checks.md`
+- [x] 5.4 Verify replication on AWS with the status endpoint: after writes, every replica of a shard reaches the leader's last entry; stop one follower, write, start it, and show it received only the missed range; record the time to rebuild from the log on start
+- [ ] 5.5 Verify failure behaviour on AWS: one follower down (reads and writes work), both followers of a shard down (writes 503 after the ack timeout, reads 503), leader down (writes 503, reads work); write the results with commands into `m3/aws_checks/`
+- [ ] 5.6 Verify durability on AWS: write records, push an application-only commit, and read them back after the deploy; also after stopping and starting all instances (end of a lab session); add the results to `m3/aws_checks/`
 
 ## 6. Benchmark (after group 5)
 
