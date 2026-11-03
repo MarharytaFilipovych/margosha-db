@@ -24,7 +24,14 @@ After the build and tests pass on a push to `main`, or when started by hand, the
 ## ADDED Requirements
 
 ### Requirement: Versioned releases
-Every deploy SHALL have a version, the commit it was built from. The pipeline SHALL upload the jars to `releases/<version>/` in the artifacts bucket and pass the version to the application stack as its `AppVersion` parameter; each node SHALL run the jar of the version the stack names. Every commit deployed from `main` SHALL therefore update the application stack and roll the nodes out, whether it changed application code, a template, or both. Deploying a version that the stack and every node already run SHALL not reboot the nodes.
+Every deploy SHALL have a version: the commit it was built from. The pipeline SHALL upload the jars to `releases/<version>/` in the artifacts bucket and pass the version to the application stack as its `AppVersion` parameter, and each node SHALL run the jar of the version the stack names.
+
+#### Scenario: Each version keeps its own jars
+- **WHEN** a commit is deployed from `main`
+- **THEN** its jars are in `releases/<commit>/`, the application stack's `AppVersion` is that commit, and every node runs that version's jar
+
+### Requirement: Every change is rolled out
+Every commit deployed from `main` SHALL update the application stack with its version and roll the nodes out, whether it changed application code, a template, or both. Deploying a version that the stack and every node already run SHALL not reboot the nodes.
 
 #### Scenario: Any change is rolled out
 - **WHEN** a commit that changes application code, a template, or both is pushed to `main`
@@ -33,6 +40,9 @@ Every deploy SHALL have a version, the commit it was built from. The pipeline SH
 #### Scenario: Nothing changed
 - **WHEN** a deploy is started by hand for the commit that is already deployed, and every node runs it
 - **THEN** the stacks report no changes and no node is rebooted
+
+### Requirement: Roll back to an earlier version
+A deploy started by hand with the version of an earlier deploy SHALL deploy that version again without rebuilding it. A version that has no jar in the bucket SHALL fail the run before any stack is changed.
 
 #### Scenario: Roll back to an earlier version
 - **WHEN** a deploy is started by hand with the version of an earlier deploy

@@ -52,8 +52,8 @@
 
 ## 7. End-to-end checks
 
-- [ ] 7.1 Fresh deploy from the pipeline into an account where only `margosha-vpc` exists; verify all 7 nodes come up, every replica registers, and the store works with no manual console steps
-- [ ] 7.2 Run `openspec validate setup-m3-durability --strict`; verify it passes
+- [x] 7.1 Fresh deploy from the pipeline into an account where only `margosha-vpc` exists; verify all 7 nodes come up, every replica registers, and the store works with no manual console steps
+- [x] 7.2 Run `openspec validate setup-m3-durability --strict`; verify it passes
 
 ## 8. Deliverables (apply to every milestone)
 
