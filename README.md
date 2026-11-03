@@ -3,7 +3,7 @@
 A "light" version of a serverless key-value store like DynamoDB, built as the capstone project for the Cloud Architectures course (2026/27).
 
 - **Decisions:** [adr/](adr/)
-- **OpenSpec changes:** M1 [openspec/changes/archive/2026-10-24-setup-m1-infrastructure/](openspec/changes/archive/2026-10-24-setup-m1-infrastructure/), M2 [openspec/changes/archive/2026-10-30-setup-m2-sharding/](openspec/changes/archive/2026-10-30-setup-m2-sharding/), M3 [openspec/changes/setup-m3-durability/](openspec/changes/setup-m3-durability/)
+- **OpenSpec changes:** M1 [openspec/changes/archive/2026-10-24-setup-m1-infrastructure/](openspec/changes/archive/2026-10-24-setup-m1-infrastructure/), M2 [openspec/changes/archive/2026-10-30-setup-m2-sharding/](openspec/changes/archive/2026-10-30-setup-m2-sharding/), M3 [openspec/changes/archive/2026-11-03-setup-m3-durability/](openspec/changes/archive/2026-11-03-setup-m3-durability/)
 - **IaC templates (AWS CloudFormation):** [cfn/](cfn/)
 - **Application (Java 21, Maven):** [app/](app/)
 - **Milestones:** [M1 infrastructure setup](#milestone-1-infrastructure-setup), [M2 sharded key-value store](#milestone-2-sharded-key-value-store), [M3 replicated, durable store](#milestone-3-replicated-durable-store)
@@ -875,15 +875,15 @@ sequenceDiagram
         C->>R2: GET record
     end
     R1-->>C: 200 attributes, version 57
-    alt both answer within 2 s
+    alt both answer within 50 ms (margosha.shard.read-hedge-delay)
         R2-->>C: 200 older attributes, version 56 (57 not received yet)
-    else one fails or times out
-        C->>R3: GET record (the next replica not asked yet)
+    else one fails, or has not answered after 50 ms
+        C->>R3: GET record (the next replica not asked yet; the first R answers are used)
         R3-->>C: 200 attributes, version 57
     end
     C->>C: highest version wins (57), and a delete with the highest version = not found
     C-->>Client: 200 attributes
-    Note over C: fewer than R answers → 503 "Only 1 of the 2 replicas a read needs answered"
+    Note over C: fewer than R answers → 503 "Only 1 of the 2 replicas a read needs answered"<br/>a replica that failed is asked last for the next 5 s
 ```
 
 ### A replica starts (reboot, deploy, new lab session)

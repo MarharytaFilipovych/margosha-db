@@ -2,7 +2,7 @@
 
 Oct 30, 2026
 
-**Reviewed:** `openspec/changes/setup-m2-sharding/` (design, specs, tasks), ADR 0004–0006, `cfn/margosha-app.yaml`,
+**Reviewed:** `openspec/changes/archive/2026-10-30-setup-m2-sharding/` (design, specs, tasks), ADR 0004–0006, `cfn/margosha-app.yaml`,
 `cfn/margosha-vpc-stack.yaml`, `.github/workflows/pipeline.yml`, `app/` (ring, node, api, ycsb-binding),
 `m2/routing.md`, `m2/app_infrastructure.md`, `m2/deploy_pipeline.md`, `m2/end_to_end.md`, `m2/benchmark/procedure.md`,
 `m2/benchmark/results.md`

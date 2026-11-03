@@ -1,6 +1,6 @@
 # M2 benchmark procedure
 
-**Spec:** `benchmarking` in `openspec/changes/setup-m2-sharding`.
+**Spec:** `benchmarking` in `openspec/changes/archive/2026-10-30-setup-m2-sharding`.
 
 **Script:** [run-benchmark.sh](run-benchmark.sh) (runs on the bench client).
 

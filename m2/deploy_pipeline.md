@@ -2,7 +2,7 @@
 
 **Workflow:** [.github/workflows/pipeline.yml](../.github/workflows/pipeline.yml)
 
-**Spec:** `delivery-pipeline` in `openspec/changes/setup-m2-sharding`
+**Spec:** `delivery-pipeline` in `openspec/changes/archive/2026-10-30-setup-m2-sharding`
 
 **How to use it** (refresh the secrets, start a deploy by hand): [README, "Deploy pipeline"](../README.md#deploy-pipeline).
 

@@ -1,6 +1,6 @@
 # Milestone 2: service quotas and budget
 
-**Environment:** AWS Academy Learner Lab, region `us-east-1` (M2 runs there, see [proposal](../openspec/changes/setup-m1-infrastructure/proposal.md)).
+**Environment:** AWS Academy Learner Lab, region `us-east-1` (M2 runs there, see [proposal](../openspec/changes/archive/2026-10-24-setup-m1-infrastructure/proposal.md)).
 **Budget on the Learner Lab page at the time of calculation (2026-10-24):** \$0 used of \$50.
 **The \$50 is for all milestones (M2–M5), not per month.** If it is exceeded, the lab account is disabled and all resources are lost (Learner Lab readme).
 

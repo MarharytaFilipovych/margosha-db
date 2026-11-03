@@ -6,7 +6,7 @@
 
 **Region:** `us-east-1`
 
-**Spec:** `app-infrastructure` in `openspec/changes/setup-m2-sharding`; this note covers tasks 9.1–9.6.
+**Spec:** `app-infrastructure` in `openspec/changes/archive/2026-10-30-setup-m2-sharding`; this note covers tasks 9.1–9.6.
 
 The stack holds everything the application needs on top of the network: the bucket the jar is delivered through,
 the three database nodes, their firewalls, and the YCSB client while benchmarking.

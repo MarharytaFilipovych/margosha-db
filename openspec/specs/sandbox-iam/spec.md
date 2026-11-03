@@ -1,7 +1,7 @@
 # sandbox-iam Specification
 
 ## Purpose
-TBD - created by archiving change setup-m1-infrastructure. Update Purpose after archive.
+Describes what the project can and cannot do with IAM in the AWS Academy environments: an analysis of the session roles (`voclabs`, `LabRole`) and how it was found out, plus a read-only policy and an assumable role delivered as IaC templates that the sandbox does not let us attach.
 
 ## Requirements
 

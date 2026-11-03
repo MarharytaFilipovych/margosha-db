@@ -103,3 +103,11 @@ Every record operation on a table that is not registered SHALL fail with a not-f
 #### Scenario: Record operation on unknown table
 - **WHEN** a client creates a record in table `ghost` that was never registered
 - **THEN** the request fails with a not-found error for the table and nothing is stored
+
+### Requirement: Table definitions survive a coordinator restart
+In sharded mode, the coordinator SHALL keep registered table definitions on its disk, so that after a restart the
+tables are still registered and their records, kept by the replicas, can be used without registering the tables again.
+
+#### Scenario: Coordinator restarts
+- **WHEN** a table is registered, a record is created in it, and the coordinator restarts
+- **THEN** the record can be read without registering the table again, and registering the table again fails because it already exists

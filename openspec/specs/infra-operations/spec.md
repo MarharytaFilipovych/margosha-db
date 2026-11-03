@@ -1,7 +1,7 @@
 # infra-operations Specification
 
 ## Purpose
-TBD - created by archiving change setup-m1-infrastructure. Update Purpose after archive.
+Describes the operational checks made before building on the infrastructure: the service quotas and the monthly budget for Milestone 2 in the Learner Lab, and proof that the whole stack can be torn down and recreated from IaC alone.
 
 ## Requirements
 

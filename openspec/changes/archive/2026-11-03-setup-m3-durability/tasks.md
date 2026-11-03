@@ -58,7 +58,7 @@
 ## 8. Deliverables (apply to every milestone)
 
 - [x] 8.1 README: M3 section with how to bring it up, how to verify it, what changed since M2; verify the commands run as written in a new lab session
-- [ ] 8.2 Demo
+- [x] 8.2 Demo
 - [x] 8.3 Transcript of the AI critique of the architecture
 
 ## 9. Fixes from the AI critique (`m3/ai_critique.md`)

@@ -1,6 +1,6 @@
 # M3 benchmark results
 
-**Spec:** `benchmarking` in `openspec/changes/setup-m3-durability`.
+**Spec:** `benchmarking` in `openspec/changes/archive/2026-11-03-setup-m3-durability` (now in the main spec, `openspec/specs/benchmarking`).
 
 **How it was run:** [procedure.md](procedure.md).
 

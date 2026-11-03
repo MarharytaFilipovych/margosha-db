@@ -1,6 +1,6 @@
 # M2 benchmark results (baseline)
 
-**Spec:** `benchmarking` in `openspec/changes/setup-m2-sharding`
+**Spec:** `benchmarking` in `openspec/changes/archive/2026-10-30-setup-m2-sharding`
 
 **How it was run:** [procedure.md](procedure.md) (the trial run that chose the parameters is at the end of it).
 

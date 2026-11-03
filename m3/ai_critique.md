@@ -2,7 +2,7 @@
 
 Nov 3, 2026
 
-**Reviewed:** `openspec/changes/setup-m3-durability/` (proposal, design, specs, tasks), ADR 0007–0011,
+**Reviewed:** `openspec/changes/archive/2026-11-03-setup-m3-durability/` (proposal, design, specs, tasks), ADR 0007–0011,
 `cfn/margosha-app.yaml`, `.github/workflows/pipeline.yml`, `app/node` (replication log, replica storage, leader,
 follower, replica registry, quorum reader, table registry), `m3/replication.md`, `m3/aws_checks/`,
 `m3/end_to_end/fresh-deploy.md`, `m3/benchmark/procedure.md`, `m3/benchmark/results.md`

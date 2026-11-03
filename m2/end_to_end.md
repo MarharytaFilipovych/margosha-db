@@ -1,6 +1,6 @@
 # End-to-end checks
 
-**Spec:** `openspec/changes/setup-m2-sharding`
+**Spec:** `openspec/changes/archive/2026-10-30-setup-m2-sharding`
 
 ## 1. Fresh deploy from the pipeline
 

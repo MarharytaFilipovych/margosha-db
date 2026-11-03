@@ -1,7 +1,7 @@
 # network Specification
 
 ## Purpose
-TBD - created by archiving change setup-m1-infrastructure. Update Purpose after archive.
+Describes the network the store runs in: a VPC with a public subnet (with an Internet Gateway) and private subnets for internal access only, held in its own IaC stack that exports the VPC and subnet IDs for the application stack, and an S3 gateway endpoint so private instances reach S3 without internet access.
 
 ## Requirements
 
