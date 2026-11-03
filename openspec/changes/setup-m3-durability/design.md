@@ -155,6 +155,9 @@ ADR 0010; the check, the log record and the apply must happen in that order, so 
   coordinator never sends one).
 - *Alternative*: send reads to all replicas and use the first R answers (lower tail latency, more read traffic).
   Possible later; the even distribution check is simpler with exactly R requests.
+- *Added after the AI critique (finding 3)*: a read still missing an answer after 50 ms also asks the next replica
+  (a hedged request), and a replica that failed to answer is asked last for 5 s, then tried again by one read. On AWS a
+  stopped follower had made two of every three reads of its shard wait the 2 s shard timeout.
 
 ### 5. Durable table definitions (kv-api)
 The coordinator appends each registered table to a file in its data directory, forced to disk, and loads it on start.
@@ -196,6 +199,10 @@ together with its steady-state numbers; it is not re-measured (that would mean d
   recorded on AWS; the limit is raised if needed.
 - [All nodes rebooted at once in a deploy] → No data loss now, but a short outage; rolling deploys are part of M5's
   zero-downtime work.
+- [A replica restarts with an empty data folder] → Added after the AI critique (finding 1): logs carry an ID, the
+  leader refuses a follower whose log is another history (`LOG_MISMATCH`), and an empty follower registers only after
+  catching up. A leader that lost its log stops taking writes until an operator copies a follower's log to it
+  (`m3/replication.md`, "When a log is lost").
 - [Wrong role tags, e.g. two leaders for one shard] → The coordinator rejects a second leader (400) and logs it; the
   pipeline's registration check fails the deploy.
 

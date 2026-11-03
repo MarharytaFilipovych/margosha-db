@@ -5,8 +5,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
+import com.margosha.node.common.exception.ValidationException;
+import com.margosha.node.shard.replication.exception.LogMismatchException;
 import com.margosha.node.shard.replication.model.LogEntry;
 import com.margosha.node.shard.replication.storage.ReplicaStorage;
 import lombok.NonNull;
@@ -20,6 +24,15 @@ public class ReplicationLeader implements SmartLifecycle {
 
 	@NonNull
 	private final ReplicaStorage storage;
+
+	@NonNull
+	private final String shardId;
+
+	@NonNull
+	private final String leaderId;
+
+	@NonNull
+	private final Set<String> followerIds;
 
 	private final int confirmationsNeeded;
 
@@ -39,16 +52,27 @@ public class ReplicationLeader implements SmartLifecycle {
 		}
 	}
 
-	public List<LogEntry> fetch(String followerId, long after, int maxEntries) {
+	public List<LogEntry> fetch(String followerShardId, String followerId, long after, String followerLogId,
+			int maxEntries) {
+		if (!shardId.equals(followerShardId)) {
+			throw new ValidationException("Replica " + followerId + " of shard " + followerShardId
+					+ " fetched from leader " + leaderId + " of shard " + shardId + "; check its leader address");
+		}
+		if (!followerIds.contains(followerId)) {
+			throw new ValidationException("Replica " + followerId + " is not a follower of shard " + shardId
+					+ "; its followers are " + new TreeSet<>(followerIds));
+		}
+		String ownLogId = storage.ensureLogId();
+		if (followerLogId != null && !followerLogId.equals(ownLogId)) {
+			throw LogMismatchException.otherLog(followerId, followerLogId, leaderId, ownLogId);
+		}
 		synchronized (monitor) {
 			long last = storage.lastVersion();
 			if (after > last) {
-				log.warn("Follower {} asks from position {}, after the leader's last entry {}; not counted as a confirmation",
-						followerId, after, last);
-			} else {
-				followerPositions.put(followerId, after);
-				monitor.notifyAll();
+				throw LogMismatchException.ahead(followerId, after, leaderId, last);
 			}
+			followerPositions.put(followerId, after);
+			monitor.notifyAll();
 			waitForEntryAfter(after);
 		}
 		return storage.entriesAfter(after, maxEntries);

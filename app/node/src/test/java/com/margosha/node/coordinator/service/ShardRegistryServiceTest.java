@@ -100,6 +100,41 @@ class ShardRegistryServiceTest {
 	}
 
 	@Test
+	void replicaBeyondNIsRejectedSoQuorumsStillOverlap() {
+		// Arrange
+		ShardRegistryService threeReplicas = new ShardRegistryService(RingSettings.load().newRing(), FakeReplica::new,
+				ReplicaSet.DEFAULT_SKIP_AFTER_FAILURE, 3);
+		Stream.of(LEADER_A, FOLLOWER_A_2, FOLLOWER_A_3).forEach(threeReplicas::register);
+		ShardRegistration fourth = follower(SHARD_A, SHARD_A + "-4", 8084);
+
+		// Act
+		Throwable thrown = catchThrowable(() -> threeReplicas.register(fourth));
+
+		// Assert
+		assertThat(thrown).isInstanceOf(ValidationException.class)
+				.hasMessage("Shard shard-a already has 3 replicas [shard-a-1, shard-a-2, shard-a-3]; replica shard-a-4"
+						+ " cannot register as another one");
+		assertThat(registrations(threeReplicas.replicaSetFor(USER_42).replicas()))
+				.containsExactly(LEADER_A, FOLLOWER_A_2, FOLLOWER_A_3);
+	}
+
+	@Test
+	void registeredReplicaCanStillMoveWhenTheShardIsFull() {
+		// Arrange
+		ShardRegistryService threeReplicas = new ShardRegistryService(RingSettings.load().newRing(), FakeReplica::new,
+				ReplicaSet.DEFAULT_SKIP_AFTER_FAILURE, 3);
+		Stream.of(LEADER_A, FOLLOWER_A_2, FOLLOWER_A_3).forEach(threeReplicas::register);
+		ShardRegistration moved = follower(SHARD_A, SHARD_A + "-3", 8093);
+
+		// Act
+		threeReplicas.register(moved);
+
+		// Assert
+		assertThat(registrations(threeReplicas.replicaSetFor(USER_42).replicas()))
+				.containsExactly(LEADER_A, FOLLOWER_A_2, moved);
+	}
+
+	@Test
 	void registeringAgainWithTheSameDetailsChangesNothing() {
 		// Arrange
 		registry.register(LEADER_A);
@@ -166,7 +201,7 @@ class ShardRegistryServiceTest {
 		ReplicaSet replicaSet = registry.replicaSetFor(USER_42);
 
 		// Act
-		List<List<ShardRegistration>> orders = Stream.generate(() -> registrations(replicaSet.readOrder()))
+		List<List<ShardRegistration>> orders = Stream.generate(() -> registrations(replicaSet.readOrder(2)))
 				.limit(4).toList();
 
 		// Assert
@@ -175,6 +210,38 @@ class ShardRegistryServiceTest {
 				List.of(FOLLOWER_A_2, FOLLOWER_A_3, LEADER_A),
 				List.of(FOLLOWER_A_3, LEADER_A, FOLLOWER_A_2),
 				List.of(LEADER_A, FOLLOWER_A_2, FOLLOWER_A_3));
+	}
+
+	@Test
+	void replicaThatFailedGoesToTheEndOfTheReadOrder() {
+		// Arrange
+		Stream.of(LEADER_A, FOLLOWER_A_2, FOLLOWER_A_3).forEach(registry::register);
+		ReplicaSet replicaSet = registry.replicaSetFor(USER_42);
+		replicaSet.failed(replicaSet.replicas().get(1));
+
+		// Act
+		List<List<ShardRegistration>> orders = Stream.generate(() -> registrations(replicaSet.readOrder(2)))
+				.limit(3).toList();
+
+		// Assert
+		assertThat(orders).containsExactly(
+				List.of(LEADER_A, FOLLOWER_A_3, FOLLOWER_A_2),
+				List.of(FOLLOWER_A_3, LEADER_A, FOLLOWER_A_2),
+				List.of(FOLLOWER_A_3, LEADER_A, FOLLOWER_A_2));
+	}
+
+	@Test
+	void replicaThatAnswersAgainGetsItsPlaceBack() {
+		// Arrange
+		Stream.of(LEADER_A, FOLLOWER_A_2, FOLLOWER_A_3).forEach(registry::register);
+		ReplicaSet replicaSet = registry.replicaSetFor(USER_42);
+		replicaSet.failed(replicaSet.replicas().get(1));
+
+		// Act
+		replicaSet.answered(replicaSet.replicas().get(1));
+
+		// Assert
+		assertThat(registrations(replicaSet.readOrder(2))).containsExactly(LEADER_A, FOLLOWER_A_2, FOLLOWER_A_3);
 	}
 
 	@Test
@@ -192,8 +259,6 @@ class ShardRegistryServiceTest {
 				})
 				.hasMessage("No shard is registered");
 	}
-
-	// Invalid registrations are rejected by @Valid in the controller: ShardRegistrationControllerTest.
 
 	private static List<ShardRegistration> registrations(List<ReplicaClient> replicas) {
 		return replicas.stream().map(ReplicaClient::registration).toList();

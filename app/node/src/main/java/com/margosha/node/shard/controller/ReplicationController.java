@@ -45,7 +45,9 @@ public class ReplicationController {
 
 	@GetMapping(REPLICATION_LOG)
 	public ReplicationBatch log(@RequestParam long after,
+								@RequestParam String shard,
 								@RequestParam String follower,
+								@RequestParam(required = false) String logId,
 								@RequestParam(defaultValue = "500") int max) {
 		if (leader == null) {
 			throw new NotLeaderException(identity.shardId(), identity.replicaId());
@@ -55,8 +57,9 @@ public class ReplicationController {
 					+ MAX_ENTRIES_PER_FETCH);
 		}
 		return new ReplicationBatch(
-				leader.fetch(follower, after, max).stream().map(LogEntry::toReplicationEntry).toList(),
-				storage.lastVersion());
+				leader.fetch(shard, follower, after, hasText(logId) ? logId : null, max).stream()
+						.map(LogEntry::toReplicationEntry).toList(),
+				storage.lastVersion(), storage.ensureLogId());
 	}
 
 	@GetMapping(REPLICATION_STATUS)

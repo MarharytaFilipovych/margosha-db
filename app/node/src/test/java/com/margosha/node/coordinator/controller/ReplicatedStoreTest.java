@@ -9,6 +9,8 @@ import static com.margosha.node.data.TestData.SHARD_B;
 import static com.margosha.node.data.TestData.USERS;
 import static com.margosha.node.data.TestData.USER_42;
 import static com.margosha.node.data.TestData.apiError;
+import static com.margosha.node.data.TestData.freePort;
+import static com.margosha.node.data.TestData.localAddress;
 import static com.margosha.node.data.TestData.testDataDir;
 import static com.margosha.node.data.TestData.unique;
 import static com.margosha.node.data.TestData.user;
@@ -33,6 +35,7 @@ import com.margosha.api.model.ShardRegistration;
 import com.margosha.api.model.TableRecord;
 import com.margosha.node.coordinator.service.ReplicaSet;
 import com.margosha.node.coordinator.storage.ReplicaClient;
+import com.margosha.node.data.HangingServer;
 import com.margosha.node.data.InProcessNode;
 import com.margosha.node.data.InProcessReplicaSet;
 import com.margosha.node.shard.replication.model.VersionedRecord;
@@ -179,6 +182,45 @@ class ReplicatedStoreTest {
 
 			// Assert
 			assertThat(reads).containsOnly(BOB);
+		}
+	}
+
+	@Test
+	void replicaThatDoesNotAnswerDoesNotHoldUpReads() {
+		// Arrange: shard-a-3 is replaced by a server that accepts connections and never answers, like a stopped
+		// instance (the coordinator would wait its whole 2 s timeout for it)
+		try (InProcessReplicaSet shardA = startRegistered(SHARD_A); HangingServer hanging = HangingServer.start()) {
+			client.createRecord(users, ANN);
+			shardA.getFollower3().close();
+			client.registerShard(new ShardRegistration(SHARD_A, SHARD_A + "-3", ReplicaRole.FOLLOWER, hanging.address()));
+
+			// Act
+			List<Duration> durations = IntStream.range(0, READS).mapToObj(i -> {
+				long start = System.nanoTime();
+				assertThat(client.readRecord(users, USER_42)).isEqualTo(ANN);
+				return Duration.ofNanos(System.nanoTime() - start);
+			}).toList();
+
+			// Assert
+			assertThat(hanging.connections()).isGreaterThan(0);
+			assertThat(durations).allSatisfy(duration -> assertThat(duration).isLessThan(InProcessNode.REPLICA_TIMEOUT));
+		}
+	}
+
+	@Test
+	void emptyFollowerThatCannotReachItsLeaderDoesNotRegister() {
+		// Arrange
+		try (InProcessReplicaSet shardA = startRegistered(SHARD_A)) {
+
+			// Act: a follower with an empty data folder whose leader address doesn't answer
+			try (InProcessNode empty = InProcessNode.follower(SHARD_A, SHARD_A + "-4", testDataDir(SHARD_A + "-4"),
+					localAddress(freePort()), InProcessNode.registeringWith(coordinator.address()))) {
+
+				// Assert
+				await().during(Duration.ofSeconds(2)).atMost(WAIT).until(() -> coordinator.shardRegistry()
+						.replicaSet(SHARD_A).orElseThrow().replicas().size() == 3);
+				assertThat(empty.coordinatorRegistration().isRegistered()).isFalse();
+			}
 		}
 	}
 

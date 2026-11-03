@@ -7,5 +7,5 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "margosha")
 public record CoordinatorSettings(Shard shard) {
 
-	public record Shard(Duration timeout) { }
+	public record Shard(Duration timeout, Duration readHedgeDelay, Duration skipAfterFailure) { }
 }

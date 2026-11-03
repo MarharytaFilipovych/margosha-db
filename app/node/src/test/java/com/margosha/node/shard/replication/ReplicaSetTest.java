@@ -4,7 +4,9 @@ import static com.margosha.node.data.InProcessNode.follower;
 import static com.margosha.node.data.InProcessNode.leader;
 import static com.margosha.node.data.TestData.ANN_ATTRIBUTES;
 import static com.margosha.node.data.TestData.BOB_ATTRIBUTES;
+import static com.margosha.node.data.TestData.OTHER_ATTRIBUTES;
 import static com.margosha.node.data.TestData.SHARD_A;
+import static com.margosha.node.data.TestData.SHARD_B;
 import static com.margosha.node.data.TestData.USERS;
 import static com.margosha.node.data.TestData.USER_42;
 import static com.margosha.node.data.TestData.USER_7;
@@ -15,11 +17,15 @@ import static com.margosha.node.data.TestData.localAddress;
 import static com.margosha.node.data.TestData.userAttributes;
 import static com.margosha.node.data.TestData.userKeys;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import com.margosha.api.exception.ApiException;
@@ -188,7 +194,7 @@ class ReplicaSetTest {
 
 			// Act
 			ApiException write = apiError(() -> follower2.shardClient().createRecord(USERS, USER_7, ANN_ATTRIBUTES));
-			ApiException fetch = apiError(() -> follower2.shardClient().fetchLog(0, FOLLOWER_3, 10));
+			ApiException fetch = apiError(() -> follower2.shardClient().fetchLog(0, SHARD_A, FOLLOWER_3, 10));
 
 			// Assert
 			assertThat(write.status()).isEqualTo(421);
@@ -219,6 +225,160 @@ class ReplicaSetTest {
 	}
 
 	@Test
+	void leaderThatLostItsLogCopiesNothingOnTopOfTheFollowersLog() throws IOException {
+		// Arrange
+		int leaderPort = freePort();
+		try (InProcessNode follower2 = follower(SHARD_A, FOLLOWER_2, follower2Dir, localAddress(leaderPort))) {
+			List<LogEntry> confirmed;
+			try (InProcessNode leader = leader(SHARD_A, leaderDir, leaderPort)) {
+				for (PrimaryKey key : userKeys(5)) {
+					leader.shardClient().createRecord(USERS, key, userAttributes(key));
+				}
+				confirmed = leader.replica().entriesAfter(0, 1000);
+			}
+			emptyFolder(leaderDir);
+			try (InProcessNode emptyLeader = leader(SHARD_A, leaderDir, leaderPort)) {
+				// More entries than the follower has, so only the log ID tells the two histories apart
+				for (PrimaryKey key : userKeys(8)) {
+					emptyLeader.replica().create(USERS, key, OTHER_ATTRIBUTES);
+				}
+				emptyLeader.replicationLeader().entryAppended();
+				String followerLogId = follower2.replica().logId().orElseThrow();
+
+				// Act
+				ApiException fetch = apiError(() -> emptyLeader.shardClient().fetchLog(5, SHARD_A, FOLLOWER_2, followerLogId, 10));
+				ApiException write = apiError(() -> emptyLeader.shardClient().createRecord(USERS, USER_7, ANN_ATTRIBUTES));
+
+				// Assert
+				assertThat(fetch.status()).isEqualTo(409);
+				assertThat(fetch.code()).isEqualTo(ErrorCode.LOG_MISMATCH);
+				assertThat(write.code()).isEqualTo(ErrorCode.SHARD_UNAVAILABLE);
+				assertThat(emptyLeader.replica().logId()).isNotEqualTo(follower2.replica().logId());
+				assertThat(emptyLeader.replicationLeader().followerPositions()).doesNotContainKey(FOLLOWER_2);
+				assertThat(follower2.replica().entriesAfter(0, 1000)).isEqualTo(confirmed);
+			}
+		}
+	}
+
+	@Test
+	void followerAheadOfItsLeaderIsRefused() {
+		// Arrange
+		try (InProcessNode leader = leader(SHARD_A, leaderDir)) {
+
+			// Act: a follower without a log ID (written before log IDs existed) at a position the leader doesn't have
+			ApiException fetch = apiError(() -> leader.shardClient().fetchLog(42, SHARD_A, FOLLOWER_2, 10));
+
+			// Assert
+			assertThat(fetch.status()).isEqualTo(409);
+			assertThat(fetch.code()).isEqualTo(ErrorCode.LOG_MISMATCH);
+			assertThat(fetch.error().message()).contains("position 42");
+			assertThat(leader.replicationLeader().followerPositions()).isEmpty();
+		}
+	}
+
+	@Test
+	void fetchFromAnUnknownReplicaIsNotAConfirmation() {
+		// Arrange
+		try (InProcessNode leader = leader(SHARD_A, leaderDir)) {
+			Thread.ofVirtual().start(() -> apiError(() -> leader.shardClient().createRecord(USERS, USER_42,
+					ANN_ATTRIBUTES)));
+			eventually(CATCH_UP, () -> assertThat(leader.replica().lastVersion()).isEqualTo(1));
+
+			// Act
+			ApiException fetch = apiError(() -> leader.shardClient().fetchLog(1, SHARD_A, "intruder", 10));
+
+			// Assert
+			assertThat(fetch.status()).isEqualTo(400);
+			assertThat(fetch.code()).isEqualTo(ErrorCode.VALIDATION_ERROR);
+			assertThat(fetch.error().message())
+					.isEqualTo("Replica intruder is not a follower of shard shard-a; its followers are [shard-a-2, shard-a-3]");
+			assertThat(leader.replicationLeader().followerPositions()).isEmpty();
+		}
+	}
+
+	@Test
+	void followerOfAnotherShardIsRefused() {
+		// Arrange
+		try (InProcessNode leader = leader(SHARD_A, leaderDir);
+				InProcessNode misplaced = follower(SHARD_B, SHARD_B + "-2", follower2Dir, leader)) {
+			leader.replica().create(USERS, USER_42, ANN_ATTRIBUTES);
+			leader.replicationLeader().entryAppended();
+
+			// Act
+			ApiException fetch = apiError(() -> leader.shardClient().fetchLog(0, SHARD_B, SHARD_B + "-2", 10));
+
+			// Assert
+			assertThat(fetch.status()).isEqualTo(400);
+			assertThat(fetch.error().message()).contains("of shard shard-b fetched from leader shard-a-1 of shard shard-a");
+			await().during(Duration.ofSeconds(1)).atMost(CATCH_UP)
+					.until(() -> misplaced.replica().lastVersion() == 0);
+			assertThat(leader.replicationLeader().followerPositions()).isEmpty();
+		}
+	}
+
+	@Test
+	void followerThatLostItsLogTakesTheLeadersIdAndCopiesEverythingAgain() throws IOException {
+		// Arrange
+		try (InProcessNode leader = leader(SHARD_A, leaderDir);
+				InProcessNode follower2 = follower(SHARD_A, FOLLOWER_2, follower2Dir, leader)) {
+			InProcessNode follower3 = follower(SHARD_A, FOLLOWER_3, follower3Dir, leader);
+			for (PrimaryKey key : userKeys(20)) {
+				leader.shardClient().createRecord(USERS, key, userAttributes(key));
+			}
+			eventually(CATCH_UP, () -> assertThat(follower3.replica().lastVersion()).isEqualTo(20));
+			follower3.close();
+			emptyFolder(follower3Dir);
+
+			// Act
+			try (InProcessNode wiped = follower(SHARD_A, FOLLOWER_3, follower3Dir, leader)) {
+
+				// Assert
+				eventually(CATCH_UP, () -> assertThat(wiped.replica().lastVersion()).isEqualTo(20));
+				assertThat(wiped.replica().logId()).isEqualTo(leader.replica().logId());
+				assertThat(wiped.replica().entriesAfter(0, 1000)).isEqualTo(leader.replica().entriesAfter(0, 1000));
+			}
+		}
+	}
+
+	@Test
+	void emptyFollowerIsReadyToServeOnlyOnceItHasTheLeadersEntries() throws Exception {
+		// Arrange
+		try (InProcessNode leader = leader(SHARD_A, leaderDir);
+				InProcessNode follower2 = follower(SHARD_A, FOLLOWER_2, follower2Dir, leader)) {
+			for (PrimaryKey key : userKeys(50)) {
+				leader.shardClient().createRecord(USERS, key, userAttributes(key));
+			}
+
+			// Act
+			try (InProcessNode follower3 = follower(SHARD_A, FOLLOWER_3, follower3Dir, leader)) {
+				long positionWhenReady = follower3.followerReplicator().caughtUp().get(10, TimeUnit.SECONDS);
+
+				// Assert
+				assertThat(positionWhenReady).isGreaterThanOrEqualTo(50);
+			}
+		}
+	}
+
+	@Test
+	void emptyFollowerWithoutItsLeaderIsNotReadyButOneWithItsOwnLogIs() {
+		// Arrange
+		try (InProcessNode leader = leader(SHARD_A, leaderDir);
+				InProcessNode follower2 = follower(SHARD_A, FOLLOWER_2, follower2Dir, leader)) {
+			leader.shardClient().createRecord(USERS, USER_42, ANN_ATTRIBUTES);
+		}
+		String noLeader = localAddress(freePort());
+
+		// Act
+		try (InProcessNode withLog = follower(SHARD_A, FOLLOWER_2, follower2Dir, noLeader);
+				InProcessNode empty = follower(SHARD_A, FOLLOWER_3, follower3Dir, noLeader)) {
+
+			// Assert
+			assertThat(withLog.followerReplicator().caughtUp()).isDone();
+			assertThat(empty.followerReplicator().caughtUp()).isNotDone();
+		}
+	}
+
+	@Test
 	void restartedFollowerReceivesOnlyTheEntriesItMissed() {
 		// Arrange
 		List<PrimaryKey> missed = userKeys(100);
@@ -245,6 +405,14 @@ class ReplicaSetTest {
 							.isEqualTo(leader.replica().readVersioned(USERS, key));
 				}
 				assertThat(follower2.replica().lastVersion()).isEqualTo(101);
+			}
+		}
+	}
+
+	private static void emptyFolder(Path dir) throws IOException {
+		try (Stream<Path> files = Files.list(dir)) {
+			for (Path file : files.toList()) {
+				Files.delete(file);
 			}
 		}
 	}

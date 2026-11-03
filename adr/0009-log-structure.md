@@ -60,3 +60,10 @@ crash, so it was never confirmed). A bad line in the middle means the file is da
 - The log can be read with `tail` to show what was written.
 - Start-up gets slower as the log grows, because the whole log is read again.
 - If a replica's disk is lost, that replica is lost, but the other 2 replicas still have the data.
+
+## Update after the AI critique (finding 1)
+
+Each log has an **ID**, in `replication.log.id` next to the log: a random ID the leader creates for a new log and a
+follower copies while its own log is empty. An empty log has no ID. The ID is how a leader and a follower check that
+they hold the same history. Without it, a leader restarted with an empty log would reuse version numbers
+its followers already hold for other writes.

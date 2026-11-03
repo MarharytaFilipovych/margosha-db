@@ -57,9 +57,17 @@
 
 ## 8. Deliverables (apply to every milestone)
 
-- [ ] 8.1 README: M3 section with how to bring it up, how to verify it, what changed since M2; verify the commands run as written in a new lab session
+- [x] 8.1 README: M3 section with how to bring it up, how to verify it, what changed since M2; verify the commands run as written in a new lab session
 - [ ] 8.2 Demo
-- [ ] 8.3 Transcript of the AI critique of the architecture
+- [x] 8.3 Transcript of the AI critique of the architecture
+
+## 9. Fixes from the AI critique (`m3/ai_critique.md`)
+
+- [x] 9.1 Finding 1: log ID per log (created by the leader, copied by an empty follower), leader refuses a follower with another log ID or a position past its last entry (`409 LOG_MISMATCH`), an empty follower registers only after catching up; verify in-process tests for a leader that lost its log, a follower ahead, a follower that lost its log, and an empty follower without its leader
+- [x] 9.2 Finding 3: hedged quorum reads (`margosha.shard.read-hedge-delay`, 50 ms) and a failed replica asked last for `margosha.shard.skip-after-failure` (5 s); verify in-process tests that a replica that never answers doesn't hold up reads, and that a failed replica is skipped and tried again
+- [x] 9.4 Finding 4: document in `m3/replication.md` that reads can see a write that is not confirmed yet and that monotonic reads are not guaranteed, with an example; verify the critique's response links to it
+- [x] 9.5 Finding 5: a shard accepts at most N replica IDs; the leader serves (and counts as confirmations) only fetches from its own shard and from the replica IDs `<shard>-1`…`<shard>-N` other than its own; verify registry tests for a fourth replica and a moved one, and in-process tests for an unknown replica ID and a follower of another shard
+- [ ] 9.3 Deploy through the pipeline and run `m3/aws_checks/one-follower-down.md` again; verify every read answers in well under 1 s while shard-a-3 is stopped
 
 ## Workflow follow-up
 

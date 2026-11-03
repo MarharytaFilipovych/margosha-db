@@ -117,11 +117,11 @@ public final class TestData {
                         "{\"code\":\"RECORD_NOT_FOUND\",\"message\":\"deleted\",\"version\":9}"),
                 Arguments.of(new ReplicationBatch(List.of(
                                 new ReplicationEntry(6, "users", "42", null, Map.of("name", "Bob"), false),
-                                new ReplicationEntry(7, "orders", "c1", "o7", null, true)), 7),
+                                new ReplicationEntry(7, "orders", "c1", "o7", null, true)), 7, "log-1"),
                         "{\"entries\":[{\"version\":6,\"table\":\"users\",\"partitionKey\":\"42\","
                                 + "\"attributes\":{\"name\":\"Bob\"},\"deleted\":false},"
                                 + "{\"version\":7,\"table\":\"orders\",\"partitionKey\":\"c1\",\"sortKey\":\"o7\","
-                                + "\"deleted\":true}],\"leaderLastVersion\":7}"),
+                                + "\"deleted\":true}],\"leaderLastVersion\":7,\"logId\":\"log-1\"}"),
                 Arguments.of(new ReplicaStatus("shard-a", "shard-a-1", "leader", 12, Map.of("shard-a-2", 12L), 40, 0),
                         "{\"shardId\":\"shard-a\",\"replicaId\":\"shard-a-1\",\"role\":\"leader\",\"lastVersion\":12,"
                                 + "\"followerPositions\":{\"shard-a-2\":12},\"readsServed\":40,\"entriesReceived\":0}"));

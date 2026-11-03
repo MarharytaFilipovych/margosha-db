@@ -10,6 +10,7 @@ import static com.margosha.node.data.TestData.shard;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -158,12 +159,73 @@ class QuorumReaderTest {
 		assertThat(leader.reads() + follower2.reads() + follower3.reads()).isEqualTo(2);
 	}
 
+	@Test
+	void replicaThatDoesNotAnswerDelaysAReadByTheHedgeDelayNotTheTimeout() {
+		// Arrange
+		leader.answers(ReplicaAnswer.found(2, BOB_ATTRIBUTES));
+		follower2.answers(ReplicaAnswer.found(2, BOB_ATTRIBUTES));
+		follower3.answers(ReplicaAnswer.found(2, BOB_ATTRIBUTES)).slow(Duration.ofSeconds(1));
+		ReplicaSet replicaSet = replicaSet(leader, follower2, follower3);
+
+		// Act
+		List<Duration> durations = IntStream.range(0, 9).mapToObj(i -> {
+			long start = System.nanoTime();
+			assertThat(read(replicaSet)).isEqualTo(ReplicaAnswer.found(2, BOB_ATTRIBUTES));
+			return Duration.ofNanos(System.nanoTime() - start);
+		}).toList();
+
+		// Assert
+		assertThat(follower3.reads()).isGreaterThan(0);
+		assertThat(durations).allSatisfy(duration -> assertThat(duration).isLessThan(Duration.ofMillis(500)));
+	}
+
+	@Test
+	void replicaThatIsDownIsAskedLastUntilItsSkipTimeIsOver() throws InterruptedException {
+		// Arrange
+		leader.answers(ReplicaAnswer.found(2, BOB_ATTRIBUTES));
+		follower2.answers(ReplicaAnswer.found(2, BOB_ATTRIBUTES));
+		follower3.down();
+		ReplicaSet replicaSet = replicaSet(Duration.ofMillis(300), leader, follower2, follower3);
+		IntStream.range(0, 30).forEach(i -> read(replicaSet));
+		int readsWhileSkipped = follower3.reads();
+
+		// Act
+		Thread.sleep(400);
+		IntStream.range(0, 30).forEach(i -> read(replicaSet));
+
+		// Assert: asked once until it failed, then once more when its skip time was over
+		assertThat(readsWhileSkipped).isEqualTo(1);
+		assertThat(follower3.reads()).isEqualTo(2);
+	}
+
+	@Test
+	void replicaThatAnswersAgainIsBackInTheRotation() throws InterruptedException {
+		// Arrange
+		leader.answers(ReplicaAnswer.found(2, BOB_ATTRIBUTES));
+		follower2.answers(ReplicaAnswer.found(2, BOB_ATTRIBUTES));
+		follower3.answers(ReplicaAnswer.found(2, BOB_ATTRIBUTES)).down();
+		ReplicaSet replicaSet = replicaSet(Duration.ofMillis(300), leader, follower2, follower3);
+		IntStream.range(0, 30).forEach(i -> read(replicaSet));
+		follower3.up();
+
+		// Act
+		Thread.sleep(400);
+		IntStream.range(0, 300).forEach(i -> read(replicaSet));
+
+		// Assert
+		assertThat(follower3.reads()).isGreaterThan(180);
+	}
+
 	private ReplicaAnswer read(ReplicaSet replicaSet) {
 		return reader.read(replicaSet, replica -> replica.read(USERS, USER_42));
 	}
 
 	private static ReplicaSet replicaSet(FakeReplica... replicas) {
-		ReplicaSet replicaSet = new ReplicaSet(SHARD_A);
+		return replicaSet(ReplicaSet.DEFAULT_SKIP_AFTER_FAILURE, replicas);
+	}
+
+	private static ReplicaSet replicaSet(Duration skipAfterFailure, FakeReplica... replicas) {
+		ReplicaSet replicaSet = new ReplicaSet(SHARD_A, skipAfterFailure);
 		for (FakeReplica replica : replicas) {
 			replicaSet.put(replica);
 		}

@@ -9,6 +9,10 @@ follower down, 2 replicas are left, which is enough for both.
 Uses the setup from [setup.md](setup.md), including the helpers and keys for the failure checks. The follower stopped
 is shard-a-3.
 
+> **Note:** this check ran before the fix for [AI critique](../ai_critique.md) finding 3. The 2.2 s reads below are
+> the problem that finding describes. Since the fix, a read asks the third replica after 50 ms and then skips the
+> stopped one for 5 s. This check has not been run on AWS again yet.
+
 ## Commands
 
 **1. Stop shard-a-3** and wait until it is stopped:

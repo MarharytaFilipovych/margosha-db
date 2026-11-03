@@ -43,3 +43,11 @@ coordinator only routes writes to the leader and makes the quorum reads; it does
 - One mechanism for replication and for catch-up.
 - The leader holds at most 2 waiting requests (one per follower).
 - While the leader is down, followers keep asking and continue when it is back (no failover in M3).
+
+## Update after the AI critique (finding 1)
+
+A position alone doesn't say which history it belongs to: a leader that lost its log would have copied its new
+entries on top of its followers' old ones. So a follower with entries now also sends its **log ID**, and
+the leader refuses the fetch when the ID differs or the position is past its last entry. 
+A follower that starts with an empty log registers with the coordinator only after it has caught up to
+the leader's last entry at its start, so it is never asked for reads while it lacks writes.

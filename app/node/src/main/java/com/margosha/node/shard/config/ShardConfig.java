@@ -7,6 +7,10 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import com.margosha.api.client.CoordinatorClient;
 import com.margosha.api.client.ShardClient;
@@ -53,21 +57,32 @@ public class ShardConfig {
 
 	@Bean
 	@ConditionalOnProperty(name = "margosha.replica.role", havingValue = "leader")
-	public ReplicationLeader replicationLeader(ReplicaStorage storage, ReplicationProperties replication) {
-		return new ReplicationLeader(storage, replication.followerConfirmations(), replication.ackTimeout(),
-				replication.longPoll());
+	public ReplicationLeader replicationLeader(ReplicaStorage storage, ReplicaIdentity identity,
+			ReplicationProperties replication) {
+		storage.ensureLogId();
+		return new ReplicationLeader(storage, identity.shardId(), identity.replicaId(),
+				followerIds(identity, replication.factor()), replication.followerConfirmations(),
+				replication.ackTimeout(), replication.longPoll());
+	}
+
+	static Set<String> followerIds(ReplicaIdentity leader, int factor) {
+		return IntStream.rangeClosed(1, factor)
+				.mapToObj(number -> leader.shardId() + "-" + number)
+				.filter(id -> !id.equals(leader.replicaId()))
+				.collect(Collectors.toUnmodifiableSet());
 	}
 
 	@Bean
 	@ConditionalOnProperty(name = "margosha.replica.role", havingValue = "follower")
-	public FollowerReplicator followerReplicator(ReplicaStorage storage, ReplicaProperties replica,
-			ReplicationProperties replication) {
+	public FollowerReplicator followerReplicator(ReplicaStorage storage, ReplicaIdentity identity,
+			ReplicaProperties replica, ReplicationProperties replication) {
 		if (!hasText(replica.leaderUrl())) {
 			throw new IllegalStateException("A follower needs margosha.replica.leader-url");
 		}
 		ShardClient leader = new ShardClient(
 				withTimeout(replication.longPoll().plus(FETCH_TIMEOUT_MARGIN)), replica.leaderUrl());
-		return new FollowerReplicator(storage, leader, replica.id(), replication.fetchMaxEntries(),
+		return new FollowerReplicator(storage, leader, identity.shardId(), identity.replicaId(),
+				replication.fetchMaxEntries(),
 				new RetryBackoff(replication.retryInterval(), replication.retryMaxInterval()));
 	}
 
@@ -84,13 +99,15 @@ public class ShardConfig {
 	@ConditionalOnProperty(name = "margosha.coordinator.url")
 	public CoordinatorRegistrationService coordinatorRegistrationService(
 			@Value("${margosha.coordinator.url}") String coordinatorUrl,
-			ShardProperties shard, ReplicaIdentity identity) {
+			ShardProperties shard, ReplicaIdentity identity, ObjectProvider<FollowerReplicator> follower) {
 		CoordinatorClient coordinator = new CoordinatorClient(
 				withTimeout(shard.registerTimeout()), coordinatorUrl);
+		FollowerReplicator replicator = follower.getIfAvailable();
 		return new CoordinatorRegistrationService(coordinator, identity,
 				hasText(shard.host()) ? shard.host() : localAddress(),
 				new RetryBackoff(shard.registerRetryInterval(), shard.registerRetryMaxInterval()),
-				shard.registerRefreshInterval());
+				shard.registerRefreshInterval(),
+				replicator != null ? replicator.caughtUp() : CompletableFuture.completedFuture(null));
 	}
 
 	private static String localAddress() {

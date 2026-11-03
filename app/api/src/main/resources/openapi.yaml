@@ -264,6 +264,10 @@ paths:
         arrives or the long-poll time passes (5 s by default), then answers with no entries.
         `after` is the last entry the follower stored, so it is also its confirmation of every entry up to it
         (ADR 0011). A follower answers 421 `NOT_LEADER`.
+        Every log has an ID (ADR 0009). A follower with entries sends its log's ID; the leader answers 409
+        `LOG_MISMATCH` when the ID is not its own, or when `after` is past its last entry. Both mean the two logs
+        are not the same history (for example the leader's log was lost), so nothing is copied and the request
+        is not counted as a confirmation.
       parameters:
         - name: after
           in: query
@@ -273,10 +277,30 @@ paths:
             type: integer
             format: int64
             minimum: 0
+        - name: shard
+          in: query
+          required: true
+          description: |
+            The follower's shard ID. The leader answers 400 when it is not the leader's own shard (a follower
+            pointed at the wrong leader).
+          schema:
+            type: string
+            minLength: 1
         - name: follower
           in: query
           required: true
-          description: The follower's replica ID.
+          description: |
+            The follower's replica ID. Only the shard's other replica IDs, `<shard>-1` to `<shard>-N` without the
+            leader's own, are served and counted as confirmations; any other ID gets 400.
+          schema:
+            type: string
+            minLength: 1
+        - name: logId
+          in: query
+          required: false
+          description: |
+            The ID of the follower's log. Left out when its log is empty (it takes the leader's ID from the
+            answer) or when the log was written before log IDs existed.
           schema:
             type: string
             minLength: 1
@@ -298,6 +322,8 @@ paths:
                 $ref: '#/components/schemas/ReplicationBatch'
         '400':
           $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/LogMismatch'
         '421':
           $ref: '#/components/responses/NotLeader'
         '500':
@@ -464,7 +490,7 @@ components:
 
     ReplicationBatch:
       type: object
-      required: [entries, leaderLastVersion]
+      required: [entries, leaderLastVersion, logId]
       properties:
         entries:
           type: array
@@ -474,6 +500,9 @@ components:
           type: integer
           format: int64
           description: The leader's last entry, to see how far behind the follower is.
+        logId:
+          type: string
+          description: The ID of the leader's log. A follower with an empty log stores it as its own log's ID.
       additionalProperties: false
 
     ReplicaStatus:
@@ -521,6 +550,7 @@ components:
             - INTERNAL_ERROR
             - SHARD_UNAVAILABLE
             - NOT_LEADER
+            - LOG_MISMATCH
         message:
           type: string
         version:
@@ -594,3 +624,13 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
           example: { code: NOT_LEADER, message: "Replica shard-a-2 is a follower of shard shard-a; send this to the shard's leader" }
+    LogMismatch:
+      description: |
+        Replicas only. The follower's log is not the same history as the leader's: another log ID, or a position
+        past the leader's last entry (the leader's log was lost or replaced). Nothing is copied; an operator has
+        to decide which log is right (see m3/replication.md, "When a log is lost").
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example: { code: LOG_MISMATCH, message: 'Follower shard-a-2 is at position 280939, after the last entry 12 of leader shard-a-1; the logs are not the same history' }

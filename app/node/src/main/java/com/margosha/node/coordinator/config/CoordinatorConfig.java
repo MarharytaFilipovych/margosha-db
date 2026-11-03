@@ -47,15 +47,16 @@ public class CoordinatorConfig {
 
 	@Bean
 	@ConditionalOnProperty(name = "margosha.mode", havingValue = "SHARDED")
-	public ShardRegistryService shardRegistryService(CoordinatorSettings settings) {
+	public ShardRegistryService shardRegistryService(CoordinatorSettings settings, ReplicationProperties replication) {
 		Duration timeout = settings.shard().timeout();
-		return new ShardRegistryService(RingSettings.load().newRing(), replica -> RemoteReplica.connect(replica, timeout));
+		return new ShardRegistryService(RingSettings.load().newRing(), replica -> RemoteReplica.connect(replica, timeout),
+				settings.shard().skipAfterFailure(), replication.factor());
 	}
 
 	@Bean(destroyMethod = "close")
 	@ConditionalOnProperty(name = "margosha.mode", havingValue = "SHARDED")
-	public QuorumReader quorumReader(ReplicationProperties replication) {
-		return new QuorumReader(replication.readQuorum());
+	public QuorumReader quorumReader(ReplicationProperties replication, CoordinatorSettings settings) {
+		return new QuorumReader(replication.readQuorum(), settings.shard().readHedgeDelay());
 	}
 
 	@Bean

@@ -56,6 +56,46 @@ its stored position.
 - **WHEN** a follower is stopped, records are written, and the follower is started again
 - **THEN** it receives only the entries written while it was down, and afterwards holds the same records as the leader
 
+### Requirement: Only the shard's own followers are served
+A follower SHALL name its shard and replica ID in every request for entries. The leader SHALL serve the request, and
+count it as a confirmation, only when the shard is its own and the replica ID is one of the shard's other replica IDs
+(`<shard>-1` to `<shard>-N` without the leader's own); otherwise it SHALL refuse it with a validation error.
+
+#### Scenario: Unknown replica ID
+- **WHEN** a request for entries names a replica ID that is not one of the shard's followers
+- **THEN** the leader refuses it and does not count it as a confirmation
+
+#### Scenario: Follower of another shard
+- **WHEN** a follower of shard B is configured with shard A's leader address
+- **THEN** shard A's leader refuses its requests and the follower stores nothing
+
+### Requirement: Logs of different histories are never mixed
+Every log SHALL have an ID, created by the leader for a new log and copied by a follower whose log is empty. A
+follower with entries SHALL send its log's ID with every request for entries. The leader SHALL refuse the request,
+copy nothing and not count it as a confirmation when the follower's log ID is not its own, or when the follower's
+position is past the leader's last entry. A log with no entries SHALL have no ID.
+
+#### Scenario: Leader lost its log
+- **WHEN** a leader whose followers hold its entries restarts with an empty data folder and then records more entries than the followers have
+- **THEN** the leader refuses the followers' requests, the followers keep the entries they had, and writes fail with a service-unavailable error
+
+#### Scenario: Follower lost its log
+- **WHEN** a follower restarts with an empty data folder
+- **THEN** it takes the leader's log ID and receives the whole log again
+
+### Requirement: An empty follower serves reads only after catching up
+A follower that starts with an empty log SHALL register with the coordinator only once it holds every entry its
+leader had when it started; until then it is not asked for reads. A follower that starts with entries in its log
+SHALL register at once, also while its leader is down.
+
+#### Scenario: Follower starts empty
+- **WHEN** a follower starts with an empty data folder while its leader holds entries
+- **THEN** it registers only after it has stored the leader's entries
+
+#### Scenario: Empty follower without its leader
+- **WHEN** a follower starts with an empty data folder and its leader cannot be reached
+- **THEN** it does not register
+
 ### Requirement: Write quorum
 A write SHALL be committed, and the client answered with success, only when W replicas of the shard (the leader
 included) have stored its log entry, as "stored" is defined in the log structure ADR. If W replicas do not store it
@@ -99,12 +139,18 @@ the shard answers about the same number of reads, followers included.
 - **THEN** each replica answers between 1,800 and 2,200 of them
 
 ### Requirement: Reads with replicas down
-If a replica asked for a read does not answer, the coordinator SHALL ask another replica of the shard. The read SHALL
-fail with a service-unavailable error only when fewer than R replicas answer.
+If a replica asked for a read does not answer, or has not answered within a configured hedge delay that is much
+shorter than the replica timeout, the coordinator SHALL ask another replica of the shard and use the first R answers.
+A replica that failed to answer SHALL be asked last for a configured time, after which one read tries it again. The
+read SHALL fail with a service-unavailable error only when fewer than R replicas answer.
 
 #### Scenario: One follower down
 - **WHEN** R is 2 and one follower of the shard is down
 - **THEN** reads of that shard's keys still succeed
+
+#### Scenario: Replica that does not answer
+- **WHEN** R is 2 and one replica of the shard accepts connections but never answers
+- **THEN** every read of that shard's keys succeeds in less than the replica timeout
 
 #### Scenario: Two replicas down
 - **WHEN** R is 2 and two of the shard's three replicas are down

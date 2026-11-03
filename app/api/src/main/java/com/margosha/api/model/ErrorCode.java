@@ -8,5 +8,6 @@ public enum ErrorCode {
     RECORD_ALREADY_EXISTS,
     INTERNAL_ERROR,
     SHARD_UNAVAILABLE,
-    NOT_LEADER
+    NOT_LEADER,
+    LOG_MISMATCH
 }

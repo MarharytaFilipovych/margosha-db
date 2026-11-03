@@ -13,6 +13,7 @@ import static com.margosha.node.data.TestData.USER_7;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -41,6 +42,104 @@ class ReplicaStorageTest {
 
 	@TempDir
 	Path followerDir;
+
+	@Test
+	void newLogHasNoIdUntilTheLeaderGivesItOne() {
+		// Arrange
+		try (ReplicaStorage store = ReplicaStorage.open(leaderDir)) {
+
+			// Act
+			String id = store.ensureLogId();
+
+			// Assert
+			assertThat(id).isNotBlank();
+			assertThat(store.logId()).contains(id);
+			assertThat(store.ensureLogId()).isEqualTo(id);
+		}
+	}
+
+	@Test
+	void logIdSurvivesARestart() {
+		// Arrange
+		String id;
+		try (ReplicaStorage store = ReplicaStorage.open(leaderDir)) {
+			id = store.ensureLogId();
+			store.create(USERS, USER_42, ANN_ATTRIBUTES);
+		}
+
+		// Act
+		try (ReplicaStorage reopened = ReplicaStorage.open(leaderDir)) {
+
+			// Assert
+			assertThat(reopened.logId()).contains(id);
+		}
+	}
+
+	@Test
+	void emptyLogDropsAnIdLeftBehind() throws Exception {
+		// Arrange: only the log was deleted, its ID file stayed
+		try (ReplicaStorage store = ReplicaStorage.open(leaderDir)) {
+			store.ensureLogId();
+			store.create(USERS, USER_42, ANN_ATTRIBUTES);
+		}
+		Files.delete(leaderDir.resolve(ReplicaStorage.LOG_FILE));
+
+		// Act
+		try (ReplicaStorage reopened = ReplicaStorage.open(leaderDir)) {
+
+			// Assert
+			assertThat(reopened.logId()).isEmpty();
+			assertThat(Files.exists(leaderDir.resolve(ReplicaStorage.LOG_ID_FILE))).isFalse();
+		}
+	}
+
+	@Test
+	void logWrittenBeforeLogIdsExistedHasNoIdAndKeepsItsRecords() throws Exception {
+		// Arrange
+		try (ReplicaStorage store = ReplicaStorage.open(leaderDir)) {
+			store.ensureLogId();
+			store.create(USERS, USER_42, ANN_ATTRIBUTES);
+		}
+		Files.delete(leaderDir.resolve(ReplicaStorage.LOG_ID_FILE));
+
+		// Act
+		try (ReplicaStorage reopened = ReplicaStorage.open(leaderDir)) {
+
+			// Assert
+			assertThat(reopened.logId()).isEmpty();
+			assertThat(reopened.read(USERS, USER_42)).isEqualTo(ANN_ATTRIBUTES);
+		}
+	}
+
+	@Test
+	void followerTakesTheLeadersIdWhileItsLogIsEmpty() {
+		// Arrange
+		try (ReplicaStorage leader = ReplicaStorage.open(leaderDir);
+				ReplicaStorage follower = ReplicaStorage.open(followerDir)) {
+			String leaderId = leader.ensureLogId();
+
+			// Act
+			follower.adoptLogId(leaderId);
+
+			// Assert
+			assertThat(follower.logId()).contains(leaderId);
+		}
+	}
+
+	@Test
+	void logWithEntriesCannotTakeAnotherId() {
+		// Arrange
+		try (ReplicaStorage follower = ReplicaStorage.open(followerDir)) {
+			follower.ensureLogId();
+			follower.create(USERS, USER_42, ANN_ATTRIBUTES);
+
+			// Act
+			Throwable thrown = catchThrowable(() -> follower.adoptLogId("another-log"));
+
+			// Assert
+			assertThat(thrown).isInstanceOf(IllegalStateException.class).hasMessageContaining("another-log");
+		}
+	}
 
 	@Test
 	void createdRecordIsReadWithItsVersion() {

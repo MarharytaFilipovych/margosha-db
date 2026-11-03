@@ -3,7 +3,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Shard registration
-In sharded mode, the coordinator SHALL offer an API operation to register a replica with its shard ID, replica ID, role (leader or follower) and the address it serves on. Each replica SHALL call it when it starts, retrying until the coordinator accepts it, and SHALL then call it again at a fixed interval, so a coordinator that restarted gets its replicas back. A shard SHALL be added to the ring when its first replica registers; registering a replica again with the same details SHALL change nothing.
+In sharded mode, the coordinator SHALL offer an API operation to register a replica with its shard ID, replica ID, role (leader or follower) and the address it serves on. Each replica SHALL call it when it starts (a follower that starts with an empty log: once it has caught up with its leader, as set by the shard replication rules), retrying until the coordinator accepts it, and SHALL then call it again at a fixed interval, so a coordinator that restarted gets its replicas back. A shard SHALL be added to the ring when its first replica registers; registering a replica again with the same details SHALL change nothing. A shard SHALL accept at most N replica IDs; a registered replica MAY register again at a new address.
 
 #### Scenario: Shard registers on start
 - **WHEN** the replicas of a shard start while the coordinator is running
@@ -16,6 +16,10 @@ In sharded mode, the coordinator SHALL offer an API operation to register a repl
 #### Scenario: Coordinator restarts
 - **WHEN** the coordinator restarts while the replicas keep running
 - **THEN** each replica is registered again within the re-registration interval, without restarting the replica, and requests are routed to the shard again
+
+#### Scenario: More replicas than N
+- **WHEN** N is 3, a shard has 3 registered replicas, and a replica with a fourth replica ID registers for it
+- **THEN** the registration fails with a validation error and the shard keeps its 3 replicas
 
 #### Scenario: Second leader for a shard
 - **WHEN** a replica registers as leader of a shard that already has a different registered leader

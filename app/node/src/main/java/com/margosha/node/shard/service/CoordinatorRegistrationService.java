@@ -1,6 +1,7 @@
 package com.margosha.node.shard.service;
 
 import java.time.Duration;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -36,6 +37,9 @@ public class CoordinatorRegistrationService implements ApplicationListener<WebSe
 	@NonNull
 	private final Duration refreshInterval;
 
+	@NonNull
+	private final CompletionStage<?> readyToServe;
+
 	private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(task -> {
 		Thread thread = new Thread(task, "coordinator-registration");
 		thread.setDaemon(true);
@@ -45,19 +49,25 @@ public class CoordinatorRegistrationService implements ApplicationListener<WebSe
 	@Getter
 	private volatile boolean registered;
 
-	/**
-	 * Called once the embedded web server is listening, so its real port is known
-	 * (also when it was started on a random port, {@code server.port=0}, as in the tests).
-	 */
 	@Override
 	public void onApplicationEvent(WebServerInitializedEvent event) {
 		if (event.getApplicationContext().getServerNamespace() != null) {
 			return; // a second server (e.g. a management port) is not where records are served
 		}
 		int port = event.getWebServer().getPort();
-		ShardRegistration registration =new ShardRegistration(identity.shardId(), identity.replicaId(), identity.role(),
-				"http://" + host + ":" + port);
-		executor.execute(() -> attempt(registration, backoff.first()));
+		ShardRegistration registration = new ShardRegistration(identity.shardId(), identity.replicaId(),
+				identity.role(), "http://" + host + ":" + port);
+		if (!readyToServe.toCompletableFuture().isDone()) {
+			log.info("Replica {} registers with the coordinator once it has caught up with its leader",
+					identity.replicaId());
+		}
+		readyToServe.thenRun(() -> {
+			try {
+				executor.execute(() -> attempt(registration, backoff.first()));
+			} catch (RejectedExecutionException stopped) {
+				log.info("Replica is stopping; registration of {} ends", identity.replicaId());
+			}
+		});
 	}
 
 	private void attempt(ShardRegistration registration, Duration pause) {

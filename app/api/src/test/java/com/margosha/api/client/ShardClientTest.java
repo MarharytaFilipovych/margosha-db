@@ -212,27 +212,56 @@ class ShardClientTest {
         void fetchLogAsksForTheEntriesAfterThePosition() {
             // Arrange
             ReplicationEntry entry = new ReplicationEntry(6, USERS, "42", null, userAttributes().values(), false);
-            server.expect(requestTo(BASE_URL + REPLICATION_LOG + "?after=5&follower=shard-a-2&max=100"))
+            server.expect(requestTo(BASE_URL + REPLICATION_LOG + "?after=5&shard=shard-a&follower=shard-a-2&max=100"))
                     .andExpect(method(HttpMethod.GET))
-                    .andRespond(respond(HttpStatus.OK, new ReplicationBatch(List.of(entry), 6)));
+                    .andRespond(respond(HttpStatus.OK, new ReplicationBatch(List.of(entry), 6, "log-1")));
 
             // Act
-            ReplicationBatch batch = client.fetchLog(5, "shard-a-2", 100);
+            ReplicationBatch batch = client.fetchLog(5, "shard-a", "shard-a-2", 100);
 
             // Assert
             assertThat(batch.entries()).containsExactly(entry);
             assertThat(batch.leaderLastVersion()).isEqualTo(6);
+            assertThat(batch.logId()).isEqualTo("log-1");
             server.verify();
+        }
+
+        @Test
+        void fetchLogSendsTheFollowersLogId() {
+            // Arrange
+            server.expect(requestTo(BASE_URL + REPLICATION_LOG + "?after=5&shard=shard-a&follower=shard-a-2&max=100&logId=log-1"))
+                    .andExpect(method(HttpMethod.GET))
+                    .andRespond(respond(HttpStatus.OK, new ReplicationBatch(List.of(), 5, "log-1")));
+
+            // Act
+            ReplicationBatch batch = client.fetchLog(5, "shard-a", "shard-a-2", "log-1", 100);
+
+            // Assert
+            assertThat(batch.entries()).isEmpty();
+            server.verify();
+        }
+
+        @Test
+        void leaderAnswersLogMismatch() {
+            // Arrange
+            server.expect(requestTo(BASE_URL + REPLICATION_LOG + "?after=9&shard=shard-a&follower=shard-a-2&max=10&logId=old"))
+                    .andRespond(respondWithError(HttpStatus.CONFLICT, ErrorCode.LOG_MISMATCH));
+
+            // Act
+            Throwable thrown = catchThrowable(() -> client.fetchLog(9, "shard-a", "shard-a-2", "old", 10));
+
+            // Assert
+            assertApiError(thrown, HttpStatus.CONFLICT, ErrorCode.LOG_MISMATCH);
         }
 
         @Test
         void followerAnswersNotLeader() {
             // Arrange
-            server.expect(requestTo(BASE_URL + REPLICATION_LOG + "?after=0&follower=shard-a-3&max=10"))
+            server.expect(requestTo(BASE_URL + REPLICATION_LOG + "?after=0&shard=shard-a&follower=shard-a-3&max=10"))
                     .andRespond(respondWithError(HttpStatus.MISDIRECTED_REQUEST, ErrorCode.NOT_LEADER));
 
             // Act
-            Throwable thrown = catchThrowable(() -> client.fetchLog(0, "shard-a-3", 10));
+            Throwable thrown = catchThrowable(() -> client.fetchLog(0, "shard-a", "shard-a-3", 10));
 
             // Assert
             assertApiError(thrown, HttpStatus.MISDIRECTED_REQUEST, ErrorCode.NOT_LEADER);

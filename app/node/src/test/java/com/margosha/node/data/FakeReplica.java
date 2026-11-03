@@ -1,5 +1,6 @@
 package com.margosha.node.data;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -19,6 +20,7 @@ public final class FakeReplica implements ReplicaClient {
 	private final List<String> writes = new ArrayList<>();
 	private volatile ReplicaAnswer answer = ReplicaAnswer.notFound(0);
 	private volatile boolean down;
+	private volatile Duration delay = Duration.ZERO;
 
 	public FakeReplica(ShardRegistration registration) {
 		this.registration = registration;
@@ -31,6 +33,16 @@ public final class FakeReplica implements ReplicaClient {
 
 	public FakeReplica down() {
 		this.down = true;
+		return this;
+	}
+
+	public FakeReplica up() {
+		this.down = false;
+		return this;
+	}
+
+	public FakeReplica slow(Duration delay) {
+		this.delay = delay;
 		return this;
 	}
 
@@ -80,6 +92,13 @@ public final class FakeReplica implements ReplicaClient {
 
 	private ReplicaAnswer answer() {
 		reads.incrementAndGet();
+		if (!delay.isZero()) {
+			try {
+				Thread.sleep(delay);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+			}
+		}
 		failIfDown();
 		return answer;
 	}

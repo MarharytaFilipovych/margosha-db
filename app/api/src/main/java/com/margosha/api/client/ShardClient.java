@@ -53,12 +53,22 @@ public class ShardClient {
         calls.call(HttpMethod.DELETE, uri(RECORD, tableName, key), null, Void.class);
     }
 
-    public ReplicationBatch fetchLog(long after, String followerId, int maxEntries) {
-        return calls.call(HttpMethod.GET, builder -> builder.path(REPLICATION_LOG)
-                .queryParam("after", after)
-                .queryParam("follower", "{follower}")
-                .queryParam("max", maxEntries)
-                .build(followerId), null, ReplicationBatch.class);
+    public ReplicationBatch fetchLog(long after, String shardId, String followerId, int maxEntries) {
+        return fetchLog(after, shardId, followerId, null, maxEntries);
+    }
+
+    public ReplicationBatch fetchLog(long after, String shardId, String followerId, String logId, int maxEntries) {
+        return calls.call(HttpMethod.GET, builder -> {
+            builder.path(REPLICATION_LOG)
+                    .queryParam("after", after)
+                    .queryParam("shard", "{shard}")
+                    .queryParam("follower", "{follower}")
+                    .queryParam("max", maxEntries);
+            if (logId == null) {
+                return builder.build(shardId, followerId);
+            }
+            return builder.queryParam("logId", "{logId}").build(shardId, followerId, logId);
+        }, null, ReplicationBatch.class);
     }
 
     public ReplicaStatus status() {
