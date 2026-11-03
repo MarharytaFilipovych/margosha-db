@@ -11,8 +11,8 @@ The helpers:
   no SSH is needed.
 - `Ip` / `node_ip` prints a field of an instance, found by its name: the private IP by default, or another field such
   as `PublicIpAddress`, `InstanceId` or `State.Name`.
-- `Status` / `status` asks a replica for its replication status. The replicas are in private subnets, so the request
-  runs on the coordinator over SSH.
+- `Status` / `status` asks a replica for its replication status, one line per replica. The replicas are in private
+  subnets, so the request runs on the coordinator over SSH.
 
 Windows (PowerShell):
 ```powershell
@@ -31,7 +31,7 @@ function Ip($name, $field = 'PrivateIpAddress') {
     --query "Reservations[0].Instances[0].$field" --output text
 }
 function Status($ip) {
-  ssh -i $PEM -o StrictHostKeyChecking=accept-new "ec2-user@$COORD_PUB" "curl -s -m 5 http://${ip}:8080/replication/status"
+  ssh -i $PEM -o StrictHostKeyChecking=accept-new "ec2-user@$COORD_PUB" "curl -s -m 5 http://${ip}:8080/replication/status; echo"
 }
 
 $COORD      = Ip coordinator InstanceId

@@ -3,6 +3,12 @@
 
 # Log file
 *.log
+# ...except YCSB's progress logs, which are part of the benchmark results
+!m2/benchmark/raw/**/*.log
+!m3/benchmark/raw/**/*.log
+
+# Data folders of nodes run on a local machine (README, "Run it on your machine")
+app/data/
 
 # BlueJ files
 *.ctxt

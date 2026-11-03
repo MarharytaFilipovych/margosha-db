@@ -1,0 +1,24 @@
+Command line: -load -db com.margosha.ycsb.MargoshaDbClient -P /opt/ycsb/workloads/workloada -p margosha.url=http://10.0.0.143:8080 -p margosha.partitionkey=ycsb_key -p table=usertable -p recordcount=100000 -p operationcount=200000 -threads 8 -s
+YCSB Client 0.17.0
+
+Loading workload...
+Starting test.
+2026-10-29 21:11:23:154 0 sec: 0 operations; est completion in 0 second 
+DBWrapper: report latency for each error is false and specific error codes to track for latency are: []
+DBWrapper: report latency for each error is false and specific error codes to track for latency are: []
+DBWrapper: report latency for each error is false and specific error codes to track for latency are: []
+DBWrapper: report latency for each error is false and specific error codes to track for latency are: []
+DBWrapper: report latency for each error is false and specific error codes to track for latency are: []
+DBWrapper: report latency for each error is false and specific error codes to track for latency are: []
+DBWrapper: report latency for each error is false and specific error codes to track for latency are: []
+DBWrapper: report latency for each error is false and specific error codes to track for latency are: []
+2026-10-29 21:11:33:030 10 sec: 3569 operations; 356.9 current ops/sec; est completion in 4 minutes [INSERT: Count=3569, Max=684031, Min=3544, Avg=20660.32, 90=33215, 99=53855, 99.9=681471, 99.99=684031] 
+2026-10-29 21:11:43:030 20 sec: 10306 operations; 673.7 current ops/sec; est completion in 2 minutes [INSERT: Count=6737, Max=99903, Min=2814, Avg=11866.37, 90=16895, 99=25759, 99.9=76863, 99.99=95871] 
+2026-10-29 21:11:53:030 30 sec: 18644 operations; 833.8 current ops/sec; est completion in 2 minutes [INSERT: Count=8338, Max=97215, Min=2628, Avg=9588.98, 90=13711, 99=19519, 99.9=34591, 99.99=96255] 
+2026-10-29 21:12:03:034 40 sec: 26139 operations; 749.2 current ops/sec; est completion in 1 minute [INSERT: Count=7495, Max=149887, Min=2718, Avg=10648.52, 90=13991, 99=65919, 99.9=112831, 99.99=137087] 
+2026-10-29 21:12:13:030 50 sec: 33167 operations; 703.08 current ops/sec; est completion in 1 minute [INSERT: Count=7028, Max=111935, Min=2212, Avg=11369.56, 90=21119, 99=51103, 99.9=103359, 99.99=108223] 
+2026-10-29 21:12:23:031 60 sec: 45808 operations; 1264.1 current ops/sec; est completion in 1 minute [INSERT: Count=12642, Max=79615, Min=1869, Avg=6336.47, 90=8647, 99=26543, 99.9=43583, 99.99=60671] 
+2026-10-29 21:12:33:031 70 sec: 60001 operations; 1419.3 current ops/sec; est completion in 47 seconds [INSERT: Count=14193, Max=75071, Min=1975, Avg=5629.43, 90=7587, 99=12487, 99.9=27167, 99.99=71743] 
+2026-10-29 21:12:43:031 80 sec: 74089 operations; 1408.8 current ops/sec; est completion in 28 seconds [INSERT: Count=14087, Max=132735, Min=1964, Avg=5674.5, 90=7379, 99=13751, 99.9=118655, 99.99=130687] 
+2026-10-29 21:12:53:030 90 sec: 88074 operations; 1398.5 current ops/sec; est completion in 13 seconds [INSERT: Count=13985, Max=43871, Min=1910, Avg=5716.01, 90=7687, 99=16463, 99.9=30367, 99.99=42879] 
+2026-10-29 21:13:02:391 99 sec: 100000 operations; 1274.01 current ops/sec; [CLEANUP: Count=8, Max=4, Min=0, Avg=0.88, 90=1, 99=4, 99.9=4, 99.99=4] [INSERT: Count=11926, Max=68735, Min=2120, Avg=6095.07, 90=7943, 99=26031, 99.9=50687, 99.99=67391] 

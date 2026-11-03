@@ -102,7 +102,7 @@ function Via-Coord($ip) {
   ssh -i $PEM -o StrictHostKeyChecking=accept-new `
     -o "ProxyCommand=ssh -i $PEM -o StrictHostKeyChecking=accept-new -W %h:%p ec2-user@$COORD_PUB" "ec2-user@$ip" @args
 }
-function Status($ip) { Coord "curl -s -m 5 http://${ip}:8080/replication/status" }
+function Status($ip) { Coord "curl -s -m 5 http://${ip}:8080/replication/status; echo" }
 function Credits {
   foreach ($id in (@($BENCH) + $NODES | Where-Object { $_ })) {
     $name = aws ec2 describe-instances --instance-ids $id --query "Reservations[0].Instances[0].Tags[?Key=='Name']|[0].Value" --output text
