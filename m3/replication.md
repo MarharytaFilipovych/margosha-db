@@ -127,7 +127,8 @@ Example: `GET /tables/users/records/42`.
 3. If one fails, or has not answered after **50 ms** (`margosha.shard.read-hedge-delay`), the next replica not asked
    yet is asked too, and the first R answers are used. So a replica that is down or slow delays a read by about
    50 ms, not by the 2 s shard timeout. (Before this, a stopped follower made two of every three reads of its shard
-   take 2.2 s: [one-follower-down.md](aws_checks/one-follower-down.md).)
+   take 2.2 s; after the fix, every read took 0.2–0.6 s on AWS:
+   [one-follower-down.md](aws_checks/one-follower-down.md).)
 4. A replica that failed to answer is asked **last** for the next 5 s (`margosha.shard.skip-after-failure`), so reads
    don't keep running into it. Then one read tries it again in its normal place: if it answers, it is back in the
    rotation; if not, it is skipped for another 5 s.

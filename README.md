@@ -940,7 +940,7 @@ flowchart TD
 | Down in a shard | Writes | Reads | Checked on AWS |
 |---|---|---|---|
 | nothing | work | work | — |
-| one follower | work (the other follower confirms) | work (the third replica is asked instead) | [one-follower-down.md](m3/aws_checks/one-follower-down.md) |
+| one follower | work (the other follower confirms) | work (the third replica is asked instead, after at most 50 ms) | [one-follower-down.md](m3/aws_checks/one-follower-down.md) |
 | both followers | `503` after the 1 s ack timeout, outcome unknown (the leader kept the write) | `503`: only the leader answers | [both-followers-down.md](m3/aws_checks/both-followers-down.md) |
 | the leader | `503 Replica … did not answer` (no failover yet) | work, from the two followers | [leader-down.md](m3/aws_checks/leader-down.md) |
 

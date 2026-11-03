@@ -67,7 +67,7 @@
 - [x] 9.2 Finding 3: hedged quorum reads (`margosha.shard.read-hedge-delay`, 50 ms) and a failed replica asked last for `margosha.shard.skip-after-failure` (5 s); verify in-process tests that a replica that never answers doesn't hold up reads, and that a failed replica is skipped and tried again
 - [x] 9.4 Finding 4: document in `m3/replication.md` that reads can see a write that is not confirmed yet and that monotonic reads are not guaranteed, with an example; verify the critique's response links to it
 - [x] 9.5 Finding 5: a shard accepts at most N replica IDs; the leader serves (and counts as confirmations) only fetches from its own shard and from the replica IDs `<shard>-1`…`<shard>-N` other than its own; verify registry tests for a fourth replica and a moved one, and in-process tests for an unknown replica ID and a follower of another shard
-- [ ] 9.3 Deploy through the pipeline and run `m3/aws_checks/one-follower-down.md` again; verify every read answers in well under 1 s while shard-a-3 is stopped
+- [x] 9.3 Deploy through the pipeline and run `m3/aws_checks/one-follower-down.md` again; verify every read answers in well under 1 s while shard-a-3 is stopped
 
 ## Workflow follow-up
 

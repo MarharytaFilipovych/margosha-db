@@ -38,23 +38,9 @@ follower with another ID or a position ahead of its own, and logs an error inste
 behind registers only after it reaches the leader's `lastVersion` from its first fetch (`ReplicationBatch` already
 carries it).
 
-> **Response: fixed.** Each log now has an ID in `replication.log.id`, next to the log. The leader creates it for a
-> new log, a follower takes the leader's while its own log is empty, and an empty log has no ID (a leftover ID file
-> is deleted on start, so deleting only the log can't keep the old ID). A follower with entries sends its log ID with
-> every fetch. The leader answers `409 LOG_MISMATCH`, copies nothing and doesn't count the fetch as a confirmation
-> when the ID is not its own or the position is past its last entry (before, that case was only a warning). Both
-> sides log an `ERROR`. A follower that starts with an empty log first asks the leader for its last version, and
-> registers with the coordinator only once it has that many entries. A follower with its own log still registers at
-> once, also while the leader is down. New tests: `ReplicaSetTest.leaderThatLostItsLogCopiesNothingOnTopOfTheFollowersLog`
-> (the new log has more entries than the follower, so only the ID tells the histories apart),
-> `followerAheadOfItsLeaderIsRefused`, `followerThatLostItsLogTakesTheLeadersIdAndCopiesEverythingAgain`,
-> `emptyFollowerIsReadyToServeOnlyOnceItHasTheLeadersEntries`,
-> `emptyFollowerWithoutItsLeaderIsNotReadyButOneWithItsOwnLogIs`,
-> `ReplicatedStoreTest.emptyFollowerThatCannotReachItsLeaderDoesNotRegister`, and six log ID tests in
-> `ReplicaStorageTest`. A leader that lost its log now stops taking writes instead of mixing histories; the recovery
-> (copy a follower's log to it) is in `replication.md`, "When a log is lost". Logs written before this change have no
-> ID file: the leader creates one on its first start, and each follower takes it on its first fetch. Not run on AWS
-> yet.
+> **Response: fixed.** Every log now has an ID. The leader refuses a follower whose log ID differs or whose position
+> is past its own last entry (`409 LOG_MISMATCH`), and an empty follower registers only after it has caught up. The
+> lost-log cases are tested in-process; recovery steps are in `replication.md`, "When a log is lost".
 
 ## 2. Any change to the launch template deletes every record (high)
 
@@ -79,20 +65,9 @@ operations per second for that shard. This is the main case replication is for, 
 a short delay (around the read p99, ~15 ms) instead of after the timeout; or skip a replica for a few seconds after it
 fails. A shorter connect timeout (e.g. 200 ms, inside the VPC) helps in any case.
 
-> **Response: fixed.** I used two of the suggestions together. A read that still misses an answer after 50 ms also
-> asks the next replica and uses the first R answers (`margosha.shard.read-hedge-delay`). 50 ms is well above a
-> replica's usual answer time, since a whole read's p99 was about 15 ms in the benchmark. And a replica that failed to
-> answer goes to the end of the read order for 5 s (`margosha.shard.skip-after-failure`). After that, one read that
-> would ask it tries it again: an answer puts it back in the rotation, another failure skips it for 5 s more. So a
-> stopped follower costs at most 50 ms on the first read that runs into it, and nothing after that. When all replicas
-> answer, a read still asks exactly R, so the even-spread check is unchanged. I didn't shorten the connect timeout:
-> with the hedge, it no longer decides how long a read waits. New tests:
-> `ReplicatedStoreTest.replicaThatDoesNotAnswerDoesNotHoldUpReads` (a server that accepts connections and never
-> answers is registered as `shard-a-3`; every read finishes well under the 2 s timeout),
-> `QuorumReaderTest.replicaThatDoesNotAnswerDelaysAReadByTheHedgeDelayNotTheTimeout`,
-> `replicaThatIsDownIsAskedLastUntilItsSkipTimeIsOver`, `replicaThatAnswersAgainIsBackInTheRotation`, and two
-> read-order tests in `ShardRegistryServiceTest`. The 2.2 s reads in `aws_checks/one-follower-down.md` are from before
-> the fix; that check has not been run on AWS again yet.
+> **Response: fixed.** A read that has no answer after 50 ms also asks the next replica, and a replica that failed is
+> asked last for 5 s. On AWS, with `shard-a-3` stopped, all reads took 0.2–0.6 s instead of 2.2 s
+> (`aws_checks/one-follower-down.md`, "After the fix").
 
 ## 4. A read can return a write that isn't confirmed, and the next read can go back to the older value (medium)
 
@@ -107,12 +82,8 @@ older than one it read before", and the ADR doesn't. Fix: at least write it in A
 complete fix is for the leader to answer reads only up to the highest version W replicas have (it already knows it from
 `followerPositions`), keeping the previous value of a key until its new version is confirmed.
 
-> **Response: accepted, documented.** The behaviour is described with an example in `m3/replication.md`, section
-> "What a read does not guarantee: monotonic reads". It covers when the window stays open longer than a few
-> milliseconds, and why the newer value never disappears (M3 has no failover or log truncation). I wrote it there
-> rather than in ADR 0010, next to the quorum read it belongs to. I didn't make the complete fix: the leader would
-> have to keep each key's previous value until its new version is confirmed, which changes the write path that was
-> benchmarked. Consistency models are M4's topic, so it is planned there.
+> **Response: accepted, documented** in `m3/replication.md` ("What a read does not guarantee: monotonic reads").
+> The full fix changes the benchmarked write path, so it is left for M4.
 
 ## 5. Nothing checks who a replica is (medium)
 
@@ -133,24 +104,9 @@ the coordinator accept only the replica IDs it expects per shard (N of them, or 
 accept confirmations only from its two follower IDs (passed as tags), send the shard ID with every fetch, and move
 `/shards` to a port that only the shard security group reaches.
 
-> **Response: partly fixed.** Three of the four points are fixed in the application. None of these fixes needed a
-> template change: a new tag would have changed the launch template and replaced every instance (finding 2).
-> - *Any number of replicas:* a shard now accepts at most N replica IDs (`margosha.replication.factor`). A fourth one
->   gets `400` and the shard keeps its three. A registered replica can still register again at a new address.
->   Tests: `ShardRegistryServiceTest.replicaBeyondNIsRejectedSoQuorumsStillOverlap` and
->   `registeredReplicaCanStillMoveWhenTheShardIsFull`.
-> - *Any follower name confirms:* the leader now serves, and counts as confirmations, only the replica IDs
->   `<shard>-1` to `<shard>-N` other than its own. The stack already names replicas that way (`MargoshaReplicaId`),
->   so the leader knows its followers' IDs from N, with no new tag. Any other name gets `400`. Test:
->   `ReplicaSetTest.fetchFromAnUnknownReplicaIsNotAConfirmation`.
-> - *Follower of the wrong shard:* every fetch now names the follower's shard (`shard=`), and a leader refuses another
->   shard's follower with `400`. The follower logs an `ERROR` and stores nothing. Test:
->   `ReplicaSetTest.followerOfAnotherShardIsRefused`.
-> - *Not fixed, accepted for the lab:* `POST /shards` is still on the client port. Someone who can reach it could
->   still register a fake address under one of a shard's replica IDs, which reads would use until the real replica
->   registers again (within 10 s), and that fake could answer a very large version. Only the operator's IP and the
->   VPC can reach that port, the same exposure as M2's finding 2. Moving registration to a port that only the shard
->   security group reaches is an infrastructure change, planned with the security work in M5.
+> **Response: partly fixed.** A shard now accepts at most N replica IDs, and the leader serves (and counts as
+> confirmations) only its own shard's followers, `<shard>-2` and `<shard>-3`; anything else gets `400`. Not fixed:
+> `POST /shards` is still on the client port (same exposure as M2's finding 2, planned for M5).
 
 ## 6. Rebuild and catch-up were measured with 200–300 entries, not at the size the store reaches (medium)
 
