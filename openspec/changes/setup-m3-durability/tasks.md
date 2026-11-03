@@ -11,13 +11,13 @@
 ## 2. Log-structured storage (after ADRs 0009 and 0010)
 
 - [x] 2.1 Implement the replication log in `node` as decided in ADRs 0009 and 0010: append an entry with the next version, read the entries after a position, rebuild from the log on start, and handle a write cut off by a crash as the ADR says; verify unit tests for append / read-after / rebuild / a write cut off by a crash / a damaged entry that is not the last one
-- [x] 2.2 Implement the replica storage on top of the log: per-table maps of key → version + attributes or a deleted marker, rebuilt from the log on start, served from memory, plus an "apply entry" path for followers; verify unit tests that a store rebuilt from its log holds the same records and versions, and that a deleted record reads as not found with its version
+- [x] 2.2 Implement the replica storage on top of the log: per-table maps of key â†’ version + attributes or a deleted marker, rebuilt from the log on start, served from memory, plus an "apply entry" path for followers; verify unit tests that a store rebuilt from its log holds the same records and versions, and that a deleted record reads as not found with its version
 - [x] 2.3 Keep single-node mode on the M2 in-memory storage; verify the existing single-mode tests still pass unchanged
 
 ## 3. Replication between leader and followers (after ADRs 0007, 0008 and 0011)
 
-- [x] 3.1 Add the replication settings (`margosha.replication.factor`, `.write-quorum`, `.read-quorum`, the confirmation timeout, `margosha.data-dir`) with the defaults from ADR 0007 (N = 3, W = 2, R = 2), and refuse to start when W or R is out of 1..N or R + W ≤ N; verify a test that a node with N = 3, W = 1, R = 2 does not start and reports the rule
-- [x] 3.2 Leader write path: check against its state (409 / 404 as in M2), record the write in the log (ADR 0009) in the order and with the version ADR 0010 decides, apply it, then wait for W − 1 follower confirmations or the timeout (ADR 0011) (503 `SHARD_UNAVAILABLE`, outcome unknown); writes serialised per shard; verify tests for a committed write, a write with one follower down (succeeds), and with both followers down (503, entry kept in the leader's log)
+- [x] 3.1 Add the replication settings (`margosha.replication.factor`, `.write-quorum`, `.read-quorum`, the confirmation timeout, `margosha.data-dir`) with the defaults from ADR 0007 (N = 3, W = 2, R = 2), and refuse to start when W or R is out of 1..N or R + W â‰¤ N; verify a test that a node with N = 3, W = 1, R = 2 does not start and reports the rule
+- [x] 3.2 Leader write path: check against its state (409 / 404 as in M2), record the write in the log (ADR 0009) in the order and with the version ADR 0010 decides, apply it, then wait for W âˆ’ 1 follower confirmations or the timeout (ADR 0011) (503 `SHARD_UNAVAILABLE`, outcome unknown); writes serialised per shard; verify tests for a committed write, a write with one follower down (succeeds), and with both followers down (503, entry kept in the leader's log)
 - [x] 3.3 Leader side of the synchronisation mechanism from ADR 0008, including how it learns each follower's confirmed position (ADR 0011); verify tests that followers receive entries in log order and that the leader's recorded confirmations match what the followers stored
 - [x] 3.4 Follower side of the synchronisation mechanism from ADR 0008: receive entries after its position, store them in its log, apply them, confirm, recover from errors; a follower refuses direct writes with `421 NOT_LEADER`; verify an in-process test (leader + 2 followers) that both followers reach the leader's last entry and hold the same records, and that a direct write to a follower is refused
 - [x] 3.5 Follower resync: verify an in-process test that a follower stopped while 100 records are written, then restarted, receives only those 100 entries and then holds the same records as the leader
@@ -27,11 +27,11 @@
 ## 4. Coordinator (after group 3)
 
 - [x] 4.1 Replica registration: `shardId`, `replicaId`, `role`, `address`; ring keyed by shard ID; a second, different leader for a shard is rejected (400); repeats change nothing; replicas re-register every 10 s as in M2; verify registry unit tests and the M2 registration tests updated for replicas (including "coordinator restarts")
-- [x] 4.2 Route CREATE / UPDATE / DELETE to the owning shard's leader, 503 when no leader is registered or it does not answer within the write timeout (longer than the leader's ack timeout); verify an in-process test with 2 shards × 3 replicas that each record is written by its owner's leader and copied to that shard's followers only
-- [x] 4.3 Quorum reads: R replicas chosen round-robin per shard, asked in parallel, a third asked when one fails, highest version wins, deleted / missing = not found, 503 when fewer than R answer; EXISTS the same way; verify in-process tests for a lagging replica (newest returned), a deleted record still held by one replica, one follower down (reads work), two replicas down (503), and 3,000 reads spreading 1,800–2,200 per replica
+- [x] 4.2 Route CREATE / UPDATE / DELETE to the owning shard's leader, 503 when no leader is registered or it does not answer within the write timeout (longer than the leader's ack timeout); verify an in-process test with 2 shards Ã— 3 replicas that each record is written by its owner's leader and copied to that shard's followers only
+- [x] 4.3 Quorum reads: R replicas chosen round-robin per shard, asked in parallel, a third asked when one fails, highest version wins, deleted / missing = not found, 503 when fewer than R answer; EXISTS the same way; verify in-process tests for a lagging replica (newest returned), a deleted record still held by one replica, one follower down (reads work), two replicas down (503), and 3,000 reads spreading 1,800â€“2,200 per replica
 - [x] 4.4 Durable table definitions on the coordinator's disk (appended, forced to disk, loaded on start); verify a test that after a coordinator restart a record can be read without registering its table, and registering it again answers 409
 - [x] 4.5 Update `openapi.yaml`: replica registration body, versioned replica reads, the replication endpoints from ADR 0008, `NOT_LEADER`, and "503 on a write means outcome unknown"; update the Java models and clients to match; verify the serialization round-trip tests pass and the spec lists every new field and error
-- [x] 4.6 Update the YCSB binding round-trip test to run against the replicated store in-process (2 shards × 3 replicas); verify it passes with no change to the binding itself
+- [x] 4.6 Update the YCSB binding round-trip test to run against the replicated store in-process (2 shards Ã— 3 replicas); verify it passes with no change to the binding itself
 - [x] 4.7 Write `m3/replication.md`: replica sets, the write path with W, the log and versions, followers and resync, quorum reads, what happens with one and two replicas or the leader down; verify its examples match the tests in groups 3 and 4
 
 ## 5. Infrastructure and pipeline (after group 4)
@@ -45,10 +45,10 @@
 
 ## 6. Benchmark (after group 5)
 
-- [ ] 6.1 Update `m2/benchmark/procedure.md` into `m3/benchmark/procedure.md`: same workload and parameters as M2, a discarded warm-up run then three measured runs, the quorum settings written to `params.txt`, CPU credits of all 8 instances checked; update `run-benchmark.sh` if needed; verify the documented commands run as written
-- [ ] 6.2 Run the benchmark; verify YCSB reports no failed operations in the measured runs, or the failures are written down
-- [ ] 6.3 Copy the raw outputs into `m3/benchmark/raw/` and write `m3/benchmark/results.md`: each run, the median, the M2 numbers side by side, the explanation of the throughput and p99 changes (write quorum, read quorum, the log's disk writes, 6 replicas serving reads), CPU per node, commit, instance types; verify it links to the raw output and answers "how did p99 change and why"
-- [ ] 6.4 Set `BenchClient` back to `false`; verify the client is gone and the store still answers
+- [x] 6.1 Update `m2/benchmark/procedure.md` into `m3/benchmark/procedure.md`: same workload and parameters as M2, a discarded warm-up run then three measured runs, the quorum settings written to `params.txt`, CPU credits of all 8 instances checked; update `run-benchmark.sh` if needed; verify the documented commands run as written
+- [x] 6.2 Run the benchmark; verify YCSB reports no failed operations in the measured runs, or the failures are written down
+- [x] 6.3 Copy the raw outputs into `m3/benchmark/raw/` and write `m3/benchmark/results.md`: each run, the median, the M2 numbers side by side, the explanation of the throughput and p99 changes (write quorum, read quorum, the log's disk writes, 6 replicas serving reads), CPU per node, commit, instance types; verify it links to the raw output and answers "how did p99 change and why"
+- [x] 6.4 Set `BenchClient` back to `false`; verify the client is gone and the store still answers
 
 ## 7. End-to-end checks
 

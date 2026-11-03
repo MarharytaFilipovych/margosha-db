@@ -1,7 +1,9 @@
 # M2 benchmark procedure
 
-**Spec:** `benchmarking` in `openspec/changes/setup-m2-sharding`; tasks 11.3–11.6.
+**Spec:** `benchmarking` in `openspec/changes/setup-m2-sharding`.
+
 **Script:** [run-benchmark.sh](run-benchmark.sh) (runs on the bench client).
+
 **Binding:** `com.margosha.ycsb.MargoshaDbClient` in [app/ycsb-binding](../../app/ycsb-binding), published by the pipeline to
 `s3://margosha-artifacts-<account-id>/releases/margosha-ycsb-binding.jar`.
 
