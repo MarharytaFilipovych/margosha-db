@@ -1,0 +1,372 @@
+﻿{
+    "EvaluationResults": [
+        {
+            "EvalActionName": "cloudwatch:PutMetricData",
+            "EvalResourceName": "*",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "Pvoclabs1",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 1,
+                        "Column": 39
+                    },
+                    "EndPosition": {
+                        "Line": 1,
+                        "Column": 1072
+                    }
+                }
+            ],
+            "MissingContextValues": [],
+            "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+            }
+        },
+        {
+            "EvalActionName": "cloudwatch:GetMetricData",
+            "EvalResourceName": "*",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "Pvoclabs1",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 1,
+                        "Column": 39
+                    },
+                    "EndPosition": {
+                        "Line": 1,
+                        "Column": 1072
+                    }
+                }
+            ],
+            "MissingContextValues": [],
+            "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+            }
+        },
+        {
+            "EvalActionName": "cloudwatch:PutMetricAlarm",
+            "EvalResourceName": "*",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "Pvoclabs1",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 1,
+                        "Column": 39
+                    },
+                    "EndPosition": {
+                        "Line": 1,
+                        "Column": 1072
+                    }
+                }
+            ],
+            "MissingContextValues": [],
+            "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+            }
+        },
+        {
+            "EvalActionName": "cloudwatch:DeleteAlarms",
+            "EvalResourceName": "*",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "Pvoclabs1",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 1,
+                        "Column": 39
+                    },
+                    "EndPosition": {
+                        "Line": 1,
+                        "Column": 1072
+                    }
+                }
+            ],
+            "MissingContextValues": [],
+            "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+            }
+        },
+        {
+            "EvalActionName": "cloudwatch:PutDashboard",
+            "EvalResourceName": "*",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "Pvoclabs1",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 1,
+                        "Column": 39
+                    },
+                    "EndPosition": {
+                        "Line": 1,
+                        "Column": 1072
+                    }
+                }
+            ],
+            "MissingContextValues": [],
+            "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+            }
+        },
+        {
+            "EvalActionName": "cloudwatch:DeleteDashboards",
+            "EvalResourceName": "*",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "Pvoclabs1",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 1,
+                        "Column": 39
+                    },
+                    "EndPosition": {
+                        "Line": 1,
+                        "Column": 1072
+                    }
+                }
+            ],
+            "MissingContextValues": [],
+            "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+            }
+        },
+        {
+            "EvalActionName": "sns:CreateTopic",
+            "EvalResourceName": "*",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "Pvoclabs1",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 1,
+                        "Column": 1159
+                    },
+                    "EndPosition": {
+                        "Line": 1,
+                        "Column": 2758
+                    }
+                }
+            ],
+            "MissingContextValues": [],
+            "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+            }
+        },
+        {
+            "EvalActionName": "sns:Subscribe",
+            "EvalResourceName": "*",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "Pvoclabs1",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 1,
+                        "Column": 1159
+                    },
+                    "EndPosition": {
+                        "Line": 1,
+                        "Column": 2758
+                    }
+                }
+            ],
+            "MissingContextValues": [],
+            "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+            }
+        },
+        {
+            "EvalActionName": "sns:Publish",
+            "EvalResourceName": "*",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "Pvoclabs1",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 1,
+                        "Column": 1159
+                    },
+                    "EndPosition": {
+                        "Line": 1,
+                        "Column": 2758
+                    }
+                }
+            ],
+            "MissingContextValues": [],
+            "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+            }
+        },
+        {
+            "EvalActionName": "sns:DeleteTopic",
+            "EvalResourceName": "*",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "Pvoclabs1",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 1,
+                        "Column": 1159
+                    },
+                    "EndPosition": {
+                        "Line": 1,
+                        "Column": 2758
+                    }
+                }
+            ],
+            "MissingContextValues": [],
+            "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+            }
+        },
+        {
+            "EvalActionName": "ec2:CreateVpcEndpoint",
+            "EvalResourceName": "*",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "Pvoclabs1",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 1,
+                        "Column": 39
+                    },
+                    "EndPosition": {
+                        "Line": 1,
+                        "Column": 1072
+                    }
+                }
+            ],
+            "MissingContextValues": [],
+            "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+            }
+        },
+        {
+            "EvalActionName": "ec2:DeleteVpcEndpoints",
+            "EvalResourceName": "*",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "Pvoclabs1",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 1,
+                        "Column": 39
+                    },
+                    "EndPosition": {
+                        "Line": 1,
+                        "Column": 1072
+                    }
+                }
+            ],
+            "MissingContextValues": [],
+            "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+            }
+        },
+        {
+            "EvalActionName": "ssm:PutParameter",
+            "EvalResourceName": "*",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "Pvoclabs1",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 1,
+                        "Column": 1159
+                    },
+                    "EndPosition": {
+                        "Line": 1,
+                        "Column": 2758
+                    }
+                }
+            ],
+            "MissingContextValues": [],
+            "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+            }
+        },
+        {
+            "EvalActionName": "ssm:GetParameter",
+            "EvalResourceName": "*",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "Pvoclabs1",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 1,
+                        "Column": 1159
+                    },
+                    "EndPosition": {
+                        "Line": 1,
+                        "Column": 2758
+                    }
+                }
+            ],
+            "MissingContextValues": [],
+            "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+            }
+        },
+        {
+            "EvalActionName": "ssm:DeleteParameter",
+            "EvalResourceName": "*",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "Pvoclabs1",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 1,
+                        "Column": 1159
+                    },
+                    "EndPosition": {
+                        "Line": 1,
+                        "Column": 2758
+                    }
+                }
+            ],
+            "MissingContextValues": [],
+            "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+            }
+        },
+        {
+            "EvalActionName": "ssm:SendCommand",
+            "EvalResourceName": "*",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "Pvoclabs1",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 1,
+                        "Column": 1159
+                    },
+                    "EndPosition": {
+                        "Line": 1,
+                        "Column": 2758
+                    }
+                }
+            ],
+            "MissingContextValues": [],
+            "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+            }
+        }
+    ]
+}
