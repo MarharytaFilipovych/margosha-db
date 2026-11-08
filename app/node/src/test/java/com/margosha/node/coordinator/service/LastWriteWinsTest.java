@@ -11,6 +11,7 @@ import java.util.stream.Stream;
 import com.margosha.api.model.Hlc;
 import com.margosha.api.model.RecordVersion;
 import com.margosha.node.coordinator.model.ReplicaAnswer;
+import com.margosha.node.coordinator.replica.LastWriteWins;
 import org.junit.jupiter.api.Test;
 
 class LastWriteWinsTest {

@@ -11,7 +11,7 @@ import com.margosha.api.model.PrimaryKey;
 import com.margosha.api.model.ShardRegistration;
 import com.margosha.node.coordinator.exception.ShardUnavailableException;
 import com.margosha.node.coordinator.model.ReplicaAnswer;
-import com.margosha.node.coordinator.storage.ReplicaClient;
+import com.margosha.node.coordinator.replica.ReplicaClient;
 
 
 public final class FakeReplica implements ReplicaClient {

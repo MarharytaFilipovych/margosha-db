@@ -17,7 +17,7 @@ import com.margosha.api.client.ShardClient;
 import com.margosha.node.common.config.ReplicationProperties;
 import com.margosha.node.common.storage.RecordStorage;
 import com.margosha.node.shard.service.CoordinatorRegistrationService;
-import com.margosha.node.shard.service.RetryBackoff;
+import com.margosha.node.common.util.RetryBackoff;
 import com.margosha.node.shard.replication.follower.FollowerRecordStorage;
 import com.margosha.node.shard.replication.follower.FollowerReplicator;
 import com.margosha.node.shard.replication.leader.LeaderRecordStorage;

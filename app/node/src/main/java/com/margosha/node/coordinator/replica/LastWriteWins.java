@@ -1,4 +1,4 @@
-package com.margosha.node.coordinator.service;
+package com.margosha.node.coordinator.replica;
 
 import java.util.Comparator;
 

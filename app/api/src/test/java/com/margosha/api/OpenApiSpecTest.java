@@ -23,6 +23,7 @@ import com.margosha.api.model.ReplicaStatus;
 import com.margosha.api.model.ReplicationBatch;
 import com.margosha.api.model.ReplicationEntry;
 import com.margosha.api.model.ShardRegistration;
+import com.margosha.api.util.TraceIds;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -96,6 +97,42 @@ class OpenApiSpecTest {
 
 		// Assert
 		assertThat(missing).isEmpty();
+	}
+
+	@Test
+	void everyPathTakesTheTraceIdHeader() {
+		// Arrange
+		assertThat(SPEC).contains("      name: " + TraceIds.HEADER);
+
+		// Act
+		List<String> missing = new ArrayList<>();
+		for (int i = 0; i < SPEC.size(); i++) {
+			if (SPEC.get(i).matches("  /\\S*:") && !(SPEC.get(i + 1).equals("    parameters:")
+					&& SPEC.get(i + 2).equals("      - $ref: '#/components/parameters/TraceId'"))) {
+				missing.add(SPEC.get(i).trim());
+			}
+		}
+
+		// Assert
+		assertThat(missing).as("paths without the trace ID parameter").isEmpty();
+	}
+
+	@Test
+	void everyResponseReturnsTheTraceIdHeader() {
+		// Act
+		List<String> missing = new ArrayList<>();
+		for (int i = 0; i < SPEC.size(); i++) {
+			String line = SPEC.get(i);
+			boolean inline = line.matches(" {8}'\\d{3}':") && SPEC.get(i + 1).startsWith("          description:");
+			boolean shared = i > SPEC.indexOf("  responses:") && line.matches(" {4}[A-Za-z]+:");
+			if ((inline || shared) && SPEC.subList(i + 1, Math.min(i + 15, SPEC.size())).stream()
+					.noneMatch(next -> next.trim().equals("$ref: '#/components/headers/TraceId'"))) {
+				missing.add(i + 1 + ": " + line.trim());
+			}
+		}
+
+		// Assert
+		assertThat(missing).as("responses without the X-Trace-Id header").isEmpty();
 	}
 
 	private static List<String> schema(String name) {

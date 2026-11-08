@@ -1,4 +1,4 @@
-package com.margosha.node.coordinator.service;
+package com.margosha.node.coordinator.replica;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -12,7 +12,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import com.margosha.api.model.ReplicaRole;
 import com.margosha.node.common.exception.ValidationException;
 import com.margosha.node.coordinator.exception.ShardUnavailableException;
-import com.margosha.node.coordinator.storage.ReplicaClient;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -53,7 +52,7 @@ public final class ReplicaSet {
 		this.maxReplicas = maxReplicas;
 	}
 
-	void checkCanAdd(String replicaId, ReplicaRole role) {
+	public void checkCanAdd(String replicaId, ReplicaRole role) {
 		if (!replicas.containsKey(replicaId) && replicas.size() >= maxReplicas) {
 			throw new ValidationException("Shard " + shardId + " already has " + maxReplicas + " replicas "
 					+ replicas.keySet() + "; replica " + replicaId + " cannot register as another one");
@@ -65,7 +64,7 @@ public final class ReplicaSet {
 		}
 	}
 
-	void put(ReplicaClient replica) {
+	public void put(ReplicaClient replica) {
 		String replicaId = replica.registration().replicaId();
 		replicas.put(replicaId, replica);
 		ReplicaClient current = leader;
@@ -77,7 +76,7 @@ public final class ReplicaSet {
 		snapshot = List.copyOf(replicas.values());
 	}
 
-	ReplicaClient get(String replicaId) {
+	public ReplicaClient get(String replicaId) {
 		return replicas.get(replicaId);
 	}
 

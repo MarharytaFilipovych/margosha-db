@@ -20,7 +20,7 @@ import com.margosha.api.model.ShardRegistration;
 import com.margosha.node.common.exception.RecordNotFoundException;
 import com.margosha.node.coordinator.exception.ShardUnavailableException;
 import com.margosha.node.coordinator.model.ReplicaAnswer;
-import com.margosha.node.coordinator.service.QuorumReader;
+import com.margosha.node.coordinator.replica.QuorumReader;
 import com.margosha.node.coordinator.service.ShardRegistryService;
 import com.margosha.node.data.FakeReplica;
 import com.margosha.ring.RingSettings;

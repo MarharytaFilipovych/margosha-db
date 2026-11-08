@@ -9,6 +9,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.margosha.api.client.CoordinatorClient;
 import com.margosha.api.model.ShardRegistration;
+import com.margosha.node.common.util.RetryBackoff;
 import com.margosha.node.shard.replication.model.ReplicaIdentity;
 import lombok.Getter;
 import lombok.NonNull;

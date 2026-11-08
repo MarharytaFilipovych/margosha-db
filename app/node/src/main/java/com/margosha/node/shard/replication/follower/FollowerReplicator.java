@@ -11,7 +11,7 @@ import com.margosha.api.model.ReplicationBatch;
 import com.margosha.api.model.ReplicationEntry;
 import com.margosha.node.shard.replication.model.LogEntry;
 import com.margosha.node.shard.replication.storage.ReplicaStorage;
-import com.margosha.node.shard.service.RetryBackoff;
+import com.margosha.node.common.util.RetryBackoff;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -9,7 +9,10 @@ import static com.margosha.node.data.TestData.ORDER_42_1;
 import static com.margosha.node.data.TestData.USERS;
 import static com.margosha.node.data.TestData.USERS_TABLE;
 import static com.margosha.node.data.TestData.USER_42;
+import static com.margosha.node.data.LogLines.lineWith;
 import static com.margosha.node.data.TestData.json;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -18,21 +21,29 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.Map;
 import java.util.stream.Stream;
 
 import com.margosha.api.model.ApiError;
 import com.margosha.api.model.ErrorCode;
 import com.margosha.api.model.ExistsResult;
+import com.margosha.api.util.TraceIds;
 import com.margosha.node.common.exception.RecordNotFoundException;
 import com.margosha.node.coordinator.service.RecordService;
 import com.margosha.node.coordinator.service.TableRegistryService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
@@ -42,6 +53,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @ActiveProfiles("coordinator")
 @WebMvcTest(CoordinatorController.class)
+@ExtendWith(OutputCaptureExtension.class)
 class CoordinatorControllerTest {
 
 	private static final String TABLES = "/tables";
@@ -155,6 +167,70 @@ class CoordinatorControllerTest {
 				.andExpect(status().isNotFound())
 				.andExpect(content().json(json(new ApiError(ErrorCode.RECORD_NOT_FOUND, notFound.getMessage())),
 						JsonCompareMode.STRICT));
+	}
+
+	@Test
+	void requestWithoutATraceIdGetsANewOneInTheResponse() throws Exception {
+		// Arrange
+		when(records.read(USERS, KEY_42, null)).thenReturn(ANN);
+
+		// Act & Assert
+		mvc.perform(get(USER_42_RECORD))
+				.andExpect(status().isOk())
+				.andExpect(header().string(TraceIds.HEADER, matchesPattern("[0-9a-f]{32}")));
+	}
+
+	@Test
+	void validTraceIdFromTheClientIsKept() throws Exception {
+		// Arrange
+		when(records.read(USERS, KEY_42, null)).thenReturn(ANN);
+
+		// Act & Assert
+		mvc.perform(get(USER_42_RECORD).header(TraceIds.HEADER, "client-trace-42"))
+				.andExpect(status().isOk())
+				.andExpect(header().string(TraceIds.HEADER, "client-trace-42"));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"", "has space", "under_score", "quote\"", "a1234567890123456789012345678901234567890123456789012345678901234"})
+	void invalidTraceIdFromTheClientIsReplacedByANewOne(String invalid) throws Exception {
+		// Arrange
+		when(records.read(USERS, KEY_42, null)).thenReturn(ANN);
+
+		// Act & Assert
+		mvc.perform(get(USER_42_RECORD).header(TraceIds.HEADER, invalid))
+				.andExpect(status().isOk())
+				.andExpect(header().string(TraceIds.HEADER, matchesPattern("[0-9a-f]{32}")));
+	}
+
+	@Test
+	void errorResponseCarriesTheTraceId() throws Exception {
+		// Arrange
+		when(records.read(USERS, KEY_42, null)).thenThrow(new RecordNotFoundException(USERS, USER_42));
+
+		// Act & Assert
+		mvc.perform(get(USER_42_RECORD).header(TraceIds.HEADER, "trace-of-a-404"))
+				.andExpect(status().isNotFound())
+				.andExpect(header().string(TraceIds.HEADER, "trace-of-a-404"));
+	}
+
+	@Test
+	void finishedRequestIsLoggedOnceWithItsTraceIdStatusAndDuration(CapturedOutput output) throws Exception {
+		// Arrange
+		when(records.read(USERS, KEY_42, null)).thenThrow(new RecordNotFoundException(USERS, USER_42));
+
+		// Act
+		mvc.perform(get(USER_42_RECORD).header(TraceIds.HEADER, "trace-of-the-end-line"));
+
+		// Assert
+		Map<String, Object> line = lineWith(output, "\"GET " + USER_42_RECORD + " 404 in ");
+		assertThat(line).containsEntry("traceId", "trace-of-the-end-line")
+				.containsEntry("method", "GET")
+				.containsEntry("path", USER_42_RECORD)
+				.containsEntry("status", 404)
+				.containsEntry("level", "INFO");
+		assertThat(line.get("durationMs")).isInstanceOf(Integer.class);
+		assertThat(MDC.get(TraceIds.MDC_KEY)).as("trace ID removed from the log context after the request").isNull();
 	}
 
 	static Stream<Arguments> invalidTableDefinitions() {

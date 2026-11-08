@@ -1,4 +1,4 @@
-package com.margosha.node.shard.service;
+package com.margosha.node.common.util;
 
 import java.time.Duration;
 import java.util.Objects;

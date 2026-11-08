@@ -1,8 +1,9 @@
-package com.margosha.node.coordinator.service;
+package com.margosha.node.coordinator.replica;
 
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorCompletionService;
@@ -14,8 +15,8 @@ import java.util.function.Function;
 
 import com.margosha.node.coordinator.exception.ShardUnavailableException;
 import com.margosha.node.coordinator.model.ReplicaAnswer;
-import com.margosha.node.coordinator.storage.ReplicaClient;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 
 @Slf4j
 public class QuorumReader implements AutoCloseable {
@@ -96,6 +97,8 @@ public class QuorumReader implements AutoCloseable {
 		private final List<ReplicaClient> order;
 		private final CompletionService<ReplicaAnswer> answers;
 		private final Function<ReplicaClient, ReplicaAnswer> request;
+		/** The caller's log context (its trace ID): a new virtual thread starts without one. */
+		private final Map<String, String> logContext;
 		private int count;
 		private int pending;
 
@@ -105,12 +108,16 @@ public class QuorumReader implements AutoCloseable {
 			this.order = order;
 			this.answers = answers;
 			this.request = request;
+			this.logContext = MDC.getCopyOfContextMap();
 		}
 
 		private void next() {
 			ReplicaClient replica = order.get(count++);
 			pending++;
 			answers.submit(() -> {
+				if (logContext != null) {
+					MDC.setContextMap(logContext);
+				}
 				try {
 					ReplicaAnswer answer = request.apply(replica);
 					replicaSet.answered(replica);
@@ -118,6 +125,8 @@ public class QuorumReader implements AutoCloseable {
 				} catch (RuntimeException e) {
 					replicaSet.failed(replica);
 					throw e;
+				} finally {
+					MDC.clear();
 				}
 			});
 		}

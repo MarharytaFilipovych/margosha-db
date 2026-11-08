@@ -33,6 +33,7 @@ import com.margosha.node.common.exception.RecordAlreadyExistsException;
 import com.margosha.node.common.exception.RecordNotFoundException;
 import com.margosha.node.coordinator.exception.ShardUnavailableException;
 import com.margosha.node.coordinator.model.ReplicaAnswer;
+import com.margosha.node.coordinator.replica.RemoteReplica;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

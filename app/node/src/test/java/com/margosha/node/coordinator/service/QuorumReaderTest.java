@@ -21,6 +21,8 @@ import com.margosha.api.model.Hlc;
 import com.margosha.api.model.RecordVersion;
 import com.margosha.node.coordinator.exception.ShardUnavailableException;
 import com.margosha.node.coordinator.model.ReplicaAnswer;
+import com.margosha.node.coordinator.replica.QuorumReader;
+import com.margosha.node.coordinator.replica.ReplicaSet;
 import com.margosha.node.data.FakeReplica;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;

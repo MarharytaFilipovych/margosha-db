@@ -1,4 +1,4 @@
-package com.margosha.node.coordinator.storage;
+package com.margosha.node.coordinator.replica;
 
 import com.margosha.api.model.Attributes;
 import com.margosha.api.model.PrimaryKey;

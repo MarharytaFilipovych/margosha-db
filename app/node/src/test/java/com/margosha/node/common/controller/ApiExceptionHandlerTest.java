@@ -17,9 +17,12 @@ import com.margosha.node.coordinator.exception.TableAlreadyExistsException;
 import com.margosha.node.coordinator.exception.TableNotFoundException;
 import com.margosha.node.common.exception.ValidationException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -45,6 +48,17 @@ class ApiExceptionHandlerTest {
 						ErrorCode.RECORD_NOT_FOUND, "Record 42 not found in table users"),
 				Arguments.of(new RecordAlreadyExistsException(ORDERS, ORDER_42_1), HttpStatus.CONFLICT,
 						ErrorCode.RECORD_ALREADY_EXISTS, "Record 42/order-1 already exists in table orders"));
+	}
+
+	@Test
+	@ExtendWith(OutputCaptureExtension.class)
+	void expectedClientErrorIsOneWarnLineWithoutAStackTrace(CapturedOutput output) {
+		// Act
+		handler.handleNodeException(new RecordNotFoundException(USERS, USER_42));
+
+		// Assert
+		assertThat(output.getOut()).contains("WARN").contains("404 RECORD_NOT_FOUND: Record 42 not found in table users")
+				.doesNotContain("RecordNotFoundException").doesNotContain("ERROR");
 	}
 
 	@ParameterizedTest

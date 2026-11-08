@@ -23,7 +23,11 @@ public class ApiExceptionHandler {
 
 	@ExceptionHandler(NodeException.class)
 	public ResponseEntity<ApiError> handleNodeException(NodeException e) {
-		log.error("NodeException occurred", e);
+		if (e.getStatus().is4xxClientError()) {
+			log.warn("{} {}: {}", e.getStatus().value(), e.getCode(), e.getMessage());
+		} else {
+			log.error("NodeException occurred", e);
+		}
 		return ResponseEntity.status(e.getStatus()).body(e.toApiError());
 	}
 
@@ -43,14 +47,14 @@ public class ApiExceptionHandler {
 
 	@ExceptionHandler(HttpMessageNotReadableException.class)
 	public ResponseEntity<ApiError> handleUnreadableBody(HttpMessageNotReadableException e) {
-		log.error("HttpMessageNotReadableException occurred", e);
+		log.warn("Unreadable request body: {}", e.getMessage());
 		return error(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR, "Request body is missing or not valid");
 	}
 
 	@ExceptionHandler(Exception.class)
 	public ResponseEntity<ApiError> handleUnexpected(Exception e) {
 		if (e instanceof ErrorResponse response && response.getStatusCode().is4xxClientError()) {
-			log.error("Spring Framework exception occurred", e);
+			log.warn("Rejected request: {}", e.getMessage());
 			return error(HttpStatus.valueOf(response.getStatusCode().value()), ErrorCode.VALIDATION_ERROR, e.getMessage());
 		}
 		log.error("Unexpected error while handling a request", e);

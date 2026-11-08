@@ -22,7 +22,7 @@ import com.margosha.api.exception.ApiException;
 import com.margosha.api.model.ErrorCode;
 import com.margosha.api.model.ReplicaRole;
 import com.margosha.api.model.ShardRegistration;
-import com.margosha.node.coordinator.storage.ReplicaClient;
+import com.margosha.node.coordinator.replica.ReplicaClient;
 import com.margosha.node.data.HangingServer;
 import com.margosha.node.data.InProcessNode;
 import org.junit.jupiter.api.Test;

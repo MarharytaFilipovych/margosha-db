@@ -26,7 +26,7 @@ import com.margosha.api.client.CoordinatorClient;
 import com.margosha.api.model.Attributes;
 import com.margosha.api.model.ShardRegistration;
 import com.margosha.api.model.TableRecord;
-import com.margosha.node.coordinator.storage.ReplicaClient;
+import com.margosha.node.coordinator.replica.ReplicaClient;
 import com.margosha.node.data.InProcessNode;
 import com.margosha.node.data.InProcessReplicaSet;
 import com.margosha.node.shard.replication.model.VersionedRecord;

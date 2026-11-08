@@ -5,7 +5,7 @@ import com.margosha.api.model.PrimaryKey;
 import com.margosha.node.common.exception.RecordNotFoundException;
 import com.margosha.node.common.storage.RecordStorage;
 import com.margosha.node.coordinator.model.ReplicaAnswer;
-import com.margosha.node.coordinator.service.QuorumReader;
+import com.margosha.node.coordinator.replica.QuorumReader;
 import com.margosha.node.coordinator.service.ShardRegistryService;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;

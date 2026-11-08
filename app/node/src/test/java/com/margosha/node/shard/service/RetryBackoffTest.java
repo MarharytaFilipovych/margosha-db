@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 
+import com.margosha.node.common.util.RetryBackoff;
 import org.junit.jupiter.api.Test;
 
 class RetryBackoffTest {

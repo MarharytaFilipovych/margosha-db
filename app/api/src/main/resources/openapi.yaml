@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Margosha DB API
-  version: 0.3.0
+  version: 0.4.0
   description: |
     API of the Margosha DB coordinator, and the internal API of its replicas.
     Clients register tables and do CRUD over records (plus EXISTS).
@@ -14,7 +14,11 @@ info:
     Replication: each shard is a replica set of a leader and followers (N = 3).
     The coordinator sends CREATE / UPDATE / DELETE to the owning shard's leader, which answers only after
     W replicas (itself included) stored the write. READ and EXISTS go to R replicas of the shard, and the
-    answer with the highest version wins. The client API below does not change.
+    copy that wins under Last-Write-Wins is returned (the newer vector clock, then the later HLC, then the
+    higher log version, then the higher writer ID). The client API below does not change.
+
+    Trace IDs: every request may send `X-Trace-Id`, and every response returns it, errors included.
+    The coordinator passes it to every replica it calls, so one ID finds the request in the logs of every node.
 
     A 503 on a write means its outcome is unknown: the leader may have stored it without enough follower
     confirmations, and it may become visible later. Read the record to find out.
@@ -27,10 +31,12 @@ info:
     in the path (`/tables/{tableName}/records/{partitionKey}?sortKey=...`) and only the non-key
     attributes in the body (the `Attributes` schema). On a replica:
     - CREATE is `POST` on the record path (not on `/records`), body `Attributes`, answer 201 with the attributes.
-    - READ returns a `ReplicaRecord`: the stored `Attributes` (without the key attributes) and their version.
-      A deleted record, or one the replica never received, is 404 `RECORD_NOT_FOUND` with `version` in the
-      error: the delete's version, or 0.
-    - EXISTS returns a `ReplicaExists`: `exists` and the version of the key's last write (0 if never written).
+    - READ returns a `ReplicaRecord`: the stored `Attributes` (without the key attributes), the `logVersion` of
+      their write (its position in the shard's log) and its `recordVersion` (vector clock and HLC).
+      A deleted record, or one the replica never received, is 404 `RECORD_NOT_FOUND` with `logVersion` in the
+      error: the delete's log version and its `recordVersion`, or 0 and no `recordVersion`.
+    - EXISTS returns a `ReplicaExists`: `exists` and the `logVersion` and `recordVersion` of the key's last
+      write (0 and no `recordVersion` if never written).
     - UPDATE returns the stored `Attributes`; DELETE is the same as on the coordinator.
     - Only the leader takes writes; a follower answers 421 `NOT_LEADER`. A write the followers did not
       confirm in time is 503 `SHARD_UNAVAILABLE` (outcome unknown).
@@ -46,6 +52,8 @@ tags:
 
 paths:
   /tables:
+    parameters:
+      - $ref: '#/components/parameters/TraceId'
     post:
       tags: [tables]
       operationId: registerTable
@@ -67,6 +75,9 @@ paths:
       responses:
         '201':
           description: Table registered.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
           content:
             application/json:
               schema:
@@ -80,6 +91,7 @@ paths:
 
   /tables/{tableName}/records:
     parameters:
+      - $ref: '#/components/parameters/TraceId'
       - $ref: '#/components/parameters/TableName'
     post:
       tags: [records]
@@ -98,6 +110,9 @@ paths:
       responses:
         '201':
           description: Record created.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
           content:
             application/json:
               schema:
@@ -115,6 +130,7 @@ paths:
 
   /tables/{tableName}/records/{partitionKey}:
     parameters:
+      - $ref: '#/components/parameters/TraceId'
       - $ref: '#/components/parameters/TableName'
       - $ref: '#/components/parameters/PartitionKey'
       - $ref: '#/components/parameters/SortKey'
@@ -125,6 +141,9 @@ paths:
       responses:
         '200':
           description: The record with all its attributes.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
           content:
             application/json:
               schema:
@@ -156,6 +175,9 @@ paths:
       responses:
         '200':
           description: The updated record.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
           content:
             application/json:
               schema:
@@ -177,6 +199,9 @@ paths:
       responses:
         '204':
           description: Record deleted.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
         '400':
           $ref: '#/components/responses/ValidationError'
         '404':
@@ -188,6 +213,7 @@ paths:
 
   /tables/{tableName}/records/{partitionKey}/exists:
     parameters:
+      - $ref: '#/components/parameters/TraceId'
       - $ref: '#/components/parameters/TableName'
       - $ref: '#/components/parameters/PartitionKey'
       - $ref: '#/components/parameters/SortKey'
@@ -202,6 +228,9 @@ paths:
       responses:
         '200':
           description: Whether the record exists.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
           content:
             application/json:
               schema:
@@ -221,6 +250,8 @@ paths:
           $ref: '#/components/responses/ShardUnavailable'
 
   /shards:
+    parameters:
+      - $ref: '#/components/parameters/TraceId'
     post:
       tags: [shards]
       operationId: registerShard
@@ -245,6 +276,9 @@ paths:
       responses:
         '200':
           description: Replica registered.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
           content:
             application/json:
               schema:
@@ -255,6 +289,8 @@ paths:
           $ref: '#/components/responses/InternalError'
 
   /replication/log:
+    parameters:
+      - $ref: '#/components/parameters/TraceId'
     get:
       tags: [replication]
       operationId: fetchLog
@@ -272,7 +308,7 @@ paths:
         - name: after
           in: query
           required: true
-          description: The follower's position, the version of the last entry it stored (0 when its log is empty).
+          description: The follower's position, the log version of the last entry it stored (0 when its log is empty).
           schema:
             type: integer
             format: int64
@@ -316,6 +352,9 @@ paths:
       responses:
         '200':
           description: The entries after `after`, in log order (possibly none).
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
           content:
             application/json:
               schema:
@@ -330,6 +369,8 @@ paths:
           $ref: '#/components/responses/InternalError'
 
   /replication/status:
+    parameters:
+      - $ref: '#/components/parameters/TraceId'
     get:
       tags: [replication]
       operationId: replicaStatus
@@ -337,6 +378,9 @@ paths:
       responses:
         '200':
           description: The replica's role, position, its followers' confirmed positions (leader) and counters.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
           content:
             application/json:
               schema:
@@ -372,6 +416,25 @@ components:
         type: string
         minLength: 1
 
+    TraceId:
+      name: X-Trace-Id
+      in: header
+      required: false
+      description: |
+        The request's trace ID. A value of 1 to 64 letters, digits or dashes is kept. Any other value,
+        or none, is replaced by a new ID of 32 hex characters. The coordinator sends it on to every replica it
+        calls, and every log line about the request carries it.
+      schema:
+        type: string
+      example: 3f1c9a2e4b7d4e1a9c3f2a8b6d0e5f71
+
+  headers:
+    TraceId:
+      description: The request's trace ID, the client's own if it was valid, otherwise a new one. Sent on every response, errors included.
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9-]{1,64}$'
+      example: 3f1c9a2e4b7d4e1a9c3f2a8b6d0e5f71
   schemas:
     TableDefinition:
       type: object
@@ -449,7 +512,7 @@ components:
         logVersion:
           type: integer
           format: int64
-          description: Version of the write that set these attributes (its position in the shard's log).
+          description: Log version of the write that set these attributes (its position in the shard's log).
         recordVersion:
           $ref: '#/components/schemas/RecordVersion'
       additionalProperties: false
@@ -464,7 +527,7 @@ components:
         logVersion:
           type: integer
           format: int64
-          description: Version of the key's last write, a delete included; 0 when the replica never received one.
+          description: Log version of the key's last write, a delete included; 0 when the replica never received one.
         recordVersion:
           $ref: '#/components/schemas/RecordVersion'
       additionalProperties: false
@@ -477,7 +540,7 @@ components:
         logVersion:
           type: integer
           format: int64
-          description: The entry's position in the shard's log, which is the record's new version.
+          description: The entry's position in the shard's log (its log version).
         table:
           type: string
         partitionKey:
@@ -595,7 +658,7 @@ components:
           type: integer
           format: int64
           description: |
-            Only in a replica's 404 for READ: the version it holds for the key (the delete's version, or 0 when
+            Only in a replica's 404 for READ: the log version it holds for the key (the delete's, or 0 when
             it never received a write for it). Never sent to clients of the coordinator.
         recordVersion:
           $ref: '#/components/schemas/RecordVersion'
@@ -606,6 +669,9 @@ components:
       description: |
         The request is invalid, for example an empty table name, a missing key attribute,
         a missing or unexpected sort key, or a non-string value.
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
       content:
         application/json:
           schema:
@@ -613,6 +679,9 @@ components:
           example: { code: VALIDATION_ERROR, message: 'Missing value for sort key order_id' }
     NotFound:
       description: The table or the record does not exist.
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
       content:
         application/json:
           schema:
@@ -620,6 +689,9 @@ components:
           example: { code: TABLE_NOT_FOUND, message: 'Table ghost does not exist' }
     TableNotFound:
       description: The table does not exist.
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
       content:
         application/json:
           schema:
@@ -627,6 +699,9 @@ components:
           example: { code: TABLE_NOT_FOUND, message: 'Table ghost does not exist' }
     Conflict:
       description: The table or the record already exists.
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
       content:
         application/json:
           schema:
@@ -634,6 +709,9 @@ components:
           example: { code: RECORD_ALREADY_EXISTS, message: 'Record user_id=42 already exists' }
     InternalError:
       description: An unexpected error in the server.
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
       content:
         application/json:
           schema:
@@ -646,6 +724,9 @@ components:
         fewer than R replicas of the owning shard answered. The request is not sent to another shard.
         On a write, the outcome is unknown: the leader may have stored it, and it may become visible later.
         Read the record before retrying; a retried CREATE can get 409 for the client's own record.
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
       content:
         application/json:
           schema:
@@ -659,6 +740,9 @@ components:
               value: { code: SHARD_UNAVAILABLE, message: 'Only 1 of the 2 replicas a read needs answered for shard shard-b' }
     NotLeader:
       description: Replicas only. This replica is a follower; writes and the log go to the shard's leader.
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
       content:
         application/json:
           schema:
@@ -669,6 +753,9 @@ components:
         Replicas only. The follower's log is not the same history as the leader's: another log ID, or a position
         past the leader's last entry (the leader's log was lost or replaced). Nothing is copied, and an operator has
         to decide which log is right.
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
       content:
         application/json:
           schema:

@@ -1,10 +1,8 @@
 package com.margosha.node.common.logging;
 
+import static com.margosha.node.data.LogLines.lineWith;
 import static com.margosha.node.data.TestData.testDataDir;
 import static org.assertj.core.api.Assertions.assertThat;
-
-import java.util.List;
-import java.util.Map;
 
 import com.margosha.node.NodeApplication;
 import org.junit.jupiter.api.Test;
@@ -14,13 +12,9 @@ import org.springframework.boot.logging.LoggingSystem;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.ConfigurableApplicationContext;
-import tools.jackson.core.type.TypeReference;
-import tools.jackson.databind.json.JsonMapper;
 
 @ExtendWith(OutputCaptureExtension.class)
 class StructuredLogTest {
-
-	private static final JsonMapper JSON = JsonMapper.builder().build();
 
 	@Test
 	void replicaLogLineIsJsonWithRoleShardAndReplica(CapturedOutput output) {
@@ -67,12 +61,5 @@ class StructuredLogTest {
 	private static ConfigurableApplicationContext start(String... args) {
 		LoggingSystem.get(StructuredLogTest.class.getClassLoader()).cleanUp();
 		return NodeApplication.run(args);
-	}
-
-	private static Map<String, Object> lineWith(CapturedOutput output, String message) {
-		List<String> lines = output.getOut().lines().filter(line -> line.contains(message)).toList();
-		assertThat(lines).as("console lines with \"%s\"", message).hasSize(1);
-		assertThat(lines.getFirst()).startsWith("{").endsWith("}");
-		return JSON.readValue(lines.getFirst(), new TypeReference<>() { });
 	}
 }

@@ -37,7 +37,7 @@ public final class InProcessNode implements AutoCloseable {
 	private static final String RETRY_MAX_INTERVAL = "--margosha.shard.register-retry-max-interval=400ms";
 	private static final String REFRESH_INTERVAL = "--margosha.shard.register-refresh-interval=300ms";
 
-	/** A shard on its own, as in M2: a leader in a replica set of one, so every write is confirmed at once. */
+	/** A shard on its own: a leader in a replica set of one, so every write is confirmed at once. */
 	private static final List<String> SINGLE_REPLICA = List.of("--margosha.replication.factor=1",
 			"--margosha.replication.write-quorum=1", "--margosha.replication.read-quorum=1");
 
@@ -48,8 +48,6 @@ public final class InProcessNode implements AutoCloseable {
 			"--margosha.replication.retry-max-interval=200ms");
 
 	private final ConfigurableApplicationContext context;
-
-	// Shards on their own (M2 style)
 
 	/** A single-replica shard: leader {@code <shardId>-1}, N = W = R = 1. */
 	public static InProcessNode shard(String shardId) {
@@ -65,11 +63,9 @@ public final class InProcessNode implements AutoCloseable {
 		return startCoordinator(port, TestData.testDataDir("coordinator"), SINGLE_REPLICA);
 	}
 
-	// Replica sets (M3)
-
 	/** A coordinator for replica sets: N = 3, W = 2, R = 2. */
-	public static InProcessNode replicatedCoordinator(int port, Path dataDir) {
-		return startCoordinator(port, dataDir, List.of());
+	public static InProcessNode replicatedCoordinator(int port, Path dataDir, String... extraArgs) {
+		return startCoordinator(port, dataDir, Arrays.asList(extraArgs));
 	}
 
 	/** The leader {@code <shardId>-1} of a replica set with N = 3, W = 2, R = 2. */
@@ -92,12 +88,17 @@ public final class InProcessNode implements AutoCloseable {
 
 	public static InProcessNode follower(String shardId, String replicaId, Path dataDir, String leaderUrl,
 			String... extraArgs) {
+		return follower(shardId, replicaId, dataDir, leaderUrl, 0, extraArgs);
+	}
+
+	public static InProcessNode follower(String shardId, String replicaId, Path dataDir, String leaderUrl, int port,
+			String... extraArgs) {
 		List<String> args = new ArrayList<>(List.of("--margosha.replica.id=" + replicaId,
 				"--margosha.replica.role=follower", "--margosha.data-dir=" + dataDir,
 				"--margosha.replica.leader-url=" + leaderUrl));
 		args.addAll(REPLICA_SET);
 		args.addAll(Arrays.asList(extraArgs));
-		return start(shardId, 0, args);
+		return start(shardId, port, args);
 	}
 
 	public static String[] registeringWith(String coordinatorUrl) {

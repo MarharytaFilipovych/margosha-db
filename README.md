@@ -583,7 +583,7 @@ Each shard has replicas in both private subnets, and the two leaders are in diff
 | Part | Document | Code / template |
 |---|---|---|
 | Decisions: N / W / R, how replicas sync, log structure, ordering, write acknowledgement | [ADR 0007](adr/0007-n-w-r-values.md), [0008](adr/0008-replica-synchronisation.md), [0009](adr/0009-log-structure.md), [0010](adr/0010-ordering-guarantees.md), [0011](adr/0011-write-acknowledgement.md) | — |
-| Replication: replica sets, write path, log and versions, followers and resync, quorum reads, failures | [m3/replication.md](m3/replication.md) | [app/node](app/node) (`shard.replication`, `coordinator.service.QuorumReader`) |
+| Replication: replica sets, write path, log and versions, followers and resync, quorum reads, failures | [m3/replication.md](m3/replication.md) | [app/node](app/node) (`shard.replication`, `coordinator.replica.QuorumReader`) |
 | API: replica registration with ID and role, versioned replica reads, `/replication/log`, `/replication/status`, `421 NOT_LEADER`, `503` "outcome unknown" | [openapi.yaml](app/api/src/main/resources/openapi.yaml) | [app/api](app/api) |
 | Application stack: coordinator + 6 replicas, versioned releases | [checks on AWS](m3/aws_checks/README.md) | [margosha-app.yaml](cfn/margosha-app.yaml) |
 | Pipeline: versions, rollback, 7 nodes, credential check | [below](#deploy-pipeline-in-m3), [Deploy pipeline](#deploy-pipeline) | [pipeline.yml](.github/workflows/pipeline.yml) |

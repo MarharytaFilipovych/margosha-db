@@ -199,10 +199,10 @@ On a leader, `followerPositions` shows how far each follower has confirmed (its 
 | `shard.replication.follower.FollowerReplicator` | follower | The fetch → store → apply loop, resync, retries |
 | `shard.replication.follower.FollowerRecordStorage` | follower | Reads from its copy; writes answer `421 NOT_LEADER` |
 | `shard.service.ReplicaReadService` | replica | Versioned READ / EXISTS, read counter |
-| `coordinator.service.ShardRegistryService`, `ReplicaSet` | coordinator | Registered replicas per shard, the leader, the round-robin read order |
-| `coordinator.service.QuorumReader` | coordinator | Asks R replicas in parallel, replaces a failed one, returns the newest |
+| `coordinator.service.ShardRegistryService`, `coordinator.replica.ReplicaSet` | coordinator | Registered replicas per shard, the leader, the round-robin read order |
+| `coordinator.replica.QuorumReader` | coordinator | Asks R replicas in parallel, replaces a failed one, returns the newest |
 | `coordinator.storage.ShardRoutingService` | coordinator | Writes to the leader, reads through the quorum |
-| `coordinator.storage.RemoteReplica` | coordinator | Calls one replica over HTTP |
+| `coordinator.replica.RemoteReplica` | coordinator | Calls one replica over HTTP |
 
 ## Tests that show each case
 
