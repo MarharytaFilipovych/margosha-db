@@ -21,7 +21,7 @@
 
 ## 3. Structured logs and trace IDs (after ADR 0017)
 
-- [ ] 3.1 Switch every role to the structured log format from ADR 0017 with `role`, `shard`, `replica` fields; verify a test that a log line parses with those fields and the message
+- [x] 3.1 Switch every role to the structured log format from ADR 0017 with `role`, `shard`, `replica` fields; verify a test that a log line parses with those fields and the message
 - [ ] 3.2 Trace ID filter on both roles as ADR 0017 decides (accept a valid client value, otherwise generate one; MDC; response header, errors included; one line with method, path, status and `durationMs` when the request ends); verify `CoordinatorControllerTest` cases for generated, kept, and invalid IDs, an error response with the header, and the end-of-request line with its duration
 - [ ] 3.3 Propagate the trace ID to the replicas the coordinator calls, including `QuorumReader`'s virtual threads, and log one line per replica call with the replica, status and `durationMs`; verify an in-process test (2 shards × 3 replicas, log capture) that one write's trace ID appears on the coordinator and the leader, one read's on the replicas that answered, and that each call's duration is at least the replica's own and at most the coordinator's request duration
 - [ ] 3.4 Check every log search in `.github/workflows/pipeline.yml` and the README (`Running as`, `Registered replica`, `downloaded`, …) against the new log lines and fix the ones that break; verify the pipeline's wait step passes on a test deploy
