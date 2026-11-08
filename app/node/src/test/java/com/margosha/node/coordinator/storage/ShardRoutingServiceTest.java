@@ -1,5 +1,7 @@
 package com.margosha.node.coordinator.storage;
 
+
+import static com.margosha.node.data.TestData.writeVersion;
 import static com.margosha.node.data.TestData.ANN_ATTRIBUTES;
 import static com.margosha.node.data.TestData.BOB_ATTRIBUTES;
 import static com.margosha.node.data.TestData.SHARD_A;
@@ -62,9 +64,9 @@ class ShardRoutingServiceTest {
 	void readReturnsTheNewestAnswerOfTheQuorum() {
 		// Arrange
 		registerAll();
-		replicas.get(LEADER.replicaId()).answers(ReplicaAnswer.found(2, BOB_ATTRIBUTES));
-		replicas.get(FOLLOWER_2.replicaId()).answers(ReplicaAnswer.found(2, BOB_ATTRIBUTES));
-		replicas.get(FOLLOWER_3.replicaId()).answers(ReplicaAnswer.found(1, ANN_ATTRIBUTES));
+		replicas.get(LEADER.replicaId()).answers(ReplicaAnswer.found(2, writeVersion(2), BOB_ATTRIBUTES));
+		replicas.get(FOLLOWER_2.replicaId()).answers(ReplicaAnswer.found(2, writeVersion(2), BOB_ATTRIBUTES));
+		replicas.get(FOLLOWER_3.replicaId()).answers(ReplicaAnswer.found(1, writeVersion(1), ANN_ATTRIBUTES));
 
 		// Act
 		Attributes first = storage.read(USERS, USER_42);
@@ -81,9 +83,9 @@ class ShardRoutingServiceTest {
 	void newestAnswerBeingADeleteIsRecordNotFound() {
 		// Arrange
 		registerAll();
-		replicas.get(LEADER.replicaId()).answers(ReplicaAnswer.notFound(3));
-		replicas.get(FOLLOWER_2.replicaId()).answers(ReplicaAnswer.notFound(3));
-		replicas.get(FOLLOWER_3.replicaId()).answers(ReplicaAnswer.found(2, ANN_ATTRIBUTES));
+		replicas.get(LEADER.replicaId()).answers(ReplicaAnswer.notFound(3, writeVersion(3)));
+		replicas.get(FOLLOWER_2.replicaId()).answers(ReplicaAnswer.notFound(3, writeVersion(3)));
+		replicas.get(FOLLOWER_3.replicaId()).answers(ReplicaAnswer.found(2, writeVersion(2), ANN_ATTRIBUTES));
 
 		// Act
 		Throwable read = catchThrowable(() -> storage.read(USERS, USER_42));

@@ -25,6 +25,7 @@ import java.util.zip.CRC32;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.margosha.api.model.Attributes;
 import com.margosha.api.model.PrimaryKey;
+import com.margosha.api.model.RecordVersion;
 import com.margosha.node.shard.replication.exception.LogCorruptedException;
 import com.margosha.node.shard.replication.model.LogEntry;
 import tools.jackson.core.JacksonException;
@@ -77,9 +78,9 @@ public final class ReplicationLog implements AutoCloseable {
 		}
 	}
 
-	public LogEntry appendNext(String table, PrimaryKey key, Attributes attributes) {
+	public LogEntry appendNext(String table, PrimaryKey key, Attributes attributes, RecordVersion recordVersion) {
 		synchronized (appendLock) {
-			LogEntry entry = new LogEntry(lastVersion() + 1, table, key, attributes);
+			LogEntry entry = new LogEntry(lastVersion() + 1, table, key, attributes, recordVersion);
 			write(entry);
 			return entry;
 		}
@@ -88,9 +89,9 @@ public final class ReplicationLog implements AutoCloseable {
 	public void appendReplicated(LogEntry entry) {
 		synchronized (appendLock) {
 			long expected = lastVersion() + 1;
-			if (entry.version() != expected) {
+			if (entry.logVersion() != expected) {
 				throw new IllegalArgumentException(
-						"Expected the entry with version " + expected + " but got version " + entry.version());
+						"Expected the entry with log version " + expected + " but got log version " + entry.logVersion());
 			}
 			write(entry);
 		}
@@ -121,10 +122,10 @@ public final class ReplicationLog implements AutoCloseable {
 		int lineStart = 0;
 		for (int i = 0; i < bytes.length; i++) {
 			if (bytes[i] == NEWLINE) {
-				long version = first + entries.size() + 1L;
-				LogEntry entry = parse(Arrays.copyOfRange(bytes, lineStart, i), version);
+				long logVersion = first + entries.size() + 1L;
+				LogEntry entry = parse(Arrays.copyOfRange(bytes, lineStart, i), logVersion);
 				if (entry == null) {
-					throw new LogCorruptedException("Entry " + version + " in " + file + " changed after it was stored");
+					throw new LogCorruptedException("Entry " + logVersion + " in " + file + " changed after it was stored");
 				}
 				entries.add(entry);
 				lineStart = i + 1;
@@ -255,7 +256,7 @@ public final class ReplicationLog implements AutoCloseable {
 		}
 		try {
 			LogEntry entry = JSON.readValue(json, LogLine.class).toEntry();
-			return entry.version() == expectedVersion ? entry : null;
+			return entry.logVersion() == expectedVersion ? entry : null;
 		} catch (JacksonException | IllegalArgumentException | NullPointerException e) {
 			return null;
 		}
@@ -281,23 +282,25 @@ public final class ReplicationLog implements AutoCloseable {
 	}
 
 	@JsonInclude(JsonInclude.Include.NON_NULL)
-	record LogLine(long version, String table, String partitionKey, String sortKey, Map<String, String> attributes,
-			Boolean deleted) {
+	record LogLine(long logVersion, String table, String partitionKey,
+				   String sortKey, Map<String, String> attributes,
+				   Boolean deleted, RecordVersion recordVersion) {
 
 		static LogLine of(LogEntry entry) {
 			PrimaryKey key = entry.key();
 			return entry.deleted()
-					? new LogLine(entry.version(), entry.table(), key.partitionKey(), key.sortKey(), null, true)
-					: new LogLine(entry.version(), entry.table(), key.partitionKey(), key.sortKey(),
-							entry.attributes().values(), null);
+					? new LogLine(entry.logVersion(), entry.table(), key.partitionKey(), key.sortKey(), null, true,
+							entry.recordVersion())
+					: new LogLine(entry.logVersion(), entry.table(), key.partitionKey(), key.sortKey(),
+							entry.attributes().values(), null, entry.recordVersion());
 		}
 
 		LogEntry toEntry() {
 			PrimaryKey key = new PrimaryKey(partitionKey, sortKey);
 			if (Boolean.TRUE.equals(deleted)) {
-				return LogEntry.delete(version, table, key);
+				return LogEntry.delete(logVersion, table, key, recordVersion);
 			}
-			return LogEntry.put(version, table, key, Attributes.of(attributes));
+			return LogEntry.put(logVersion, table, key, Attributes.of(attributes), recordVersion);
 		}
 	}
 }

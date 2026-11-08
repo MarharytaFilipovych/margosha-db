@@ -46,8 +46,8 @@ public class ShardConfig {
 	}
 
 	@Bean(destroyMethod = "close")
-	public ReplicaStorage replicaStorage(@Value("${margosha.data-dir}") String dataDir) {
-		return ReplicaStorage.open(Path.of(dataDir));
+	public ReplicaStorage replicaStorage(@Value("${margosha.data-dir}") String dataDir, ReplicaIdentity identity) {
+		return ReplicaStorage.open(Path.of(dataDir), identity.replicaId(), System::currentTimeMillis);
 	}
 
 	@Bean

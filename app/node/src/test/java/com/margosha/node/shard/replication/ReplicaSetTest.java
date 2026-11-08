@@ -30,6 +30,7 @@ import java.util.stream.Stream;
 
 import com.margosha.api.exception.ApiException;
 import com.margosha.api.model.ErrorCode;
+import com.margosha.api.model.Attributes;
 import com.margosha.api.model.PrimaryKey;
 import com.margosha.api.model.ReplicaStatus;
 import com.margosha.node.data.InProcessNode;
@@ -85,7 +86,7 @@ class ReplicaSetTest {
 
 			// Assert
 			assertThat(follower2.replica().readVersioned(USERS, USER_42))
-					.contains(new VersionedRecord(2, BOB_ATTRIBUTES));
+					.map(ReplicaSetTest::withoutRecordVersion).contains(Map.entry(2L, BOB_ATTRIBUTES));
 		}
 	}
 
@@ -105,7 +106,7 @@ class ReplicaSetTest {
 			assertThat(error.error().message()).contains("outcome is unknown");
 			assertThat(waited).isGreaterThanOrEqualTo(InProcessNode.ACK_TIMEOUT);
 			assertThat(leader.replica().lastVersion()).isEqualTo(1);
-			assertThat(leader.replica().readVersioned(USERS, USER_42)).contains(new VersionedRecord(1, ANN_ATTRIBUTES));
+			assertThat(leader.replica().readVersioned(USERS, USER_42)).map(ReplicaSetTest::withoutRecordVersion).contains(Map.entry(1L, ANN_ATTRIBUTES));
 		}
 	}
 
@@ -121,7 +122,7 @@ class ReplicaSetTest {
 
 				// Assert
 				eventually(CATCH_UP, () -> assertThat(follower2.replica().readVersioned(USERS, USER_42))
-						.contains(new VersionedRecord(1, ANN_ATTRIBUTES)));
+						.map(ReplicaSetTest::withoutRecordVersion).contains(Map.entry(1L, ANN_ATTRIBUTES)));
 			}
 		}
 	}
@@ -219,7 +220,7 @@ class ReplicaSetTest {
 
 				// Assert
 				assertThat(follower2.replica().readVersioned(USERS, USER_42))
-						.contains(new VersionedRecord(1, ANN_ATTRIBUTES));
+						.map(ReplicaSetTest::withoutRecordVersion).contains(Map.entry(1L, ANN_ATTRIBUTES));
 			}
 		}
 	}
@@ -415,5 +416,9 @@ class ReplicaSetTest {
 				Files.delete(file);
 			}
 		}
+	}
+
+	private static Map.Entry<Long, Attributes> withoutRecordVersion(VersionedRecord record) {
+		return Map.entry(record.logVersion(), record.attributes());
 	}
 }

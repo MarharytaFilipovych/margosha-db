@@ -1,5 +1,7 @@
 package com.margosha.node.shard.replication.storage;
 
+
+import static com.margosha.node.data.TestData.writeVersion;
 import static com.margosha.node.data.TestData.ANN_ATTRIBUTES;
 import static com.margosha.node.data.TestData.BOB_ATTRIBUTES;
 import static com.margosha.node.data.TestData.ORDERS;
@@ -25,9 +27,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.margosha.api.model.Attributes;
+import com.margosha.api.model.Hlc;
 import com.margosha.api.model.PrimaryKey;
+import com.margosha.api.model.RecordVersion;
 import com.margosha.node.common.exception.RecordAlreadyExistsException;
 import com.margosha.node.common.exception.RecordNotFoundException;
 import com.margosha.node.shard.replication.model.LogEntry;
@@ -36,6 +41,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class ReplicaStorageTest {
+
+	private static final String LEADER_ID = "shard-a-1";
+
+	private final AtomicLong now = new AtomicLong(1_000);
 
 	@TempDir
 	Path leaderDir;
@@ -46,7 +55,7 @@ class ReplicaStorageTest {
 	@Test
 	void newLogHasNoIdUntilTheLeaderGivesItOne() {
 		// Arrange
-		try (ReplicaStorage store = ReplicaStorage.open(leaderDir)) {
+		try (ReplicaStorage store = openLeader()) {
 
 			// Act
 			String id = store.ensureLogId();
@@ -62,13 +71,13 @@ class ReplicaStorageTest {
 	void logIdSurvivesARestart() {
 		// Arrange
 		String id;
-		try (ReplicaStorage store = ReplicaStorage.open(leaderDir)) {
+		try (ReplicaStorage store = openLeader()) {
 			id = store.ensureLogId();
 			store.create(USERS, USER_42, ANN_ATTRIBUTES);
 		}
 
 		// Act
-		try (ReplicaStorage reopened = ReplicaStorage.open(leaderDir)) {
+		try (ReplicaStorage reopened = openLeader()) {
 
 			// Assert
 			assertThat(reopened.logId()).contains(id);
@@ -78,14 +87,14 @@ class ReplicaStorageTest {
 	@Test
 	void emptyLogDropsAnIdLeftBehind() throws Exception {
 		// Arrange: only the log was deleted, its ID file stayed
-		try (ReplicaStorage store = ReplicaStorage.open(leaderDir)) {
+		try (ReplicaStorage store = openLeader()) {
 			store.ensureLogId();
 			store.create(USERS, USER_42, ANN_ATTRIBUTES);
 		}
 		Files.delete(leaderDir.resolve(ReplicaStorage.LOG_FILE));
 
 		// Act
-		try (ReplicaStorage reopened = ReplicaStorage.open(leaderDir)) {
+		try (ReplicaStorage reopened = openLeader()) {
 
 			// Assert
 			assertThat(reopened.logId()).isEmpty();
@@ -96,14 +105,14 @@ class ReplicaStorageTest {
 	@Test
 	void logWrittenBeforeLogIdsExistedHasNoIdAndKeepsItsRecords() throws Exception {
 		// Arrange
-		try (ReplicaStorage store = ReplicaStorage.open(leaderDir)) {
+		try (ReplicaStorage store = openLeader()) {
 			store.ensureLogId();
 			store.create(USERS, USER_42, ANN_ATTRIBUTES);
 		}
 		Files.delete(leaderDir.resolve(ReplicaStorage.LOG_ID_FILE));
 
 		// Act
-		try (ReplicaStorage reopened = ReplicaStorage.open(leaderDir)) {
+		try (ReplicaStorage reopened = openLeader()) {
 
 			// Assert
 			assertThat(reopened.logId()).isEmpty();
@@ -114,8 +123,8 @@ class ReplicaStorageTest {
 	@Test
 	void followerTakesTheLeadersIdWhileItsLogIsEmpty() {
 		// Arrange
-		try (ReplicaStorage leader = ReplicaStorage.open(leaderDir);
-				ReplicaStorage follower = ReplicaStorage.open(followerDir)) {
+		try (ReplicaStorage leader = openLeader();
+				ReplicaStorage follower = openFollower()) {
 			String leaderId = leader.ensureLogId();
 
 			// Act
@@ -129,7 +138,7 @@ class ReplicaStorageTest {
 	@Test
 	void logWithEntriesCannotTakeAnotherId() {
 		// Arrange
-		try (ReplicaStorage follower = ReplicaStorage.open(followerDir)) {
+		try (ReplicaStorage follower = openFollower()) {
 			follower.ensureLogId();
 			follower.create(USERS, USER_42, ANN_ATTRIBUTES);
 
@@ -144,7 +153,7 @@ class ReplicaStorageTest {
 	@Test
 	void createdRecordIsReadWithItsVersion() {
 		// Arrange
-		try (ReplicaStorage store = ReplicaStorage.open(leaderDir)) {
+		try (ReplicaStorage store = openLeader()) {
 
 			// Act
 			store.create(USERS, USER_42, ANN_ATTRIBUTES);
@@ -152,14 +161,14 @@ class ReplicaStorageTest {
 			// Assert
 			assertThat(store.read(USERS, USER_42)).isEqualTo(ANN_ATTRIBUTES);
 			assertThat(store.exists(USERS, USER_42)).isTrue();
-			assertThat(store.readVersioned(USERS, USER_42)).contains(new VersionedRecord(1, ANN_ATTRIBUTES));
+			assertThat(store.readVersioned(USERS, USER_42)).map(ReplicaStorageTest::withoutRecordVersion).contains(Map.entry(1L, ANN_ATTRIBUTES));
 		}
 	}
 
 	@Test
 	void updateGivesTheRecordAHigherVersion() {
 		// Arrange
-		try (ReplicaStorage store = ReplicaStorage.open(leaderDir)) {
+		try (ReplicaStorage store = openLeader()) {
 			store.create(USERS, USER_42, ANN_ATTRIBUTES);
 
 			// Act
@@ -167,14 +176,14 @@ class ReplicaStorageTest {
 
 			// Assert
 			assertThat(store.read(USERS, USER_42)).isEqualTo(BOB_ATTRIBUTES);
-			assertThat(store.readVersioned(USERS, USER_42)).contains(new VersionedRecord(2, BOB_ATTRIBUTES));
+			assertThat(store.readVersioned(USERS, USER_42)).map(ReplicaStorageTest::withoutRecordVersion).contains(Map.entry(2L, BOB_ATTRIBUTES));
 		}
 	}
 
 	@Test
 	void deletedRecordReadsAsNotFoundWithItsVersion() {
 		// Arrange
-		try (ReplicaStorage store = ReplicaStorage.open(leaderDir)) {
+		try (ReplicaStorage store = openLeader()) {
 			store.create(USERS, USER_42, ANN_ATTRIBUTES);
 
 			// Act
@@ -184,7 +193,7 @@ class ReplicaStorageTest {
 			Optional<VersionedRecord> versioned = store.readVersioned(USERS, USER_42);
 			assertThat(versioned).isPresent();
 			assertThat(versioned.get().deleted()).isTrue();
-			assertThat(versioned.get().version()).isEqualTo(2);
+			assertThat(versioned.get().logVersion()).isEqualTo(2);
 			assertThat(store.exists(USERS, USER_42)).isFalse();
 			assertThat(catchThrowable(() -> store.read(USERS, USER_42))).isInstanceOf(RecordNotFoundException.class);
 		}
@@ -193,7 +202,7 @@ class ReplicaStorageTest {
 	@Test
 	void recordNeverWrittenHasNoVersion() {
 		// Arrange
-		try (ReplicaStorage store = ReplicaStorage.open(leaderDir)) {
+		try (ReplicaStorage store = openLeader()) {
 			store.create(USERS, USER_42, ANN_ATTRIBUTES);
 
 			// Act
@@ -208,7 +217,7 @@ class ReplicaStorageTest {
 	@Test
 	void deletedKeyCanBeCreatedAgainWithANewVersion() {
 		// Arrange
-		try (ReplicaStorage store = ReplicaStorage.open(leaderDir)) {
+		try (ReplicaStorage store = openLeader()) {
 			store.create(USERS, USER_42, ANN_ATTRIBUTES);
 			store.delete(USERS, USER_42);
 
@@ -216,14 +225,14 @@ class ReplicaStorageTest {
 			store.create(USERS, USER_42, BOB_ATTRIBUTES);
 
 			// Assert
-			assertThat(store.readVersioned(USERS, USER_42)).contains(new VersionedRecord(3, BOB_ATTRIBUTES));
+			assertThat(store.readVersioned(USERS, USER_42)).map(ReplicaStorageTest::withoutRecordVersion).contains(Map.entry(3L, BOB_ATTRIBUTES));
 		}
 	}
 
 	@Test
 	void writesThatFailTheirCheckAreNotLogged() {
 		// Arrange
-		try (ReplicaStorage store = ReplicaStorage.open(leaderDir)) {
+		try (ReplicaStorage store = openLeader()) {
 			store.create(USERS, USER_42, ANN_ATTRIBUTES);
 			store.create(USERS, USER_7, BOB_ATTRIBUTES);
 			store.delete(USERS, USER_7);
@@ -254,7 +263,7 @@ class ReplicaStorageTest {
 		Map<PrimaryKey, Optional<VersionedRecord>> usersBefore;
 		Map<PrimaryKey, Optional<VersionedRecord>> ordersBefore;
 		long lastVersionBefore;
-		try (ReplicaStorage store = ReplicaStorage.open(leaderDir)) {
+		try (ReplicaStorage store = openLeader()) {
 			store.create(USERS, USER_42, ANN_ATTRIBUTES);
 			store.create(USERS, USER_7, BOB_ATTRIBUTES);
 			store.update(USERS, USER_42, BOB_ATTRIBUTES);
@@ -267,7 +276,7 @@ class ReplicaStorageTest {
 		}
 
 		// Act
-		try (ReplicaStorage rebuilt = ReplicaStorage.open(leaderDir)) {
+		try (ReplicaStorage rebuilt = openLeader()) {
 
 			// Assert
 			assertThat(snapshot(rebuilt, USERS, userKeys)).isEqualTo(usersBefore);
@@ -275,32 +284,32 @@ class ReplicaStorageTest {
 			assertThat(rebuilt.lastVersion()).isEqualTo(lastVersionBefore).isEqualTo(6);
 			assertThat(rebuilt.read(USERS, USER_42)).isEqualTo(BOB_ATTRIBUTES);
 			assertThat(rebuilt.exists(ORDERS, ORDER_42_1)).isFalse();
-			assertThat(rebuilt.readVersioned(ORDERS, ORDER_42_1).map(VersionedRecord::version)).contains(6L);
+			assertThat(rebuilt.readVersioned(ORDERS, ORDER_42_1).map(VersionedRecord::logVersion)).contains(6L);
 		}
 	}
 
 	@Test
 	void rebuiltStoreContinuesWithTheNextVersion() {
 		// Arrange
-		try (ReplicaStorage store = ReplicaStorage.open(leaderDir)) {
+		try (ReplicaStorage store = openLeader()) {
 			store.create(USERS, USER_42, ANN_ATTRIBUTES);
 			store.delete(USERS, USER_42);
 		}
 
 		// Act
-		try (ReplicaStorage rebuilt = ReplicaStorage.open(leaderDir)) {
+		try (ReplicaStorage rebuilt = openLeader()) {
 			rebuilt.create(USERS, USER_42, BOB_ATTRIBUTES);
 
 			// Assert
-			assertThat(rebuilt.readVersioned(USERS, USER_42)).contains(new VersionedRecord(3, BOB_ATTRIBUTES));
+			assertThat(rebuilt.readVersioned(USERS, USER_42)).map(ReplicaStorageTest::withoutRecordVersion).contains(Map.entry(3L, BOB_ATTRIBUTES));
 		}
 	}
 
 	@Test
 	void followerAppliesTheLeadersEntriesAndHoldsTheSameRecords() {
 		// Arrange
-		try (ReplicaStorage leader = ReplicaStorage.open(leaderDir);
-				ReplicaStorage follower = ReplicaStorage.open(followerDir)) {
+		try (ReplicaStorage leader = openLeader();
+				ReplicaStorage follower = openFollower()) {
 			leader.create(USERS, USER_42, ANN_ATTRIBUTES);
 			leader.create(USERS, USER_7, BOB_ATTRIBUTES);
 			leader.update(USERS, USER_42, BOB_ATTRIBUTES);
@@ -320,15 +329,15 @@ class ReplicaStorageTest {
 	@Test
 	void followerKeepsAppliedEntriesAfterARestart() {
 		// Arrange
-		try (ReplicaStorage leader = ReplicaStorage.open(leaderDir)) {
+		try (ReplicaStorage leader = openLeader()) {
 			leader.create(USERS, USER_42, ANN_ATTRIBUTES);
 			leader.delete(USERS, USER_42);
-			try (ReplicaStorage follower = ReplicaStorage.open(followerDir)) {
+			try (ReplicaStorage follower = openFollower()) {
 				leader.entriesAfter(0, 100).forEach(follower::apply);
 			}
 
 			// Act
-			try (ReplicaStorage restarted = ReplicaStorage.open(followerDir)) {
+			try (ReplicaStorage restarted = openFollower()) {
 
 				// Assert
 				assertThat(restarted.lastVersion()).isEqualTo(2);
@@ -341,8 +350,8 @@ class ReplicaStorageTest {
 	@Test
 	void followerIgnoresAnEntryItAlreadyHas() {
 		// Arrange
-		LogEntry first = LogEntry.put(1, USERS, USER_42, ANN_ATTRIBUTES);
-		try (ReplicaStorage follower = ReplicaStorage.open(followerDir)) {
+		LogEntry first = LogEntry.put(1, USERS, USER_42, ANN_ATTRIBUTES, writeVersion(1));
+		try (ReplicaStorage follower = openFollower()) {
 			follower.apply(first);
 
 			// Act
@@ -357,11 +366,11 @@ class ReplicaStorageTest {
 	@Test
 	void followerRefusesAnEntryThatWouldSkipAVersion() {
 		// Arrange
-		try (ReplicaStorage follower = ReplicaStorage.open(followerDir)) {
-			follower.apply(LogEntry.put(1, USERS, USER_42, ANN_ATTRIBUTES));
+		try (ReplicaStorage follower = openFollower()) {
+			follower.apply(LogEntry.put(1, USERS, USER_42, ANN_ATTRIBUTES, writeVersion(1)));
 
 			// Act
-			Throwable thrown = catchThrowable(() -> follower.apply(LogEntry.put(3, USERS, USER_7, BOB_ATTRIBUTES)));
+			Throwable thrown = catchThrowable(() -> follower.apply(LogEntry.put(3, USERS, USER_7, BOB_ATTRIBUTES, writeVersion(3))));
 
 			// Assert
 			assertThat(thrown).isInstanceOf(IllegalArgumentException.class);
@@ -375,7 +384,7 @@ class ReplicaStorageTest {
 		// Arrange
 		int threads = 16;
 		CountDownLatch start = new CountDownLatch(1);
-		try (ReplicaStorage store = ReplicaStorage.open(leaderDir);
+		try (ReplicaStorage store = openLeader();
 				ExecutorService executor = Executors.newFixedThreadPool(threads)) {
 			List<Future<Boolean>> results = new ArrayList<>();
 			for (int i = 0; i < threads; i++) {
@@ -406,6 +415,108 @@ class ReplicaStorageTest {
 			assertThat(created).isEqualTo(1);
 			assertThat(store.lastVersion()).isEqualTo(1);
 		}
+	}
+
+	@Test
+	void everyWriteGetsAVectorClockAndHlcFromTheLeader() {
+		// Arrange
+		try (ReplicaStorage store = openLeader()) {
+
+			// Act
+			LogEntry created = store.create(USERS, USER_42, ANN_ATTRIBUTES);
+			now.set(2_000);
+			LogEntry updated = store.update(USERS, USER_42, BOB_ATTRIBUTES);
+			LogEntry deleted = store.delete(USERS, USER_42);
+
+			// Assert
+			assertThat(created.recordVersion()).isEqualTo(version(1, 1_000, 0));
+			assertThat(updated.recordVersion()).isEqualTo(version(2, 2_000, 0));
+			assertThat(deleted.recordVersion()).isEqualTo(version(3, 2_000, 1));
+			assertThat(store.readVersioned(USERS, USER_42).map(VersionedRecord::recordVersion))
+					.contains(deleted.recordVersion());
+		}
+	}
+
+	@Test
+	void eachKeyHasItsOwnVectorButTheHlcIsSharedByTheLog() {
+		// Arrange
+		try (ReplicaStorage store = openLeader()) {
+			store.create(USERS, USER_42, ANN_ATTRIBUTES);
+
+			// Act
+			LogEntry other = store.create(USERS, USER_7, BOB_ATTRIBUTES);
+
+			// Assert
+			assertThat(other.recordVersion()).isEqualTo(version(1, 1_000, 1));
+		}
+	}
+
+	@Test
+	void hlcDoesNotGoBackWhenTheClockGoesBack() {
+		// Arrange
+		try (ReplicaStorage store = openLeader()) {
+			store.create(USERS, USER_42, ANN_ATTRIBUTES);
+			now.set(500);
+
+			// Act
+			LogEntry updated = store.update(USERS, USER_42, BOB_ATTRIBUTES);
+
+			// Assert
+			assertThat(updated.recordVersion().hlc()).isEqualTo(new Hlc(1_000, 1));
+		}
+	}
+
+	@Test
+	void recordVersionAndHlcSurviveARebuild() {
+		// Arrange
+		RecordVersion before;
+		try (ReplicaStorage store = openLeader()) {
+			store.create(USERS, USER_42, ANN_ATTRIBUTES);
+			before = store.update(USERS, USER_42, BOB_ATTRIBUTES).recordVersion();
+		}
+		now.set(100);
+
+		// Act
+		try (ReplicaStorage rebuilt = openLeader()) {
+			LogEntry next = rebuilt.create(USERS, USER_7, ANN_ATTRIBUTES);
+
+			// Assert
+			assertThat(rebuilt.readVersioned(USERS, USER_42).map(VersionedRecord::recordVersion)).contains(before);
+			assertThat(next.recordVersion().hlc()).isEqualTo(new Hlc(1_000, 2));
+		}
+	}
+
+	@Test
+	void followerKeepsTheLeadersRecordVersions() {
+		// Arrange
+		try (ReplicaStorage leader = openLeader(); ReplicaStorage follower = openFollower()) {
+			LogEntry written = leader.create(USERS, USER_42, ANN_ATTRIBUTES);
+
+			// Act
+			leader.entriesAfter(0, 100).forEach(follower::apply);
+
+			// Assert
+			assertThat(follower.entriesAfter(0, 100)).containsExactly(written);
+			assertThat(follower.readVersioned(USERS, USER_42).map(VersionedRecord::recordVersion))
+					.contains(version(1, 1_000, 0));
+		}
+	}
+
+
+	private ReplicaStorage openLeader() {
+		return ReplicaStorage.open(leaderDir, LEADER_ID, now::get);
+	}
+
+	private ReplicaStorage openFollower() {
+		return ReplicaStorage.open(followerDir, "shard-a-2", now::get);
+	}
+
+	private static RecordVersion version(long counter, long l, long c) {
+		return new RecordVersion(Map.of(LEADER_ID, counter), new Hlc(l, c), LEADER_ID);
+	}
+
+	private static Map.Entry<Long, Attributes> withoutRecordVersion(VersionedRecord record) {
+		return Map.entry(record.logVersion(), record.attributes());
 	}
 
 	private static Map<PrimaryKey, Optional<VersionedRecord>> snapshot(ReplicaStorage store, String table,

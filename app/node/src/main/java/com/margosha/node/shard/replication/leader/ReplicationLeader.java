@@ -78,13 +78,13 @@ public class ReplicationLeader implements SmartLifecycle {
 		return storage.entriesAfter(after, maxEntries);
 	}
 
-	public boolean awaitConfirmations(long version) {
+	public boolean awaitConfirmations(long logVersion) {
 		if (confirmationsNeeded <= 0) {
 			return true;
 		}
 		long deadline = System.nanoTime() + ackTimeout.toNanos();
 		synchronized (monitor) {
-			while (confirmed(version) < confirmationsNeeded) {
+			while (confirmed(logVersion) < confirmationsNeeded) {
 				long remaining = deadline - System.nanoTime();
 				if (remaining <= 0 || interruptedWhileWaiting(remaining)) {
 					return false;
@@ -126,10 +126,10 @@ public class ReplicationLeader implements SmartLifecycle {
 		}
 	}
 
-	private int confirmed(long version) {
+	private int confirmed(long logVersion) {
 		int count = 0;
 		for (long position : followerPositions.values()) {
-			if (position >= version) {
+			if (position >= logVersion) {
 				count++;
 			}
 		}

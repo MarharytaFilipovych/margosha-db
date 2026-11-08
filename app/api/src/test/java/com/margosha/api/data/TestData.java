@@ -13,7 +13,9 @@ import com.margosha.api.model.ApiError;
 import com.margosha.api.model.Attributes;
 import com.margosha.api.model.ErrorCode;
 import com.margosha.api.model.ExistsResult;
+import com.margosha.api.model.Hlc;
 import com.margosha.api.model.PrimaryKey;
+import com.margosha.api.model.RecordVersion;
 import com.margosha.api.model.ReplicaExists;
 import com.margosha.api.model.ReplicaRecord;
 import com.margosha.api.model.ReplicaRole;
@@ -81,6 +83,13 @@ public final class TestData {
         return new ShardRegistration("shard-a", "shard-a-1", ReplicaRole.LEADER, "http://10.0.1.15:8081");
     }
 
+    public static final String RECORD_VERSION_JSON =
+            "{\"vector\":{\"shard-a-1\":3},\"hlc\":{\"l\":1700000000000,\"c\":1},\"writer\":\"shard-a-1\"}";
+
+    public static RecordVersion recordVersion() {
+        return new RecordVersion(Map.of("shard-a-1", 3L), new Hlc(1_700_000_000_000L, 1), "shard-a-1");
+    }
+
     public static ApiError error(ErrorCode code) {
         return new ApiError(code, "Test error " + code);
     }
@@ -111,17 +120,26 @@ public final class TestData {
                 Arguments.of(new ShardRegistration("shard-a", "shard-a-2", ReplicaRole.FOLLOWER, "http://10.0.2.20:8081"),
                         "{\"shardId\":\"shard-a\",\"replicaId\":\"shard-a-2\",\"role\":\"follower\","
                                 + "\"address\":\"http://10.0.2.20:8081\"}"),
-                Arguments.of(new ReplicaRecord(renamed(), 7), "{\"attributes\":{\"name\":\"Bob\"},\"version\":7}"),
-                Arguments.of(new ReplicaExists(false, 4), "{\"exists\":false,\"version\":4}"),
+                Arguments.of(new ReplicaExists(false, 0, null), "{\"exists\":false,\"logVersion\":0}"),
+                Arguments.of(new ReplicaRecord(renamed(), 7, recordVersion()),
+                        "{\"attributes\":{\"name\":\"Bob\"},\"logVersion\":7,\"recordVersion\":" + RECORD_VERSION_JSON + "}"),
+                Arguments.of(new ReplicaExists(false, 8, recordVersion()),
+                        "{\"exists\":false,\"logVersion\":8,\"recordVersion\":" + RECORD_VERSION_JSON + "}"),
+                Arguments.of(new ApiError(ErrorCode.RECORD_NOT_FOUND, "deleted", 8L, recordVersion()),
+                        "{\"code\":\"RECORD_NOT_FOUND\",\"message\":\"deleted\",\"logVersion\":8,\"recordVersion\":"
+                                + RECORD_VERSION_JSON + "}"),
+                Arguments.of(new ReplicationEntry(8, "users", "42", null, null, true, recordVersion()),
+                        "{\"logVersion\":8,\"table\":\"users\",\"partitionKey\":\"42\",\"deleted\":true,\"recordVersion\":"
+                                + RECORD_VERSION_JSON + "}"),
                 Arguments.of(new ApiError(ErrorCode.RECORD_NOT_FOUND, "deleted", 9L),
-                        "{\"code\":\"RECORD_NOT_FOUND\",\"message\":\"deleted\",\"version\":9}"),
+                        "{\"code\":\"RECORD_NOT_FOUND\",\"message\":\"deleted\",\"logVersion\":9}"),
                 Arguments.of(new ReplicationBatch(List.of(
-                                new ReplicationEntry(6, "users", "42", null, Map.of("name", "Bob"), false),
-                                new ReplicationEntry(7, "orders", "c1", "o7", null, true)), 7, "log-1"),
-                        "{\"entries\":[{\"version\":6,\"table\":\"users\",\"partitionKey\":\"42\","
-                                + "\"attributes\":{\"name\":\"Bob\"},\"deleted\":false},"
-                                + "{\"version\":7,\"table\":\"orders\",\"partitionKey\":\"c1\",\"sortKey\":\"o7\","
-                                + "\"deleted\":true}],\"leaderLastVersion\":7,\"logId\":\"log-1\"}"),
+                                new ReplicationEntry(6, "users", "42", null, Map.of("name", "Bob"), false, recordVersion()),
+                                new ReplicationEntry(7, "orders", "c1", "o7", null, true, recordVersion())), 7, "log-1"),
+                        "{\"entries\":[{\"logVersion\":6,\"table\":\"users\",\"partitionKey\":\"42\","
+                                + "\"attributes\":{\"name\":\"Bob\"},\"deleted\":false,\"recordVersion\":" + RECORD_VERSION_JSON + "},"
+                                + "{\"logVersion\":7,\"table\":\"orders\",\"partitionKey\":\"c1\",\"sortKey\":\"o7\","
+                                + "\"deleted\":true,\"recordVersion\":" + RECORD_VERSION_JSON + "}],\"leaderLastVersion\":7,\"logId\":\"log-1\"}"),
                 Arguments.of(new ReplicaStatus("shard-a", "shard-a-1", "leader", 12, Map.of("shard-a-2", 12L), 40, 0),
                         "{\"shardId\":\"shard-a\",\"replicaId\":\"shard-a-1\",\"role\":\"leader\",\"lastVersion\":12,"
                                 + "\"followerPositions\":{\"shard-a-2\":12},\"readsServed\":40,\"entriesReceived\":0}"));

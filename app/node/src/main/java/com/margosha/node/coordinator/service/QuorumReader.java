@@ -2,7 +2,6 @@ package com.margosha.node.coordinator.service;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutionException;
@@ -83,7 +82,7 @@ public class QuorumReader implements AutoCloseable {
 		if (received.size() < readQuorum) {
 			throw ShardUnavailableException.notEnoughReplicas(replicaSet.getShardId(), received.size(), readQuorum);
 		}
-		return received.stream().max(Comparator.comparingLong(ReplicaAnswer::version)).orElseThrow();
+		return received.stream().max(LastWriteWins.INSTANCE).orElseThrow();
 	}
 
 	@Override

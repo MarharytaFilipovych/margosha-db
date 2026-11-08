@@ -1,5 +1,6 @@
 package com.margosha.node.data;
 
+
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,7 +19,7 @@ public final class FakeReplica implements ReplicaClient {
 	private final ShardRegistration registration;
 	private final AtomicInteger reads = new AtomicInteger();
 	private final List<String> writes = new ArrayList<>();
-	private volatile ReplicaAnswer answer = ReplicaAnswer.notFound(0);
+	private volatile ReplicaAnswer answer = ReplicaAnswer.notFound(0, null);
 	private volatile boolean down;
 	private volatile Duration delay = Duration.ZERO;
 
@@ -82,7 +83,7 @@ public final class FakeReplica implements ReplicaClient {
 	@Override
 	public ReplicaAnswer exists(String table, PrimaryKey key) {
 		ReplicaAnswer current = answer();
-		return new ReplicaAnswer(current.version(), current.exists(), null);
+		return new ReplicaAnswer(current.logVersion(), current.exists(), null, current.recordVersion());
 	}
 
 	private synchronized void write(String write) {

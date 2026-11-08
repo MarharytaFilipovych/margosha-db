@@ -22,14 +22,14 @@ public class ReplicaReadService {
 	public ReplicaRecord read(String table, PrimaryKey key) {
 		VersionedRecord record = current(table, key);
 		if (!record.exists()) {
-			throw new ReplicaRecordNotFoundException(table, key, record.version());
+			throw new ReplicaRecordNotFoundException(table, key, record.logVersion(), record.recordVersion());
 		}
-		return new ReplicaRecord(record.attributes(), record.version());
+		return new ReplicaRecord(record.attributes(), record.logVersion(), record.recordVersion());
 	}
 
 	public ReplicaExists exists(String table, PrimaryKey key) {
 		VersionedRecord record = current(table, key);
-		return new ReplicaExists(record.exists(), record.version());
+		return new ReplicaExists(record.exists(), record.logVersion(), record.recordVersion());
 	}
 
 	public long readsServed() {

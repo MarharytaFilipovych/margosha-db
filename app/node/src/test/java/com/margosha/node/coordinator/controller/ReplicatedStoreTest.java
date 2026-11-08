@@ -296,7 +296,7 @@ class ReplicatedStoreTest {
 	private void awaitOnAllReplicas(InProcessReplicaSet replicaSet, PrimaryKey key) {
 		long last = replicaSet.getLeader().replica().lastVersion();
 		await().atMost(WAIT).untilAsserted(() -> replicaSet.replicas().forEach(replica ->
-				assertThat(replica.replica().readVersioned(users, key).map(VersionedRecord::version)).contains(last)));
+				assertThat(replica.replica().readVersioned(users, key).map(VersionedRecord::logVersion)).contains(last)));
 	}
 
 	private static List<Long> readsServed(InProcessReplicaSet replicaSet) {

@@ -3,7 +3,7 @@ info:
   title: Margosha DB API
   version: 0.3.0
   description: |
-    API of the Margosha DB coordinator (ADR 0004), and the internal API of its replicas.
+    API of the Margosha DB coordinator, and the internal API of its replicas.
     Clients register tables and do CRUD over records (plus EXISTS).
     Replicas register themselves with the coordinator when they start, and again every 10 s.
 
@@ -11,7 +11,7 @@ info:
     A table has a partition key and, optionally, a sort key.
     The sort key value is sent as the `sortKey` query parameter.
 
-    Replication (M3, ADRs 0007-0011): each shard is a replica set of a leader and followers (N = 3).
+    Replication: each shard is a replica set of a leader and followers (N = 3).
     The coordinator sends CREATE / UPDATE / DELETE to the owning shard's leader, which answers only after
     W replicas (itself included) stored the write. READ and EXISTS go to R replicas of the shard, and the
     answer with the highest version wins. The client API below does not change.
@@ -42,7 +42,7 @@ tags:
   - name: records
   - name: shards
   - name: replication
-    description: Internal API between replicas (ADR 0008) and for checks; not called by clients.
+    description: Internal API between replicas and for checks, which is not called by clients.
 
 paths:
   /tables:
@@ -228,7 +228,7 @@ paths:
       description: |
         Called by each replica when it starts, and again at a fixed interval, so a restarted coordinator
         gets its replicas back. A shard joins the ring when its first replica registers.
-        Registering again with the same details changes nothing; with a new address or role, the replica's
+        Registering again with the same details changes nothing, while with a new address or role, the replica's
         entry is replaced. A second, different leader for a shard is rejected (400), and the registered
         leader is kept.
       requestBody:
@@ -260,11 +260,11 @@ paths:
       operationId: fetchLog
       summary: A follower fetches the leader's log entries after its position (leader only)
       description: |
-        Long-polling (ADR 0008): when there is no entry after `after`, the leader holds the request until one
+        Long-polling: when there is no entry after `after`, the leader holds the request until one
         arrives or the long-poll time passes (5 s by default), then answers with no entries.
-        `after` is the last entry the follower stored, so it is also its confirmation of every entry up to it
-        (ADR 0011). A follower answers 421 `NOT_LEADER`.
-        Every log has an ID (ADR 0009). A follower with entries sends its log's ID; the leader answers 409
+        `after` is the last entry the follower stored, so it is also its confirmation of every entry up to it.
+        A follower answers 421 `NOT_LEADER`.
+        Every log has an ID. A follower with entries sends its log's ID. The leader answers 409
         `LOG_MISMATCH` when the ID is not its own, or when `after` is past its last entry. Both mean the two logs
         are not the same history (for example the leader's log was lost), so nothing is copied and the request
         is not counted as a confirmation.
@@ -291,7 +291,7 @@ paths:
           required: true
           description: |
             The follower's replica ID. Only the shard's other replica IDs, `<shard>-1` to `<shard>-N` without the
-            leader's own, are served and counted as confirmations; any other ID gets 400.
+            leader's own, are served and counted as confirmations. Any other ID gets 400.
           schema:
             type: string
             minLength: 1
@@ -421,7 +421,7 @@ components:
         shardId:
           type: string
           minLength: 1
-          description: Fixed ID of the shard, for example shard-a. Its ring positions are computed from it (ADR 0005).
+          description: Fixed ID of the shard, for example shard-a. Its ring positions are computed from it.
         replicaId:
           type: string
           minLength: 1
@@ -437,40 +437,44 @@ components:
     ReplicaRole:
       type: string
       enum: [leader, follower]
-      description: The replica's fixed role in its shard's replica set (no failover in M3).
+      description: The replica's fixed role in its shard's replica set (no failover).
 
     ReplicaRecord:
       type: object
       description: A replica's answer to READ.
-      required: [attributes, version]
+      required: [attributes, logVersion, recordVersion]
       properties:
         attributes:
           $ref: '#/components/schemas/Attributes'
-        version:
+        logVersion:
           type: integer
           format: int64
           description: Version of the write that set these attributes (its position in the shard's log).
+        recordVersion:
+          $ref: '#/components/schemas/RecordVersion'
       additionalProperties: false
 
     ReplicaExists:
       type: object
       description: A replica's answer to EXISTS.
-      required: [exists, version]
+      required: [exists, logVersion]
       properties:
         exists:
           type: boolean
-        version:
+        logVersion:
           type: integer
           format: int64
           description: Version of the key's last write, a delete included; 0 when the replica never received one.
+        recordVersion:
+          $ref: '#/components/schemas/RecordVersion'
       additionalProperties: false
 
     ReplicationEntry:
       type: object
-      description: One entry of the leader's log, the result of a write (ADRs 0009, 0010).
-      required: [version, table, partitionKey, deleted]
+      description: One entry of the leader's log, the result of a write.
+      required: [logVersion, table, partitionKey, deleted, recordVersion]
       properties:
-        version:
+        logVersion:
           type: integer
           format: int64
           description: The entry's position in the shard's log, which is the record's new version.
@@ -485,7 +489,41 @@ components:
           $ref: '#/components/schemas/Attributes'
         deleted:
           type: boolean
-          description: True for a delete (a tombstone); it then has no attributes.
+          description: True for a delete (a tombstone). It then has no attributes.
+        recordVersion:
+          $ref: '#/components/schemas/RecordVersion'
+      additionalProperties: false
+
+    RecordVersion:
+      type: object
+      description: |
+        The version of one write of a record, used for Last-Write-Wins. In a replica's EXISTS answer or
+        404 it is missing when the replica never received a write for the key.
+      required: [vector, hlc, writer]
+      properties:
+        vector:
+          type: object
+          description: Vector clock, a counter per leader replica that wrote the record, by replica ID.
+          additionalProperties:
+            type: integer
+            format: int64
+        hlc:
+          type: object
+          description: Hybrid logical clock of the write, given by the leader.
+          required: [l, c]
+          properties:
+            l:
+              type: integer
+              format: int64
+              description: Physical time in milliseconds, never lower than the last l.
+            c:
+              type: integer
+              format: int64
+              description: Counter for writes that got the same l.
+          additionalProperties: false
+        writer:
+          type: string
+          description: Replica ID of the leader that accepted the write.
       additionalProperties: false
 
     ReplicationBatch:
@@ -553,12 +591,14 @@ components:
             - LOG_MISMATCH
         message:
           type: string
-        version:
+        logVersion:
           type: integer
           format: int64
           description: |
             Only in a replica's 404 for READ: the version it holds for the key (the delete's version, or 0 when
             it never received a write for it). Never sent to clients of the coordinator.
+        recordVersion:
+          $ref: '#/components/schemas/RecordVersion'
       additionalProperties: false
 
   responses:
@@ -601,8 +641,8 @@ components:
           example: { code: INTERNAL_ERROR, message: 'Unexpected server error' }
     ShardUnavailable:
       description: |
-        Sharded mode only: no shard is registered; for a write, the owning shard has no registered leader,
-        its leader did not answer within the timeout, or W replicas did not store the write in time; for a read,
+        Sharded mode only: no shard is registered. For a write, the owning shard has no registered leader,
+        its leader did not answer within the timeout, or W replicas did not store the write in time. For a read,
         fewer than R replicas of the owning shard answered. The request is not sent to another shard.
         On a write, the outcome is unknown: the leader may have stored it, and it may become visible later.
         Read the record before retrying; a retried CREATE can get 409 for the client's own record.
@@ -627,8 +667,8 @@ components:
     LogMismatch:
       description: |
         Replicas only. The follower's log is not the same history as the leader's: another log ID, or a position
-        past the leader's last entry (the leader's log was lost or replaced). Nothing is copied; an operator has
-        to decide which log is right (see m3/replication.md, "When a log is lost").
+        past the leader's last entry (the leader's log was lost or replaced). Nothing is copied, and an operator has
+        to decide which log is right.
       content:
         application/json:
           schema:

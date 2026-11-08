@@ -47,8 +47,8 @@ public class LeaderRecordStorage implements RecordStorage {
 
 	private void committed(LogEntry entry) {
 		leader.entryAppended();
-		if (!leader.awaitConfirmations(entry.version())) {
-			throw new WriteNotConfirmedException(entry.version(), confirmationsNeeded);
+		if (!leader.awaitConfirmations(entry.logVersion())) {
+			throw new WriteNotConfirmedException(entry.logVersion(), confirmationsNeeded);
 		}
 	}
 }

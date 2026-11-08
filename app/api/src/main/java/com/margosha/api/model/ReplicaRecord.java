@@ -1,3 +1,4 @@
 package com.margosha.api.model;
 
-public record ReplicaRecord(Attributes attributes, long version) { }
+public record ReplicaRecord(Attributes attributes, long logVersion,
+                            RecordVersion recordVersion) { }

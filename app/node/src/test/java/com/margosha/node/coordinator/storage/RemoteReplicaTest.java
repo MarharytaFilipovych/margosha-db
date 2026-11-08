@@ -1,5 +1,7 @@
 package com.margosha.node.coordinator.storage;
 
+
+import static com.margosha.node.data.TestData.writeVersion;
 import static com.margosha.node.data.TestData.ANN_ATTRIBUTES;
 import static com.margosha.node.data.TestData.SHARD_A;
 import static com.margosha.node.data.TestData.SHARD_TIMEOUT;
@@ -65,13 +67,13 @@ class RemoteReplicaTest {
 		void readReturnsTheAttributesWithTheirVersion() {
 			// Arrange
 			server.expect(requestTo(USER_42_RECORD)).andExpect(method(HttpMethod.GET))
-					.andRespond(respond(HttpStatus.OK, new ReplicaRecord(ANN_ATTRIBUTES, 7)));
+					.andRespond(respond(HttpStatus.OK, new ReplicaRecord(ANN_ATTRIBUTES, 7, writeVersion(7))));
 
 			// Act
 			ReplicaAnswer answer = replica.read(USERS, USER_42);
 
 			// Assert
-			assertThat(answer).isEqualTo(ReplicaAnswer.found(7, ANN_ATTRIBUTES));
+			assertThat(answer).isEqualTo(ReplicaAnswer.found(7, writeVersion(7), ANN_ATTRIBUTES));
 			server.verify();
 		}
 
@@ -79,26 +81,26 @@ class RemoteReplicaTest {
 		void notFoundWithAVersionIsAnAnswerNotAnError() {
 			// Arrange
 			server.expect(requestTo(USER_42_RECORD))
-					.andRespond(respond(HttpStatus.NOT_FOUND, new ApiError(ErrorCode.RECORD_NOT_FOUND, "deleted", 9L)));
+					.andRespond(respond(HttpStatus.NOT_FOUND, new ApiError(ErrorCode.RECORD_NOT_FOUND, "deleted", 9L, writeVersion(9))));
 
 			// Act
 			ReplicaAnswer answer = replica.read(USERS, USER_42);
 
 			// Assert
-			assertThat(answer).isEqualTo(ReplicaAnswer.notFound(9));
+			assertThat(answer).isEqualTo(ReplicaAnswer.notFound(9, writeVersion(9)));
 		}
 
 		@Test
 		void existsReturnsTheAnswerWithItsVersion() {
 			// Arrange
 			server.expect(requestTo(USER_42_RECORD + "/exists"))
-					.andRespond(respond(HttpStatus.OK, new ReplicaExists(true, 4)));
+					.andRespond(respond(HttpStatus.OK, new ReplicaExists(true, 4, writeVersion(4))));
 
 			// Act
 			ReplicaAnswer answer = replica.exists(USERS, USER_42);
 
 			// Assert
-			assertThat(answer).isEqualTo(new ReplicaAnswer(4, true, null));
+			assertThat(answer).isEqualTo(new ReplicaAnswer(4, true, null, writeVersion(4)));
 		}
 
 		@Test

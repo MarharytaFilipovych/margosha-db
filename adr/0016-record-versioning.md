@@ -46,7 +46,8 @@ folders when M4 is first deployed. A replica that never received a record has no
 ## Consequences
 
 - With one fixed leader per shard, every vector has one counter and copies are never concurrent today. The vector
-  clock matters once more than one node writes a record, for example after a leader change.
+  clock matters once more than one node writes a record: when M5 moves keys to a new shard, the new shard's leader
+  writes the copy while the old leader may still take an update. A moved copy must keep its vector for this to work.
 - Concurrent writes are noticed, but only one is kept; the other is lost without notice, as LWW does.
 - The vector gets one more counter for every leader that ever wrote the record; with fixed leaders it stays at one.
 - A leader whose clock runs far ahead makes its writes win until real time catches up.

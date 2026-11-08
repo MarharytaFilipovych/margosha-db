@@ -17,7 +17,9 @@ import com.margosha.api.client.CoordinatorClient;
 import com.margosha.api.client.ShardClient;
 import com.margosha.api.exception.ApiException;
 import com.margosha.api.model.Attributes;
+import com.margosha.api.model.Hlc;
 import com.margosha.api.model.PrimaryKey;
+import com.margosha.api.model.RecordVersion;
 import com.margosha.api.model.ReplicaRole;
 import com.margosha.api.model.ShardRegistration;
 import com.margosha.api.model.TableDefinition;
@@ -66,6 +68,10 @@ public final class TestData {
 
 	private TestData() { }
 
+	public static RecordVersion writeVersion(long n) {
+		return new RecordVersion(Map.of("shard-a-1", n), new Hlc(n, 0), "shard-a-1");
+	}
+
 	public static PrimaryKey userKey(int number) {
 		return PrimaryKey.of("user" + number);
 	}
@@ -86,7 +92,6 @@ public final class TestData {
 		return "http://localhost:" + port;
 	}
 
-	/** The leader {@code <shardId>-1} of a shard, at localhost:{@code port}. */
 	public static ShardRegistration shard(String shardId, int port) {
 		return new ShardRegistration(shardId, shardId + "-1", ReplicaRole.LEADER, localAddress(port));
 	}
@@ -95,7 +100,6 @@ public final class TestData {
 		return new ShardRegistration(shardId, replicaId, ReplicaRole.FOLLOWER, localAddress(port));
 	}
 
-	/** A new, empty folder under target/ for one node's data. */
 	public static Path testDataDir(String name) {
 		return Path.of("target", "test-data", unique(name));
 	}

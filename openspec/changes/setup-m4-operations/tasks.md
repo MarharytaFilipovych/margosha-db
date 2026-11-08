@@ -12,11 +12,11 @@
 
 ## 2. Record versioning and LWW (after ADR 0016)
 
-- [ ] 2.1 Add the write's version to `LogEntry` and the log line, assigned by the leader inside the write lock as ADR 0016 decides, kept across a rebuild; verify `ReplicationLogTest` / `ReplicaStorageTest` cases for a version kept across a rebuild, plus the cases ADR 0016 names
-- [ ] 2.2 Carry the version through `ReplicationEntry`, `ReplicaRecord`, `ReplicaExists`, `VersionedRecord` and `ReplicaAnswer`; verify the model serialization round-trip tests and the shard controller tests show the version, and a follower's entry equals the leader's
-- [ ] 2.3 Add the `LastWriteWins` comparator and use it in `QuorumReader` instead of the highest log version; verify unit tests for a later version, a winning delete, equal versions (same winner in both orders), and a replica that never received the record
-- [ ] 2.4 In-process test for `specs/conflict-resolution`: two clients updating one key concurrently (every replica converges to the same winner); verify it passes with `./mvnw verify`
-- [ ] 2.5 Write `m4/lww.md`: what the version is, who assigns it, where LWW is applied, and why the store has no concurrent writers today; verify its examples match the tests
+- [x] 2.1 Add the write's version to `LogEntry` and the log line, assigned by the leader inside the write lock as ADR 0016 decides, kept across a rebuild; verify `ReplicationLogTest` / `ReplicaStorageTest` cases for a version kept across a rebuild, plus the cases ADR 0016 names
+- [x] 2.2 Carry the version through `ReplicationEntry`, `ReplicaRecord`, `ReplicaExists`, `VersionedRecord` and `ReplicaAnswer`; verify the model serialization round-trip tests and the shard controller tests show the version, and a follower's entry equals the leader's
+- [x] 2.3 Add the `LastWriteWins` comparator and use it in `QuorumReader` instead of the highest log version; verify unit tests for a later version, a winning delete, equal versions (same winner in both orders), and a replica that never received the record
+- [x] 2.4 In-process test for `specs/conflict-resolution`: two clients updating one key concurrently (every replica converges to the same winner); verify it passes with `./mvnw verify`
+- [x] 2.5 Write `m4/lww.md`: what the version is, who assigns it, where LWW is applied, and why the store has no concurrent writers today; verify its examples match the tests
 - [ ] 2.6 Make the replicas start with empty data folders on the first M4 deploy, as ADR 0016 decides (M3 logs have no versions and are not read); verify on AWS that every replica starts and registers after the deploy
 
 ## 3. Structured logs and trace IDs (after ADR 0017)

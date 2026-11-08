@@ -22,6 +22,7 @@ import com.margosha.api.exception.ApiException;
 import com.margosha.api.model.Attributes;
 import com.margosha.api.model.ErrorCode;
 import com.margosha.api.model.PrimaryKey;
+import com.margosha.api.model.RecordVersion;
 import com.margosha.api.model.ReplicaExists;
 import com.margosha.api.model.ReplicaRecord;
 import com.margosha.api.model.ReplicaStatus;
@@ -83,7 +84,8 @@ class ShardControllerTest {
 
 		// Assert
 		assertThat(updated).isGreaterThan(created);
-		assertThat(read).isEqualTo(new ReplicaRecord(BOB_ATTRIBUTES, updated));
+		assertThat(read).isEqualTo(new ReplicaRecord(BOB_ATTRIBUTES, updated, recordVersion(users, USER_42)));
+		assertThat(read.recordVersion().vector()).containsValue(2L);
 	}
 
 	@Test
@@ -97,7 +99,7 @@ class ShardControllerTest {
 		// Assert
 		assertThat(error.isNotFound()).isTrue();
 		assertThat(error.code()).isEqualTo(ErrorCode.RECORD_NOT_FOUND);
-		assertThat(error.error().version()).isZero();
+		assertThat(error.error().logVersion()).isZero();
 	}
 
 	@Test
@@ -113,7 +115,9 @@ class ShardControllerTest {
 		// Assert
 		assertThat(error.isNotFound()).isTrue();
 		assertThat(error.code()).isEqualTo(ErrorCode.RECORD_NOT_FOUND);
-		assertThat(error.error().version()).isEqualTo(deleted);
+		assertThat(error.error().logVersion()).isEqualTo(deleted);
+		assertThat(error.error().recordVersion()).isEqualTo(recordVersion(users, USER_42));
+		assertThat(error.error().recordVersion().vector()).containsValue(2L);
 	}
 
 	@Test
@@ -131,9 +135,13 @@ class ShardControllerTest {
 		ReplicaExists neverWritten = shard.existsVersioned(orders, ORDER_42_1);
 
 		// Assert
-		assertThat(present).isEqualTo(new ReplicaExists(true, created));
-		assertThat(removed).isEqualTo(new ReplicaExists(false, deleted));
-		assertThat(neverWritten).isEqualTo(new ReplicaExists(false, 0));
+		assertThat(present).isEqualTo(new ReplicaExists(true, created, recordVersion(users, USER_42)));
+		assertThat(removed).isEqualTo(new ReplicaExists(false, deleted, recordVersion(users, USER_7)));
+		assertThat(neverWritten).isEqualTo(new ReplicaExists(false, 0, null));
+	}
+
+	private RecordVersion recordVersion(String table, PrimaryKey key) {
+		return replica.readVersioned(table, key).orElseThrow().recordVersion();
 	}
 
 	@Test

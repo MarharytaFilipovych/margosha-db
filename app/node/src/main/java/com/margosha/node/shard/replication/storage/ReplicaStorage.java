@@ -19,9 +19,12 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.LongSupplier;
 
 import com.margosha.api.model.Attributes;
+import com.margosha.api.model.Hlc;
 import com.margosha.api.model.PrimaryKey;
+import com.margosha.api.model.RecordVersion;
 import com.margosha.node.common.exception.RecordAlreadyExistsException;
 import com.margosha.node.common.exception.RecordNotFoundException;
 import com.margosha.node.shard.replication.log.ReplicationLog;
@@ -37,22 +40,34 @@ public final class ReplicaStorage implements AutoCloseable {
 
 	private final Map<String, Map<PrimaryKey, VersionedRecord>> tables = new ConcurrentHashMap<>();
 	private final Object writeLock = new Object();
+	private final String replicaId;
+	private final LongSupplier clock;
 	private final ReplicationLog replicationLog;
 	private final Path idFile;
 	private volatile String logId;
+	/** The latest HLC in the log; restored while the log is replayed, so new writes never go back after a restart. */
+	private Hlc lastHlc = Hlc.ZERO;
 
-	private ReplicaStorage(Path dataDir) {
+	private ReplicaStorage(Path dataDir, String replicaId, LongSupplier clock) {
 		long start = System.nanoTime();
+		this.replicaId = replicaId;
+		this.clock = clock;
 		this.replicationLog = ReplicationLog.open(dataDir.resolve(LOG_FILE), this::put);
 		this.idFile = dataDir.resolve(LOG_ID_FILE);
 		this.logId = loadLogId();
 		// Rebuild time on start (read and check the whole log, replay it into memory).
-		log.info("Rebuilt the replica from its log: {} entries in {} ms (log ID {})", replicationLog.lastVersion(),
-				(System.nanoTime() - start) / 1_000_000, logId == null ? "not set yet" : logId);
+		log.info("Rebuilt the replica from its log: {} entries in {} ms (log ID {}, last HLC {})",
+				replicationLog.lastVersion(), (System.nanoTime() - start) / 1_000_000,
+				logId == null ? "not set yet" : logId, lastHlc);
 	}
 
-	public static ReplicaStorage open(Path dataDir) {
-		return new ReplicaStorage(Objects.requireNonNull(dataDir, "dataDir"));
+	/**
+	 * Opens the replica's storage. {@code replicaId} is the ID this replica puts in the vector clock of the writes it
+	 * accepts as leader, and {@code clock} gives the physical time in milliseconds for the HLC.
+	 */
+	public static ReplicaStorage open(Path dataDir, String replicaId, LongSupplier clock) {
+		return new ReplicaStorage(Objects.requireNonNull(dataDir, "dataDir"), Objects.requireNonNull(replicaId, "replicaId"),
+				Objects.requireNonNull(clock, "clock"));
 	}
 
 	public LogEntry create(String table, PrimaryKey key, Attributes attributes) {
@@ -62,7 +77,7 @@ public final class ReplicaStorage implements AutoCloseable {
 			if (isPresent(current(table, key))) {
 				throw new RecordAlreadyExistsException(table, key);
 			}
-			return record(replicationLog.appendNext(table, key, attributes));
+			return write(table, key, attributes);
 		}
 	}
 
@@ -87,7 +102,7 @@ public final class ReplicaStorage implements AutoCloseable {
 			if (!isPresent(current(table, key))) {
 				throw new RecordNotFoundException(table, key);
 			}
-			return record(replicationLog.appendNext(table, key, attributes));
+			return write(table, key, attributes);
 		}
 	}
 
@@ -97,7 +112,7 @@ public final class ReplicaStorage implements AutoCloseable {
 			if (!isPresent(current(table, key))) {
 				throw new RecordNotFoundException(table, key);
 			}
-			return record(replicationLog.appendNext(table, key, null));
+			return write(table, key, null);
 		}
 	}
 
@@ -109,7 +124,7 @@ public final class ReplicaStorage implements AutoCloseable {
 	public void apply(LogEntry entry) {
 		Objects.requireNonNull(entry, "entry");
 		synchronized (writeLock) {
-			if (entry.version() <= replicationLog.lastVersion()) {
+			if (entry.logVersion() <= replicationLog.lastVersion()) {
 				return;
 			}
 			replicationLog.appendReplicated(entry);
@@ -200,14 +215,23 @@ public final class ReplicaStorage implements AutoCloseable {
 		}
 	}
 
-	private LogEntry record(LogEntry entry) {
+	private LogEntry write(String table, PrimaryKey key, Attributes attributes) {
+		VersionedRecord current = current(table, key);
+		Hlc hlc = lastHlc.next(clock.getAsLong());
+		RecordVersion next = current == null
+				? RecordVersion.first(replicaId, hlc)
+				: current.recordVersion().next(replicaId, hlc);
+		LogEntry entry = replicationLog.appendNext(table, key, attributes, next);
 		put(entry);
 		return entry;
 	}
 
 	private void put(LogEntry entry) {
 		tables.computeIfAbsent(entry.table(), name -> new ConcurrentHashMap<>())
-				.put(entry.key(), new VersionedRecord(entry.version(), entry.attributes()));
+				.put(entry.key(), new VersionedRecord(entry.logVersion(), entry.attributes(), entry.recordVersion()));
+		if (entry.recordVersion().hlc().compareTo(lastHlc) > 0) {
+			lastHlc = entry.recordVersion().hlc();
+		}
 	}
 
 	private VersionedRecord current(String table, PrimaryKey key) {

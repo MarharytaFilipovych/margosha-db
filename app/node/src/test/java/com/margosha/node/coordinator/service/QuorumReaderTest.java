@@ -1,5 +1,7 @@
 package com.margosha.node.coordinator.service;
 
+
+import static com.margosha.node.data.TestData.writeVersion;
 import static com.margosha.node.data.TestData.ANN_ATTRIBUTES;
 import static com.margosha.node.data.TestData.BOB_ATTRIBUTES;
 import static com.margosha.node.data.TestData.SHARD_A;
@@ -12,8 +14,11 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.IntStream;
 
+import com.margosha.api.model.Hlc;
+import com.margosha.api.model.RecordVersion;
 import com.margosha.node.coordinator.exception.ShardUnavailableException;
 import com.margosha.node.coordinator.model.ReplicaAnswer;
 import com.margosha.node.data.FakeReplica;
@@ -35,25 +40,43 @@ class QuorumReaderTest {
 	@Test
 	void newestVersionWinsWhenAReplicaIsBehind() {
 		// Arrange
-		leader.answers(ReplicaAnswer.found(5, BOB_ATTRIBUTES));
-		follower2.answers(ReplicaAnswer.found(5, BOB_ATTRIBUTES));
-		follower3.answers(ReplicaAnswer.found(4, ANN_ATTRIBUTES));
+		leader.answers(ReplicaAnswer.found(5, writeVersion(5), BOB_ATTRIBUTES));
+		follower2.answers(ReplicaAnswer.found(5, writeVersion(5), BOB_ATTRIBUTES));
+		follower3.answers(ReplicaAnswer.found(4, writeVersion(4), ANN_ATTRIBUTES));
 		ReplicaSet replicaSet = replicaSet(leader, follower2, follower3);
 
 		// Act
 		List<ReplicaAnswer> answers = IntStream.range(0, 30).mapToObj(i -> read(replicaSet)).toList();
 
 		// Assert
-		assertThat(answers).containsOnly(ReplicaAnswer.found(5, BOB_ATTRIBUTES));
+		assertThat(answers).containsOnly(ReplicaAnswer.found(5, writeVersion(5), BOB_ATTRIBUTES));
+		assertThat(follower3.reads()).isGreaterThan(0);
+	}
+
+	@Test
+	void copyThatWinsUnderLastWriteWinsIsReturned() {
+		// Arrange
+		RecordVersion older = new RecordVersion(Map.of(SHARD_A + "-1", 1L), new Hlc(1_000, 0), SHARD_A + "-1");
+		RecordVersion newer = new RecordVersion(Map.of(SHARD_A + "-1", 2L), new Hlc(1_000, 1), SHARD_A + "-1");
+		leader.answers(ReplicaAnswer.found(5, newer, BOB_ATTRIBUTES));
+		follower2.answers(ReplicaAnswer.found(5, newer, BOB_ATTRIBUTES));
+		follower3.answers(ReplicaAnswer.found(5, older, ANN_ATTRIBUTES));
+		ReplicaSet replicaSet = replicaSet(leader, follower2, follower3);
+
+		// Act
+		List<ReplicaAnswer> answers = IntStream.range(0, 30).mapToObj(i -> read(replicaSet)).toList();
+
+		// Assert
+		assertThat(answers).containsOnly(ReplicaAnswer.found(5, newer, BOB_ATTRIBUTES));
 		assertThat(follower3.reads()).isGreaterThan(0);
 	}
 
 	@Test
 	void deleteWithTheHighestVersionWinsOverAnOldValue() {
 		// Arrange
-		leader.answers(ReplicaAnswer.notFound(6));
-		follower2.answers(ReplicaAnswer.notFound(6));
-		follower3.answers(ReplicaAnswer.found(5, ANN_ATTRIBUTES));
+		leader.answers(ReplicaAnswer.notFound(6, writeVersion(6)));
+		follower2.answers(ReplicaAnswer.notFound(6, writeVersion(6)));
+		follower3.answers(ReplicaAnswer.found(5, writeVersion(5), ANN_ATTRIBUTES));
 		ReplicaSet replicaSet = replicaSet(leader, follower2, follower3);
 
 		// Act
@@ -62,30 +85,30 @@ class QuorumReaderTest {
 		// Assert
 		assertThat(answers).allSatisfy(answer -> {
 			assertThat(answer.exists()).isFalse();
-			assertThat(answer.version()).isEqualTo(6);
+			assertThat(answer.logVersion()).isEqualTo(6);
 		});
 	}
 
 	@Test
 	void replicaThatNeverReceivedTheRecordLosesToOneThatHasIt() {
 		// Arrange
-		leader.answers(ReplicaAnswer.found(3, ANN_ATTRIBUTES));
-		follower2.answers(ReplicaAnswer.found(3, ANN_ATTRIBUTES));
-		follower3.answers(ReplicaAnswer.notFound(0));
+		leader.answers(ReplicaAnswer.found(3, writeVersion(3), ANN_ATTRIBUTES));
+		follower2.answers(ReplicaAnswer.found(3, writeVersion(3), ANN_ATTRIBUTES));
+		follower3.answers(ReplicaAnswer.notFound(0, null));
 		ReplicaSet replicaSet = replicaSet(leader, follower2, follower3);
 
 		// Act
 		List<ReplicaAnswer> answers = IntStream.range(0, 30).mapToObj(i -> read(replicaSet)).toList();
 
 		// Assert
-		assertThat(answers).containsOnly(ReplicaAnswer.found(3, ANN_ATTRIBUTES));
+		assertThat(answers).containsOnly(ReplicaAnswer.found(3, writeVersion(3), ANN_ATTRIBUTES));
 	}
 
 	@Test
 	void readsStillWorkWithOneFollowerDown() {
 		// Arrange
-		leader.answers(ReplicaAnswer.found(2, BOB_ATTRIBUTES));
-		follower2.answers(ReplicaAnswer.found(2, BOB_ATTRIBUTES));
+		leader.answers(ReplicaAnswer.found(2, writeVersion(2), BOB_ATTRIBUTES));
+		follower2.answers(ReplicaAnswer.found(2, writeVersion(2), BOB_ATTRIBUTES));
 		follower3.down();
 		ReplicaSet replicaSet = replicaSet(leader, follower2, follower3);
 
@@ -93,14 +116,14 @@ class QuorumReaderTest {
 		List<ReplicaAnswer> answers = IntStream.range(0, 30).mapToObj(i -> read(replicaSet)).toList();
 
 		// Assert
-		assertThat(answers).containsOnly(ReplicaAnswer.found(2, BOB_ATTRIBUTES));
+		assertThat(answers).containsOnly(ReplicaAnswer.found(2, writeVersion(2), BOB_ATTRIBUTES));
 		assertThat(follower3.reads()).isGreaterThan(0);
 	}
 
 	@Test
 	void readsFailWithTwoReplicasDown() {
 		// Arrange
-		leader.answers(ReplicaAnswer.found(2, BOB_ATTRIBUTES));
+		leader.answers(ReplicaAnswer.found(2, writeVersion(2), BOB_ATTRIBUTES));
 		follower2.down();
 		follower3.down();
 		ReplicaSet replicaSet = replicaSet(leader, follower2, follower3);
@@ -117,23 +140,23 @@ class QuorumReaderTest {
 	void readsStillWorkWithTheLeaderDown() {
 		// Arrange
 		leader.down();
-		follower2.answers(ReplicaAnswer.found(2, BOB_ATTRIBUTES));
-		follower3.answers(ReplicaAnswer.found(2, BOB_ATTRIBUTES));
+		follower2.answers(ReplicaAnswer.found(2, writeVersion(2), BOB_ATTRIBUTES));
+		follower3.answers(ReplicaAnswer.found(2, writeVersion(2), BOB_ATTRIBUTES));
 		ReplicaSet replicaSet = replicaSet(leader, follower2, follower3);
 
 		// Act
 		ReplicaAnswer answer = read(replicaSet);
 
 		// Assert
-		assertThat(answer).isEqualTo(ReplicaAnswer.found(2, BOB_ATTRIBUTES));
+		assertThat(answer).isEqualTo(ReplicaAnswer.found(2, writeVersion(2), BOB_ATTRIBUTES));
 	}
 
 	@Test
 	void readsAreSpreadEvenlyOverAllReplicas() {
 		// Arrange
-		leader.answers(ReplicaAnswer.found(1, ANN_ATTRIBUTES));
-		follower2.answers(ReplicaAnswer.found(1, ANN_ATTRIBUTES));
-		follower3.answers(ReplicaAnswer.found(1, ANN_ATTRIBUTES));
+		leader.answers(ReplicaAnswer.found(1, writeVersion(1), ANN_ATTRIBUTES));
+		follower2.answers(ReplicaAnswer.found(1, writeVersion(1), ANN_ATTRIBUTES));
+		follower3.answers(ReplicaAnswer.found(1, writeVersion(1), ANN_ATTRIBUTES));
 		ReplicaSet replicaSet = replicaSet(leader, follower2, follower3);
 
 		// Act
@@ -147,9 +170,9 @@ class QuorumReaderTest {
 	@Test
 	void readAsksOnlyRReplicasWhenTheyAnswer() {
 		// Arrange
-		leader.answers(ReplicaAnswer.found(1, ANN_ATTRIBUTES));
-		follower2.answers(ReplicaAnswer.found(1, ANN_ATTRIBUTES));
-		follower3.answers(ReplicaAnswer.found(1, ANN_ATTRIBUTES));
+		leader.answers(ReplicaAnswer.found(1, writeVersion(1), ANN_ATTRIBUTES));
+		follower2.answers(ReplicaAnswer.found(1, writeVersion(1), ANN_ATTRIBUTES));
+		follower3.answers(ReplicaAnswer.found(1, writeVersion(1), ANN_ATTRIBUTES));
 		ReplicaSet replicaSet = replicaSet(leader, follower2, follower3);
 
 		// Act
@@ -162,15 +185,15 @@ class QuorumReaderTest {
 	@Test
 	void replicaThatDoesNotAnswerDelaysAReadByTheHedgeDelayNotTheTimeout() {
 		// Arrange
-		leader.answers(ReplicaAnswer.found(2, BOB_ATTRIBUTES));
-		follower2.answers(ReplicaAnswer.found(2, BOB_ATTRIBUTES));
-		follower3.answers(ReplicaAnswer.found(2, BOB_ATTRIBUTES)).slow(Duration.ofSeconds(1));
+		leader.answers(ReplicaAnswer.found(2, writeVersion(2), BOB_ATTRIBUTES));
+		follower2.answers(ReplicaAnswer.found(2, writeVersion(2), BOB_ATTRIBUTES));
+		follower3.answers(ReplicaAnswer.found(2, writeVersion(2), BOB_ATTRIBUTES)).slow(Duration.ofSeconds(1));
 		ReplicaSet replicaSet = replicaSet(leader, follower2, follower3);
 
 		// Act
 		List<Duration> durations = IntStream.range(0, 9).mapToObj(i -> {
 			long start = System.nanoTime();
-			assertThat(read(replicaSet)).isEqualTo(ReplicaAnswer.found(2, BOB_ATTRIBUTES));
+			assertThat(read(replicaSet)).isEqualTo(ReplicaAnswer.found(2, writeVersion(2), BOB_ATTRIBUTES));
 			return Duration.ofNanos(System.nanoTime() - start);
 		}).toList();
 
@@ -182,8 +205,8 @@ class QuorumReaderTest {
 	@Test
 	void replicaThatIsDownIsAskedLastUntilItsSkipTimeIsOver() throws InterruptedException {
 		// Arrange
-		leader.answers(ReplicaAnswer.found(2, BOB_ATTRIBUTES));
-		follower2.answers(ReplicaAnswer.found(2, BOB_ATTRIBUTES));
+		leader.answers(ReplicaAnswer.found(2, writeVersion(2), BOB_ATTRIBUTES));
+		follower2.answers(ReplicaAnswer.found(2, writeVersion(2), BOB_ATTRIBUTES));
 		follower3.down();
 		ReplicaSet replicaSet = replicaSet(Duration.ofMillis(300), leader, follower2, follower3);
 		IntStream.range(0, 30).forEach(i -> read(replicaSet));
@@ -201,9 +224,9 @@ class QuorumReaderTest {
 	@Test
 	void replicaThatAnswersAgainIsBackInTheRotation() throws InterruptedException {
 		// Arrange
-		leader.answers(ReplicaAnswer.found(2, BOB_ATTRIBUTES));
-		follower2.answers(ReplicaAnswer.found(2, BOB_ATTRIBUTES));
-		follower3.answers(ReplicaAnswer.found(2, BOB_ATTRIBUTES)).down();
+		leader.answers(ReplicaAnswer.found(2, writeVersion(2), BOB_ATTRIBUTES));
+		follower2.answers(ReplicaAnswer.found(2, writeVersion(2), BOB_ATTRIBUTES));
+		follower3.answers(ReplicaAnswer.found(2, writeVersion(2), BOB_ATTRIBUTES)).down();
 		ReplicaSet replicaSet = replicaSet(Duration.ofMillis(300), leader, follower2, follower3);
 		IntStream.range(0, 30).forEach(i -> read(replicaSet));
 		follower3.up();

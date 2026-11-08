@@ -1,5 +1,7 @@
 package com.margosha.node.shard.replication.log;
 
+
+import static com.margosha.node.data.TestData.writeVersion;
 import static com.margosha.node.data.TestData.ANN_ATTRIBUTES;
 import static com.margosha.node.data.TestData.BOB_ATTRIBUTES;
 import static com.margosha.node.data.TestData.ORDERS;
@@ -16,8 +18,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
+import java.util.zip.CRC32;
 
+import com.margosha.api.model.Attributes;
+import com.margosha.api.model.Hlc;
+import com.margosha.api.model.RecordVersion;
 import com.margosha.node.shard.replication.exception.LogCorruptedException;
 import com.margosha.node.shard.replication.model.LogEntry;
 import org.junit.jupiter.api.Test;
@@ -48,14 +56,14 @@ class ReplicationLogTest {
 		try (ReplicationLog log = open()) {
 
 			// Act
-			LogEntry first = log.appendNext(USERS, USER_42, ANN_ATTRIBUTES);
-			LogEntry second = log.appendNext(USERS, USER_42, BOB_ATTRIBUTES);
-			LogEntry third = log.appendNext(USERS, USER_42, null);
+			LogEntry first = log.appendNext(USERS, USER_42, ANN_ATTRIBUTES, writeVersion(1));
+			LogEntry second = log.appendNext(USERS, USER_42, BOB_ATTRIBUTES, writeVersion(1));
+			LogEntry third = log.appendNext(USERS, USER_42, null, writeVersion(1));
 
 			// Assert
-			assertThat(first.version()).isEqualTo(1);
-			assertThat(second.version()).isEqualTo(2);
-			assertThat(third.version()).isEqualTo(3);
+			assertThat(first.logVersion()).isEqualTo(1);
+			assertThat(second.logVersion()).isEqualTo(2);
+			assertThat(third.logVersion()).isEqualTo(3);
 			assertThat(third.deleted()).isTrue();
 			assertThat(log.lastVersion()).isEqualTo(3);
 		}
@@ -81,28 +89,47 @@ class ReplicationLogTest {
 		try (ReplicationLog log = open()) {
 
 			// Act
-			log.appendNext(USERS, USER_42, ANN_ATTRIBUTES);
-			log.appendNext(ORDERS, ORDER_42_1, null);
+			log.appendNext(USERS, USER_42, ANN_ATTRIBUTES, writeVersion(1));
+			log.appendNext(ORDERS, ORDER_42_1, null, writeVersion(1));
 		}
 
 		// Assert
 		List<String> lines = Files.readAllLines(file(), UTF_8);
 		assertThat(lines).hasSize(2);
-		assertThat(lines.get(0)).matches("[0-9a-f]{8} \\{\"version\":1,\"table\":\"users\",\"partitionKey\":\"42\",.*")
+		assertThat(lines.get(0)).matches("[0-9a-f]{8} \\{\"logVersion\":1,\"table\":\"users\",\"partitionKey\":\"42\",.*")
 				.contains("\"name\":\"Ann\"")
 				.doesNotContain("deleted");
-		assertThat(lines.get(1)).matches("[0-9a-f]{8} \\{\"version\":2,.*")
+		assertThat(lines.get(1)).matches("[0-9a-f]{8} \\{\"logVersion\":2,.*")
 				.contains("\"sortKey\":\"order-1\"", "\"deleted\":true")
 				.doesNotContain("attributes");
 	}
 
 	@Test
+	void recordVersionIsStoredInTheLineAndReadBackAfterAReopen() throws IOException {
+		// Arrange
+		RecordVersion version = new RecordVersion(Map.of("shard-a-1", 2L), new Hlc(1_700_000_000_000L, 3), "shard-a-1");
+		try (ReplicationLog log = open()) {
+
+			// Act
+			log.appendNext(USERS, USER_42, BOB_ATTRIBUTES, version);
+			log.appendNext(USERS, USER_7, null, version);
+		}
+
+		// Assert
+		assertThat(Files.readAllLines(file(), UTF_8).getFirst()).contains(
+				"\"recordVersion\":{\"vector\":{\"shard-a-1\":2},\"hlc\":{\"l\":1700000000000,\"c\":3},\"writer\":\"shard-a-1\"}");
+		assertThat(reopenAndReplay()).extracting(LogEntry::recordVersion).containsExactly(version, version);
+	}
+
+
+
+	@Test
 	void readAfterReturnsOnlyLaterEntriesInOrder() {
 		// Arrange
 		try (ReplicationLog log = open()) {
-			LogEntry first = log.appendNext(USERS, USER_42, ANN_ATTRIBUTES);
-			LogEntry second = log.appendNext(USERS, USER_7, BOB_ATTRIBUTES);
-			LogEntry third = log.appendNext(USERS, USER_42, null);
+			LogEntry first = log.appendNext(USERS, USER_42, ANN_ATTRIBUTES, writeVersion(1));
+			LogEntry second = log.appendNext(USERS, USER_7, BOB_ATTRIBUTES, writeVersion(1));
+			LogEntry third = log.appendNext(USERS, USER_42, null, writeVersion(1));
 
 			// Act
 			List<LogEntry> all = log.readAfter(0, 100);
@@ -119,14 +146,14 @@ class ReplicationLogTest {
 		// Arrange
 		try (ReplicationLog log = open()) {
 			for (int i = 0; i < 10; i++) {
-				log.appendNext(USERS, USER_42, ANN_ATTRIBUTES);
+				log.appendNext(USERS, USER_42, ANN_ATTRIBUTES, writeVersion(1));
 			}
 
 			// Act
 			List<LogEntry> entries = log.readAfter(3, 4);
 
 			// Assert
-			assertThat(entries).extracting(LogEntry::version).containsExactly(4L, 5L, 6L, 7L);
+			assertThat(entries).extracting(LogEntry::logVersion).containsExactly(4L, 5L, 6L, 7L);
 		}
 	}
 
@@ -134,7 +161,7 @@ class ReplicationLogTest {
 	void readAfterTheLastEntryIsEmpty() {
 		// Arrange
 		try (ReplicationLog log = open()) {
-			log.appendNext(USERS, USER_42, ANN_ATTRIBUTES);
+			log.appendNext(USERS, USER_42, ANN_ATTRIBUTES, writeVersion(1));
 
 			// Act
 			List<LogEntry> atEnd = log.readAfter(1, 100);
@@ -151,9 +178,9 @@ class ReplicationLogTest {
 		// Arrange
 		List<LogEntry> written = new ArrayList<>();
 		try (ReplicationLog log = open()) {
-			written.add(log.appendNext(USERS, USER_42, ANN_ATTRIBUTES));
-			written.add(log.appendNext(ORDERS, ORDER_42_1, BOB_ATTRIBUTES));
-			written.add(log.appendNext(USERS, USER_42, null));
+			written.add(log.appendNext(USERS, USER_42, ANN_ATTRIBUTES, writeVersion(1)));
+			written.add(log.appendNext(ORDERS, ORDER_42_1, BOB_ATTRIBUTES, writeVersion(1)));
+			written.add(log.appendNext(USERS, USER_42, null, writeVersion(1)));
 		}
 
 		// Act
@@ -167,43 +194,43 @@ class ReplicationLogTest {
 	void reopenedLogContinuesTheVersions() {
 		// Arrange
 		try (ReplicationLog log = open()) {
-			log.appendNext(USERS, USER_42, ANN_ATTRIBUTES);
-			log.appendNext(USERS, USER_7, BOB_ATTRIBUTES);
+			log.appendNext(USERS, USER_42, ANN_ATTRIBUTES, writeVersion(1));
+			log.appendNext(USERS, USER_7, BOB_ATTRIBUTES, writeVersion(1));
 		}
 
 		// Act
 		LogEntry next;
 		List<LogEntry> afterFirst;
 		try (ReplicationLog log = open()) {
-			next = log.appendNext(USERS, USER_42, null);
+			next = log.appendNext(USERS, USER_42, null, writeVersion(1));
 			afterFirst = log.readAfter(1, 100);
 		}
 
 		// Assert
-		assertThat(next.version()).isEqualTo(3);
-		assertThat(afterFirst).extracting(LogEntry::version).containsExactly(2L, 3L);
+		assertThat(next.logVersion()).isEqualTo(3);
+		assertThat(afterFirst).extracting(LogEntry::logVersion).containsExactly(2L, 3L);
 	}
 
 	@Test
 	void lastLineCutOffByACrashIsDroppedOnOpen() throws IOException {
 		// Arrange
 		try (ReplicationLog log = open()) {
-			log.appendNext(USERS, USER_42, ANN_ATTRIBUTES);
-			log.appendNext(USERS, USER_7, BOB_ATTRIBUTES);
+			log.appendNext(USERS, USER_42, ANN_ATTRIBUTES, writeVersion(1));
+			log.appendNext(USERS, USER_7, BOB_ATTRIBUTES, writeVersion(1));
 		}
-		byte[] cutOff = new String(ReplicationLog.encode(LogEntry.put(3, USERS, USER_42, BOB_ATTRIBUTES)), UTF_8)
+		byte[] cutOff = new String(ReplicationLog.encode(LogEntry.put(3, USERS, USER_42, BOB_ATTRIBUTES, writeVersion(3))), UTF_8)
 				.substring(0, 30).getBytes(UTF_8);
 		Files.write(file(), cutOff, StandardOpenOption.APPEND);
 
 		// Act
 		LogEntry next;
 		try (ReplicationLog log = open()) {
-			next = log.appendNext(USERS, USER_42, null);
+			next = log.appendNext(USERS, USER_42, null, writeVersion(1));
 		}
 
 		// Assert
-		assertThat(next.version()).isEqualTo(3);
-		assertThat(reopenAndReplay()).extracting(LogEntry::version).containsExactly(1L, 2L, 3L);
+		assertThat(next.logVersion()).isEqualTo(3);
+		assertThat(reopenAndReplay()).extracting(LogEntry::logVersion).containsExactly(1L, 2L, 3L);
 		assertThat(Files.readAllLines(file(), UTF_8)).hasSize(3);
 	}
 
@@ -211,8 +238,8 @@ class ReplicationLogTest {
 	void lastLineWithAWrongChecksumIsDroppedOnOpen() throws IOException {
 		// Arrange
 		try (ReplicationLog log = open()) {
-			log.appendNext(USERS, USER_42, ANN_ATTRIBUTES);
-			log.appendNext(USERS, USER_7, BOB_ATTRIBUTES);
+			log.appendNext(USERS, USER_42, ANN_ATTRIBUTES, writeVersion(1));
+			log.appendNext(USERS, USER_7, BOB_ATTRIBUTES, writeVersion(1));
 		}
 		replaceInFile("\"name\":\"Bob\"", "\"name\":\"Bod\"");
 
@@ -220,7 +247,7 @@ class ReplicationLogTest {
 		List<LogEntry> replayed = reopenAndReplay();
 
 		// Assert
-		assertThat(replayed).extracting(LogEntry::version).containsExactly(1L);
+		assertThat(replayed).extracting(LogEntry::logVersion).containsExactly(1L);
 		assertThat(Files.readAllLines(file(), UTF_8)).hasSize(1);
 	}
 
@@ -228,9 +255,9 @@ class ReplicationLogTest {
 	void damagedLineThatIsNotTheLastStopsTheOpen() throws IOException {
 		// Arrange
 		try (ReplicationLog log = open()) {
-			log.appendNext(USERS, USER_42, ANN_ATTRIBUTES);
-			log.appendNext(USERS, USER_7, BOB_ATTRIBUTES);
-			log.appendNext(USERS, USER_42, null);
+			log.appendNext(USERS, USER_42, ANN_ATTRIBUTES, writeVersion(1));
+			log.appendNext(USERS, USER_7, BOB_ATTRIBUTES, writeVersion(1));
+			log.appendNext(USERS, USER_42, null, writeVersion(1));
 		}
 		replaceInFile("\"name\":\"Bob\"", "\"name\":\"Bod\"");
 
@@ -246,10 +273,10 @@ class ReplicationLogTest {
 	void damagedLineInTheMiddleIsFoundEvenWhenItIsStillValidJson() throws IOException {
 		// Arrange
 		try (ReplicationLog log = open()) {
-			log.appendNext(USERS, USER_42, ANN_ATTRIBUTES);
-			log.appendNext(USERS, USER_7, BOB_ATTRIBUTES);
+			log.appendNext(USERS, USER_42, ANN_ATTRIBUTES, writeVersion(1));
+			log.appendNext(USERS, USER_7, BOB_ATTRIBUTES, writeVersion(1));
 		}
-		replaceInFile("\"version\":1,", "\"version\":2,");
+		replaceInFile("\"logVersion\":1,", "\"logVersion\":2,");
 
 		// Act
 		Throwable thrown = catchThrowable(this::open);
@@ -261,7 +288,7 @@ class ReplicationLogTest {
 	@Test
 	void followerStoresTheNextEntryFromTheLeader() {
 		// Arrange
-		LogEntry fromLeader = LogEntry.put(1, USERS, USER_42, ANN_ATTRIBUTES);
+		LogEntry fromLeader = LogEntry.put(1, USERS, USER_42, ANN_ATTRIBUTES, writeVersion(1));
 		try (ReplicationLog log = open()) {
 
 			// Act
@@ -276,10 +303,10 @@ class ReplicationLogTest {
 	void followerRefusesAnEntryThatWouldSkipAVersion() {
 		// Arrange
 		try (ReplicationLog log = open()) {
-			log.appendReplicated(LogEntry.put(1, USERS, USER_42, ANN_ATTRIBUTES));
+			log.appendReplicated(LogEntry.put(1, USERS, USER_42, ANN_ATTRIBUTES, writeVersion(1)));
 
 			// Act
-			Throwable thrown = catchThrowable(() -> log.appendReplicated(LogEntry.put(3, USERS, USER_7, BOB_ATTRIBUTES)));
+			Throwable thrown = catchThrowable(() -> log.appendReplicated(LogEntry.put(3, USERS, USER_7, BOB_ATTRIBUTES, writeVersion(3))));
 
 			// Assert
 			assertThat(thrown).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("version 2");

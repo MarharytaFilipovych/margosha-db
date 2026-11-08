@@ -9,9 +9,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.nio.file.Path;
+import java.util.Map;
 
 import com.margosha.api.model.ApiError;
 import com.margosha.api.model.ErrorCode;
+import com.margosha.api.model.Hlc;
+import com.margosha.api.model.RecordVersion;
 import com.margosha.api.model.ReplicaExists;
 import com.margosha.api.model.ReplicaRecord;
 import com.margosha.node.shard.replication.exception.ReplicaRecordNotFoundException;
@@ -23,6 +26,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 class ReplicaReadServiceTest {
 
+	private static final String LEADER_ID = "shard-a-1";
+
 	@TempDir
 	Path dataDir;
 
@@ -31,7 +36,7 @@ class ReplicaReadServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		storage = ReplicaStorage.open(dataDir);
+		storage = ReplicaStorage.open(dataDir, LEADER_ID, () -> 1_000L);
 		reads = new ReplicaReadService(storage);
 	}
 
@@ -50,7 +55,7 @@ class ReplicaReadServiceTest {
 		ReplicaRecord record = reads.read(USERS, USER_42);
 
 		// Assert
-		assertThat(record).isEqualTo(new ReplicaRecord(BOB_ATTRIBUTES, 2));
+		assertThat(record).isEqualTo(new ReplicaRecord(BOB_ATTRIBUTES, 2, version(2, 1_000, 1)));
 	}
 
 	@Test
@@ -63,7 +68,7 @@ class ReplicaReadServiceTest {
 
 		// Assert
 		assertThat(thrown).isInstanceOfSatisfying(ReplicaRecordNotFoundException.class, e -> {
-			assertThat(e.getVersion()).isZero();
+			assertThat(e.getLogVersion()).isZero();
 			assertThat(e.toApiError()).isEqualTo(new ApiError(ErrorCode.RECORD_NOT_FOUND, e.getMessage(), 0L));
 		});
 	}
@@ -79,7 +84,10 @@ class ReplicaReadServiceTest {
 
 		// Assert
 		assertThat(thrown).isInstanceOfSatisfying(ReplicaRecordNotFoundException.class,
-				e -> assertThat(e.getVersion()).isEqualTo(2));
+				e -> {
+					assertThat(e.getLogVersion()).isEqualTo(2);
+					assertThat(e.toApiError().recordVersion()).isEqualTo(version(2, 1_000, 1));
+				});
 	}
 
 	@Test
@@ -95,9 +103,9 @@ class ReplicaReadServiceTest {
 		ReplicaExists neverWritten = reads.exists("orders", USER_42);
 
 		// Assert
-		assertThat(present).isEqualTo(new ReplicaExists(true, 1));
-		assertThat(deleted).isEqualTo(new ReplicaExists(false, 3));
-		assertThat(neverWritten).isEqualTo(new ReplicaExists(false, 0));
+		assertThat(present).isEqualTo(new ReplicaExists(true, 1, version(1, 1_000, 0)));
+		assertThat(deleted).isEqualTo(new ReplicaExists(false, 3, version(2, 1_000, 2)));
+		assertThat(neverWritten).isEqualTo(new ReplicaExists(false, 0, null));
 	}
 
 	@Test
@@ -112,5 +120,9 @@ class ReplicaReadServiceTest {
 
 		// Assert
 		assertThat(reads.readsServed()).isEqualTo(3);
+	}
+
+	private static RecordVersion version(long counter, long l, long c) {
+		return new RecordVersion(Map.of(LEADER_ID, counter), new Hlc(l, c), LEADER_ID);
 	}
 }

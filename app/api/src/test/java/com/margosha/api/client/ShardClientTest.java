@@ -4,6 +4,8 @@ import static com.margosha.api.util.PathConstants.REPLICATION_LOG;
 import static com.margosha.api.util.PathConstants.REPLICATION_STATUS;
 import static com.margosha.api.util.PathConstants.TABLES;
 import static com.margosha.api.data.TestData.BASE_URL;
+import static com.margosha.api.data.TestData.RECORD_VERSION_JSON;
+import static com.margosha.api.data.TestData.recordVersion;
 import static com.margosha.api.data.TestData.ORDERS;
 import static com.margosha.api.data.TestData.USERS;
 import static com.margosha.api.data.TestData.error;
@@ -119,7 +121,7 @@ class ShardClientTest {
         void returnsTheStoredAttributes() {
             // Arrange
             expectRequest(HttpMethod.GET, ORDER_RECORD)
-                    .andRespond(respond(HttpStatus.OK, new ReplicaRecord(orderAttributes(), 7)));
+                    .andRespond(respond(HttpStatus.OK, new ReplicaRecord(orderAttributes(), 7, recordVersion())));
 
             // Act
             Attributes result = client.readRecord(ORDERS, orderKey());
@@ -134,13 +136,13 @@ class ShardClientTest {
             // Arrange
             expectRequest(HttpMethod.GET, USER_RECORD)
                     .andRespond(respondJson(HttpStatus.OK,
-                            "{\"attributes\":{\"name\":\"Ann\",\"city\":\"Kyiv\"},\"version\":7}"));
+                            "{\"attributes\":{\"name\":\"Ann\",\"city\":\"Kyiv\"},\"logVersion\":7,\"recordVersion\":" + RECORD_VERSION_JSON + "}"));
 
             // Act
             ReplicaRecord result = client.readVersioned(USERS, userKey());
 
             // Assert
-            assertThat(result).isEqualTo(new ReplicaRecord(userAttributes(), 7));
+            assertThat(result).isEqualTo(new ReplicaRecord(userAttributes(), 7, recordVersion()));
             server.verify();
         }
 
@@ -162,7 +164,7 @@ class ShardClientTest {
             // Arrange
             expectRequest(HttpMethod.GET, USER_RECORD)
                     .andRespond(respondJson(HttpStatus.NOT_FOUND,
-                            "{\"code\":\"RECORD_NOT_FOUND\",\"message\":\"deleted\",\"version\":9}"));
+                            "{\"code\":\"RECORD_NOT_FOUND\",\"message\":\"deleted\",\"logVersion\":9}"));
 
             // Act
             Throwable thrown = catchThrowable(() -> client.readVersioned(USERS, userKey()));
@@ -180,7 +182,7 @@ class ShardClientTest {
         void returnsWhatTheShardAnswers() {
             // Arrange
             expectRequest(HttpMethod.GET, USER_EXISTS)
-                    .andRespond(respondJson(HttpStatus.OK, "{\"exists\":true,\"version\":3}"));
+                    .andRespond(respondJson(HttpStatus.OK, "{\"exists\":true,\"logVersion\":3}"));
 
             // Act
             boolean exists = client.recordExists(USERS, userKey());
@@ -194,13 +196,13 @@ class ShardClientTest {
         void versionedExistsReturnsTheVersion() {
             // Arrange
             expectRequest(HttpMethod.GET, USER_EXISTS)
-                    .andRespond(respondJson(HttpStatus.OK, "{\"exists\":false,\"version\":4}"));
+                    .andRespond(respondJson(HttpStatus.OK, "{\"exists\":false,\"logVersion\":4,\"recordVersion\":" + RECORD_VERSION_JSON + "}"));
 
             // Act
             ReplicaExists result = client.existsVersioned(USERS, userKey());
 
             // Assert
-            assertThat(result).isEqualTo(new ReplicaExists(false, 4));
+            assertThat(result).isEqualTo(new ReplicaExists(false, 4, recordVersion()));
             server.verify();
         }
     }
@@ -211,7 +213,7 @@ class ShardClientTest {
         @Test
         void fetchLogAsksForTheEntriesAfterThePosition() {
             // Arrange
-            ReplicationEntry entry = new ReplicationEntry(6, USERS, "42", null, userAttributes().values(), false);
+            ReplicationEntry entry = new ReplicationEntry(6, USERS, "42", null, userAttributes().values(), false, recordVersion());
             server.expect(requestTo(BASE_URL + REPLICATION_LOG + "?after=5&shard=shard-a&follower=shard-a-2&max=100"))
                     .andExpect(method(HttpMethod.GET))
                     .andRespond(respond(HttpStatus.OK, new ReplicationBatch(List.of(entry), 6, "log-1")));
