@@ -41,7 +41,10 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.MDC;
+import com.margosha.node.common.metrics.RequestMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Import;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -53,6 +56,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @ActiveProfiles("coordinator")
 @WebMvcTest(CoordinatorController.class)
+@Import({RequestMetrics.class, SimpleMeterRegistry.class})
 @ExtendWith(OutputCaptureExtension.class)
 class CoordinatorControllerTest {
 

@@ -19,6 +19,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 import com.margosha.api.model.Attributes;
@@ -40,6 +41,8 @@ public final class ReplicaStorage implements AutoCloseable {
 
 	private final Map<String, Map<PrimaryKey, VersionedRecord>> tables = new ConcurrentHashMap<>();
 	private final Object writeLock = new Object();
+	/** Records that exist now, in every table (deleted ones not counted). */
+	private final AtomicLong recordCount = new AtomicLong();
 	private final String replicaId;
 	private final LongSupplier clock;
 	private final ReplicationLog replicationLog;
@@ -140,6 +143,10 @@ public final class ReplicaStorage implements AutoCloseable {
 		return replicationLog.lastVersion();
 	}
 
+	public long recordCount() {
+		return recordCount.get();
+	}
+
 	public Optional<String> logId() {
 		return Optional.ofNullable(logId);
 	}
@@ -227,8 +234,10 @@ public final class ReplicaStorage implements AutoCloseable {
 	}
 
 	private void put(LogEntry entry) {
-		tables.computeIfAbsent(entry.table(), name -> new ConcurrentHashMap<>())
-				.put(entry.key(), new VersionedRecord(entry.logVersion(), entry.attributes(), entry.recordVersion()));
+		VersionedRecord record = new VersionedRecord(entry.logVersion(), entry.attributes(), entry.recordVersion());
+		VersionedRecord previous = tables.computeIfAbsent(entry.table(), name -> new ConcurrentHashMap<>())
+				.put(entry.key(), record);
+		recordCount.addAndGet((isPresent(record) ? 1 : 0) - (isPresent(previous) ? 1 : 0));
 		if (entry.recordVersion().hlc().compareTo(lastHlc) > 0) {
 			lastHlc = entry.recordVersion().hlc();
 		}

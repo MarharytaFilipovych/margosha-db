@@ -243,7 +243,7 @@ class ReplicaSetTest {
 				for (PrimaryKey key : userKeys(8)) {
 					emptyLeader.replica().create(USERS, key, OTHER_ATTRIBUTES);
 				}
-				emptyLeader.replicationLeader().entryAppended();
+				emptyLeader.replicationLeader().entryAppended(emptyLeader.replica().lastVersion());
 				String followerLogId = follower2.replica().logId().orElseThrow();
 
 				// Act
@@ -303,7 +303,7 @@ class ReplicaSetTest {
 		try (InProcessNode leader = leader(SHARD_A, leaderDir);
 				InProcessNode misplaced = follower(SHARD_B, SHARD_B + "-2", follower2Dir, leader)) {
 			leader.replica().create(USERS, USER_42, ANN_ATTRIBUTES);
-			leader.replicationLeader().entryAppended();
+			leader.replicationLeader().entryAppended(leader.replica().lastVersion());
 
 			// Act
 			ApiException fetch = apiError(() -> leader.shardClient().fetchLog(0, SHARD_B, SHARD_B + "-2", 10));

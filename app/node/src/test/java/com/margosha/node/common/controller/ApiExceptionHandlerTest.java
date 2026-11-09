@@ -11,6 +11,8 @@ import java.util.stream.Stream;
 import com.margosha.api.model.ApiError;
 import com.margosha.api.model.ErrorCode;
 import com.margosha.node.common.exception.NodeException;
+import com.margosha.node.common.metrics.RequestMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import com.margosha.node.common.exception.RecordAlreadyExistsException;
 import com.margosha.node.common.exception.RecordNotFoundException;
 import com.margosha.node.coordinator.exception.TableAlreadyExistsException;
@@ -27,6 +29,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.mock.http.MockHttpInputMessage;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.ErrorResponseException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 
@@ -34,7 +37,8 @@ class ApiExceptionHandlerTest {
 
 	private static final String UNEXPECTED_MESSAGE = "Unexpected server error!";
 
-	private final ApiExceptionHandler handler = new ApiExceptionHandler();
+	private final ApiExceptionHandler handler = new ApiExceptionHandler(new RequestMetrics(new SimpleMeterRegistry()));
+	private final MockHttpServletRequest request = new MockHttpServletRequest();
 
 	static Stream<Arguments> nodeExceptions() {
 		return Stream.of(
@@ -54,7 +58,7 @@ class ApiExceptionHandlerTest {
 	@ExtendWith(OutputCaptureExtension.class)
 	void expectedClientErrorIsOneWarnLineWithoutAStackTrace(CapturedOutput output) {
 		// Act
-		handler.handleNodeException(new RecordNotFoundException(USERS, USER_42));
+		handler.handleNodeException(new RecordNotFoundException(USERS, USER_42), request);
 
 		// Assert
 		assertThat(output.getOut()).contains("WARN").contains("404 RECORD_NOT_FOUND: Record 42 not found in table users")
@@ -67,7 +71,7 @@ class ApiExceptionHandlerTest {
 												   HttpStatus status,
 												   ErrorCode code, String message) {
 		// Act
-		ResponseEntity<ApiError> response = handler.handleNodeException(exception);
+		ResponseEntity<ApiError> response = handler.handleNodeException(exception, request);
 
 		// Assert
 		assertThat(response.getStatusCode()).isEqualTo(status);
@@ -81,7 +85,7 @@ class ApiExceptionHandlerTest {
 				new HttpMessageNotReadableException("JSON parse error", new MockHttpInputMessage(new byte[0]));
 
 		// Act
-		ResponseEntity<ApiError> response = handler.handleUnreadableBody(exception);
+		ResponseEntity<ApiError> response = handler.handleUnreadableBody(exception, request);
 
 		// Assert
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -95,7 +99,7 @@ class ApiExceptionHandlerTest {
 		HttpRequestMethodNotSupportedException exception = new HttpRequestMethodNotSupportedException("PATCH");
 
 		// Act
-		ResponseEntity<ApiError> response = handler.handleUnexpected(exception);
+		ResponseEntity<ApiError> response = handler.handleUnexpected(exception, request);
 
 		// Assert
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED);
@@ -108,7 +112,7 @@ class ApiExceptionHandlerTest {
 		ErrorResponseException exception = new ErrorResponseException(HttpStatus.SERVICE_UNAVAILABLE);
 
 		// Act
-		ResponseEntity<ApiError> response = handler.handleUnexpected(exception);
+		ResponseEntity<ApiError> response = handler.handleUnexpected(exception, request);
 
 		// Assert
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -121,7 +125,7 @@ class ApiExceptionHandlerTest {
 		IllegalStateException exception = new IllegalStateException("store is broken");
 
 		// Act
-		ResponseEntity<ApiError> response = handler.handleUnexpected(exception);
+		ResponseEntity<ApiError> response = handler.handleUnexpected(exception, request);
 
 		// Assert
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);

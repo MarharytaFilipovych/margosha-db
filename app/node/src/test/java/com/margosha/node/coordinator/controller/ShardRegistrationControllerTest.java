@@ -20,7 +20,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import com.margosha.node.common.metrics.RequestMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Import;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
@@ -32,6 +35,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @ActiveProfiles("coordinator")
 @TestPropertySource(properties = "margosha.mode=SHARDED")
 @WebMvcTest(ShardRegistrationController.class)
+@Import({RequestMetrics.class, SimpleMeterRegistry.class})
 class ShardRegistrationControllerTest {
 
 	private static final String SHARDS = "/shards";

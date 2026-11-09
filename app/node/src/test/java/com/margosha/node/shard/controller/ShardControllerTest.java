@@ -16,6 +16,7 @@ import static com.margosha.node.data.TestData.client;
 import static com.margosha.node.data.TestData.shardClient;
 import static com.margosha.node.data.TestData.unique;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 import com.margosha.api.client.ShardClient;
 import com.margosha.api.exception.ApiException;
@@ -27,11 +28,16 @@ import com.margosha.api.model.ReplicaExists;
 import com.margosha.api.model.ReplicaRecord;
 import com.margosha.api.model.ReplicaStatus;
 import com.margosha.node.annotation.ShardNodeTest;
+import com.margosha.node.common.metrics.Operation;
 import com.margosha.node.common.storage.RecordStorage;
 import com.margosha.node.shard.replication.leader.LeaderRecordStorage;
 import com.margosha.node.shard.replication.storage.ReplicaStorage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import com.margosha.node.common.metrics.RequestMetrics;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tag;
+import io.micrometer.core.instrument.Timer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
@@ -46,6 +52,9 @@ class ShardControllerTest {
 
 	@Autowired
 	private ReplicaStorage replica;
+
+	@Autowired
+	private MeterRegistry registry;
 
 	private ShardClient shard;
 	private final String users = unique(USERS);
@@ -69,6 +78,25 @@ class ShardControllerTest {
 		assertThat(replica.lastVersion()).isEqualTo(before + 1);
 		assertThat(replica.entriesAfter(before, 10)).singleElement()
 				.satisfies(entry -> assertThat(entry.attributes()).isEqualTo(ANN_ATTRIBUTES));
+	}
+
+	@Test
+	void replicaRecordsItsReadLatencyTaggedWithItsRoleShardAndReplica() {
+		// Arrange
+		shard.createRecord(users, USER_42, ANN_ATTRIBUTES);
+		Timer before = registry.find(RequestMetrics.REQUESTS).tag("operation", Operation.READ.tag()).timer();
+		long readsBefore = before == null ? 0 : before.count();
+
+		// Act
+		shard.readVersioned(users, USER_42);
+
+		// Assert
+		Timer reads = registry.get(RequestMetrics.REQUESTS).tag("operation", Operation.READ.tag()).timer();
+		assertThat(reads.count() - readsBefore).isEqualTo(1);
+		assertThat(reads.getId().getTags()).extracting(Tag::getKey, Tag::getValue)
+				.contains(tuple("role", "leader"),
+						tuple("shard", "test-shard"),
+						tuple("replica", "test-shard"));
 	}
 
 	@Test

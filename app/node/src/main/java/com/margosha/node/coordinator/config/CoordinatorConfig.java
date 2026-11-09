@@ -4,6 +4,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 
 import com.margosha.node.common.config.ReplicationProperties;
+import com.margosha.node.common.metrics.RequestMetrics;
 import com.margosha.node.common.storage.InMemoryRecordStorage;
 import com.margosha.node.common.storage.RecordStorage;
 import com.margosha.node.coordinator.replica.QuorumReader;
@@ -13,6 +14,7 @@ import com.margosha.node.coordinator.service.TableRegistryService;
 import com.margosha.node.coordinator.replica.RemoteReplica;
 import com.margosha.node.coordinator.storage.ShardRoutingService;
 import com.margosha.ring.RingSettings;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -47,10 +49,11 @@ public class CoordinatorConfig {
 
 	@Bean
 	@ConditionalOnProperty(name = "margosha.mode", havingValue = "SHARDED")
-	public ShardRegistryService shardRegistryService(CoordinatorSettings settings, ReplicationProperties replication) {
+	public ShardRegistryService shardRegistryService(CoordinatorSettings settings, ReplicationProperties replication,
+			MeterRegistry meterRegistry) {
 		Duration timeout = settings.shard().timeout();
 		return new ShardRegistryService(RingSettings.load().newRing(), replica -> RemoteReplica.connect(replica, timeout),
-				settings.shard().skipAfterFailure(), replication.factor());
+				settings.shard().skipAfterFailure(), replication.factor(), meterRegistry);
 	}
 
 	@Bean(destroyMethod = "close")
@@ -61,8 +64,9 @@ public class CoordinatorConfig {
 
 	@Bean
 	@ConditionalOnProperty(name = "margosha.mode", havingValue = "SHARDED")
-	public RecordStorage shardRoutingService(ShardRegistryService shardRegistryService, QuorumReader quorumReader) {
-		return new ShardRoutingService(shardRegistryService, quorumReader);
+	public RecordStorage shardRoutingService(ShardRegistryService shardRegistryService, QuorumReader quorumReader,
+			RequestMetrics metrics) {
+		return new ShardRoutingService(shardRegistryService, quorumReader, metrics);
 	}
 
 	@Bean

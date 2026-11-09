@@ -15,6 +15,8 @@ import java.util.stream.IntStream;
 import com.margosha.api.client.CoordinatorClient;
 import com.margosha.api.client.ShardClient;
 import com.margosha.node.common.config.ReplicationProperties;
+import com.margosha.node.common.metrics.ClusterMetrics;
+import com.margosha.node.common.metrics.ReplicationLagMetrics;
 import com.margosha.node.common.storage.RecordStorage;
 import com.margosha.node.shard.service.CoordinatorRegistrationService;
 import com.margosha.node.common.util.RetryBackoff;
@@ -25,6 +27,7 @@ import com.margosha.node.shard.replication.leader.ReplicationLeader;
 import com.margosha.node.shard.replication.model.ReplicaIdentity;
 import com.margosha.node.shard.replication.storage.ReplicaStorage;
 import com.margosha.node.shard.service.ReplicaReadService;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -46,8 +49,11 @@ public class ShardConfig {
 	}
 
 	@Bean(destroyMethod = "close")
-	public ReplicaStorage replicaStorage(@Value("${margosha.data-dir}") String dataDir, ReplicaIdentity identity) {
-		return ReplicaStorage.open(Path.of(dataDir), identity.replicaId(), System::currentTimeMillis);
+	public ReplicaStorage replicaStorage(@Value("${margosha.data-dir}") String dataDir, ReplicaIdentity identity,
+			MeterRegistry registry) {
+		ReplicaStorage storage = ReplicaStorage.open(Path.of(dataDir), identity.replicaId(), System::currentTimeMillis);
+		ClusterMetrics.registerRecords(registry, storage);
+		return storage;
 	}
 
 	@Bean
@@ -58,11 +64,13 @@ public class ShardConfig {
 	@Bean
 	@ConditionalOnProperty(name = "margosha.replica.role", havingValue = "leader")
 	public ReplicationLeader replicationLeader(ReplicaStorage storage, ReplicaIdentity identity,
-			ReplicationProperties replication) {
+			ReplicationProperties replication, MeterRegistry registry) {
 		storage.ensureLogId();
-		return new ReplicationLeader(storage, identity.shardId(), identity.replicaId(),
+		ReplicationLeader leader = new ReplicationLeader(storage, identity.shardId(), identity.replicaId(),
 				followerIds(identity, replication.factor()), replication.followerConfirmations(),
 				replication.ackTimeout(), replication.longPoll());
+		ReplicationLagMetrics.register(registry, leader);
+		return leader;
 	}
 
 	static Set<String> followerIds(ReplicaIdentity leader, int factor) {

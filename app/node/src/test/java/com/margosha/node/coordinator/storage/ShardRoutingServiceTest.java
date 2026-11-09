@@ -24,6 +24,8 @@ import com.margosha.node.coordinator.replica.QuorumReader;
 import com.margosha.node.coordinator.service.ShardRegistryService;
 import com.margosha.node.data.FakeReplica;
 import com.margosha.ring.RingSettings;
+import com.margosha.node.common.metrics.RequestMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -37,7 +39,8 @@ class ShardRoutingServiceTest {
 	private final ShardRegistryService registry = new ShardRegistryService(RingSettings.load().newRing(), replica ->
 			replicas.computeIfAbsent(replica.replicaId(), id -> new FakeReplica(replica)));
 	private final QuorumReader quorumReader = new QuorumReader(2);
-	private final ShardRoutingService storage = new ShardRoutingService(registry, quorumReader);
+	private final ShardRoutingService storage = new ShardRoutingService(registry, quorumReader,
+			new RequestMetrics(new SimpleMeterRegistry()));
 
 	@AfterEach
 	void tearDown() {

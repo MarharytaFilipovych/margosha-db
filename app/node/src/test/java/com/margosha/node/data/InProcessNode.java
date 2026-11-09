@@ -20,6 +20,7 @@ import com.margosha.node.shard.replication.leader.ReplicationLeader;
 import com.margosha.node.shard.replication.model.ReplicaIdentity;
 import com.margosha.node.shard.replication.storage.ReplicaStorage;
 import com.margosha.node.shard.service.CoordinatorRegistrationService;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ConfigurableApplicationContext;
 
@@ -163,6 +164,10 @@ public final class InProcessNode implements AutoCloseable {
 
 	public FollowerReplicator followerReplicator() {
 		return context.getBean(FollowerReplicator.class);
+	}
+
+	public MeterRegistry meterRegistry() {
+		return context.getBean(MeterRegistry.class);
 	}
 
 	public ShardClient shardClient() {

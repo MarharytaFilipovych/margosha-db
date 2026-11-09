@@ -30,10 +30,10 @@
 
 ## 4. Metrics (after ADRs 0012 and 0013, and group 2 if lag uses the write's time)
 
-- [ ] 4.1 Add the metrics library and registry from ADRs 0012 and 0013; expose only what the registry needs; common tags `role` / `shard` / `replica`; request latencies as ADR 0012 decides; verify a test that READ and UPDATE latencies are recorded after requests and that no other actuator endpoint answers
-- [ ] 4.2 Error counter by operation and code in `ApiExceptionHandler`; verify a test that a not-found READ increments only the not-found count
-- [ ] 4.3 Replication lag in seconds per follower as ADR 0012 decides; verify an in-process test that a stopped follower's lag grows and returns to 0 after it catches up
-- [ ] 4.4 Cluster health and shard distribution metrics from ADR 0012; verify a test with 2 shards × 3 replicas showing 1 leader + 2 followers per shard and a distribution value per shard
+- [x] 4.1 Add the metrics library and registry from ADRs 0012 and 0013; expose only what the registry needs; common tags `role` / `shard` / `replica`; request latencies as ADR 0012 decides; verify a test that READ and UPDATE latencies are recorded after requests and that no other actuator endpoint answers
+- [x] 4.2 Error counter by operation and code in `ApiExceptionHandler`; verify a test that a not-found READ increments only the not-found count
+- [x] 4.3 Replication lag in seconds per follower as ADR 0012 decides; verify an in-process test that a stopped follower's lag grows and returns to 0 after it catches up
+- [x] 4.4 Cluster health and shard distribution metrics from ADR 0012; verify a test with 2 shards × 3 replicas showing 1 leader + 2 followers per shard and a distribution value per shard
 - [ ] 4.5 If ADR 0013 needs it, the way replica metrics reach the backend (relay through the coordinator, or VPC endpoint configuration); verify on a local multi-node run (or on AWS) that all 7 nodes' metrics arrive
 - [ ] 4.6 Write `m4/metrics.md`: each metric, its tags, what it shows, and the ADR 0012 reason; verify it lists the same metrics the code registers
 

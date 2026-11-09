@@ -5,6 +5,8 @@ import static com.margosha.api.util.PathConstants.RECORD;
 import static com.margosha.api.util.PathConstants.RECORDS;
 import static com.margosha.api.util.PathConstants.TABLES;
 
+import com.margosha.node.common.metrics.Operation;
+import com.margosha.node.common.metrics.RequestMetrics;
 import com.margosha.node.coordinator.service.RecordService;
 import com.margosha.node.coordinator.service.TableRegistryService;
 import com.margosha.api.model.Attributes;
@@ -33,6 +35,7 @@ public class CoordinatorController {
 
 	private final TableRegistryService tableRegistryService;
 	private final RecordService recordService;
+	private final RequestMetrics metrics;
 
 	@PostMapping(TABLES)
 	@ResponseStatus(HttpStatus.CREATED)
@@ -44,21 +47,22 @@ public class CoordinatorController {
 	@ResponseStatus(HttpStatus.CREATED)
 	public TableRecord createRecord(@PathVariable String tableName,
 									@RequestBody TableRecord record) {
-		return recordService.create(tableName, record);
+		return metrics.time(Operation.CREATE, () -> recordService.create(tableName, record));
 	}
 
 	@GetMapping(RECORD)
 	public TableRecord readRecord(@PathVariable String tableName,
 			@PathVariable @NotBlank(message = "Missing partition key value") String partitionKey,
 			@RequestParam(required = false) String sortKey) {
-		return recordService.read(tableName, partitionKey, sortKey);
+		return metrics.time(Operation.READ, () -> recordService.read(tableName, partitionKey, sortKey));
 	}
 
 	@GetMapping(EXISTS)
 	public ExistsResult recordExists(@PathVariable String tableName,
 			@PathVariable @NotBlank(message = "Missing partition key value") String partitionKey,
 			@RequestParam(required = false) String sortKey) {
-		return new ExistsResult(recordService.exists(tableName, partitionKey, sortKey));
+		return metrics.time(Operation.EXISTS,
+				() -> new ExistsResult(recordService.exists(tableName, partitionKey, sortKey)));
 	}
 
 	@PutMapping(RECORD)
@@ -66,7 +70,7 @@ public class CoordinatorController {
 			@PathVariable @NotBlank(message = "Missing partition key value") String partitionKey,
 			@RequestParam(required = false) String sortKey,
 			@RequestBody Attributes attributes) {
-		return recordService.update(tableName, partitionKey, sortKey, attributes);
+		return metrics.time(Operation.UPDATE, () -> recordService.update(tableName, partitionKey, sortKey, attributes));
 	}
 
 	@DeleteMapping(RECORD)
@@ -74,6 +78,6 @@ public class CoordinatorController {
 	public void deleteRecord(@PathVariable String tableName,
 			@PathVariable @NotBlank(message = "Missing partition key value") String partitionKey,
 			@RequestParam(required = false) String sortKey) {
-		recordService.delete(tableName, partitionKey, sortKey);
+		metrics.time(Operation.DELETE, () -> recordService.delete(tableName, partitionKey, sortKey));
 	}
 }

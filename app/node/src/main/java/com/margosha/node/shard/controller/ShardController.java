@@ -7,6 +7,8 @@ import com.margosha.api.model.Attributes;
 import com.margosha.api.model.PrimaryKey;
 import com.margosha.api.model.ReplicaExists;
 import com.margosha.api.model.ReplicaRecord;
+import com.margosha.node.common.metrics.Operation;
+import com.margosha.node.common.metrics.RequestMetrics;
 import com.margosha.node.common.storage.RecordStorage;
 import com.margosha.node.shard.service.ReplicaReadService;
 import jakarta.validation.constraints.NotBlank;
@@ -30,6 +32,7 @@ public class ShardController {
 
 	private final RecordStorage recordStorage;
 	private final ReplicaReadService replicaReadService;
+	private final RequestMetrics metrics;
 
 	@PostMapping(RECORD)
 	@ResponseStatus(HttpStatus.CREATED)
@@ -37,7 +40,7 @@ public class ShardController {
 								   @PathVariable @NotBlank(message = "Missing partition key value") String partitionKey,
 								   @RequestParam(required = false) String sortKey,
 								   @RequestBody Attributes attributes) {
-		recordStorage.create(tableName, key(partitionKey, sortKey), attributes);
+		metrics.time(Operation.CREATE, () -> recordStorage.create(tableName, key(partitionKey, sortKey), attributes));
 		return attributes;
 	}
 
@@ -45,14 +48,14 @@ public class ShardController {
 	public ReplicaRecord readRecord(@PathVariable String tableName,
 									@PathVariable @NotBlank(message = "Missing partition key value") String partitionKey,
 									@RequestParam(required = false) String sortKey) {
-		return replicaReadService.read(tableName, key(partitionKey, sortKey));
+		return metrics.time(Operation.READ, () -> replicaReadService.read(tableName, key(partitionKey, sortKey)));
 	}
 
 	@GetMapping(EXISTS)
 	public ReplicaExists recordExists(@PathVariable String tableName,
 									  @PathVariable @NotBlank(message = "Missing partition key value") String partitionKey,
 									  @RequestParam(required = false) String sortKey) {
-		return replicaReadService.exists(tableName, key(partitionKey, sortKey));
+		return metrics.time(Operation.EXISTS, () -> replicaReadService.exists(tableName, key(partitionKey, sortKey)));
 	}
 
 	@PutMapping(RECORD)
@@ -60,7 +63,7 @@ public class ShardController {
 								   @PathVariable @NotBlank(message = "Missing partition key value") String partitionKey,
 								   @RequestParam(required = false) String sortKey,
 								   @RequestBody Attributes attributes) {
-		recordStorage.update(tableName, key(partitionKey, sortKey), attributes);
+		metrics.time(Operation.UPDATE, () -> recordStorage.update(tableName, key(partitionKey, sortKey), attributes));
 		return attributes;
 	}
 
@@ -69,7 +72,7 @@ public class ShardController {
 	public void deleteRecord(@PathVariable String tableName,
 							 @PathVariable @NotBlank(message = "Missing partition key value") String partitionKey,
 							 @RequestParam(required = false) String sortKey) {
-		recordStorage.delete(tableName, key(partitionKey, sortKey));
+		metrics.time(Operation.DELETE, () -> recordStorage.delete(tableName, key(partitionKey, sortKey)));
 	}
 
 	private static PrimaryKey key(String partitionKey, String sortKey) {
