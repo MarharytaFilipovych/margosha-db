@@ -2,6 +2,7 @@ package com.margosha.node.coordinator.replica;
 
 import com.margosha.api.model.Attributes;
 import com.margosha.api.model.PrimaryKey;
+import com.margosha.api.model.ReplicaMetrics;
 import com.margosha.api.model.ShardRegistration;
 import com.margosha.node.coordinator.model.ReplicaAnswer;
 
@@ -18,4 +19,6 @@ public interface ReplicaClient {
 	ReplicaAnswer read(String table, PrimaryKey key);
 
 	ReplicaAnswer exists(String table, PrimaryKey key);
+
+	ReplicaMetrics metrics();
 }

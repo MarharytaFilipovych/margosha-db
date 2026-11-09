@@ -1,5 +1,6 @@
 package com.margosha.api;
 
+import static com.margosha.api.util.PathConstants.METRICS;
 import static com.margosha.api.util.PathConstants.REPLICATION_LOG;
 import static com.margosha.api.util.PathConstants.REPLICATION_STATUS;
 import static com.margosha.api.util.PathConstants.SHARDS;
@@ -16,7 +17,9 @@ import java.util.stream.Stream;
 
 import com.margosha.api.model.ApiError;
 import com.margosha.api.model.ErrorCode;
+import com.margosha.api.model.MetricValue;
 import com.margosha.api.model.ReplicaExists;
+import com.margosha.api.model.ReplicaMetrics;
 import com.margosha.api.model.ReplicaRecord;
 import com.margosha.api.model.ReplicaRole;
 import com.margosha.api.model.ReplicaStatus;
@@ -68,6 +71,8 @@ class OpenApiSpecTest {
 				Arguments.of(ReplicationEntry.class, "ReplicationEntry"),
 				Arguments.of(ReplicationBatch.class, "ReplicationBatch"),
 				Arguments.of(ReplicaStatus.class, "ReplicaStatus"),
+				Arguments.of(ReplicaMetrics.class, "ReplicaMetrics"),
+				Arguments.of(MetricValue.class, "MetricValue"),
 				Arguments.of(ApiError.class, "Error"));
 	}
 
@@ -90,7 +95,7 @@ class OpenApiSpecTest {
 	@Test
 	void replicaRegistrationAndReplicationEndpointsAreDescribed() {
 		// Arrange
-		List<String> paths = List.of(SHARDS, REPLICATION_LOG, REPLICATION_STATUS);
+		List<String> paths = List.of(SHARDS, REPLICATION_LOG, REPLICATION_STATUS, METRICS);
 
 		// Act
 		List<String> missing = paths.stream().filter(path -> !SPEC.contains("  " + path + ":")).toList();

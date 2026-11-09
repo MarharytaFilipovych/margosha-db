@@ -1,6 +1,7 @@
 package com.margosha.node.coordinator.service;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -62,7 +63,9 @@ public class ShardRegistryService {
 		replicaSet.checkCanAdd(replica.replicaId(), replica.role());
 		replicaSet.put(connect.apply(replica));
 		boolean newShard = ring.addShard(replica.shardId());
-		ClusterMetrics.registerShard(meterRegistry, this, replica.shardId());
+		if (newShard) {
+			ClusterMetrics.registerShard(meterRegistry, this, replica.shardId());
+		}
 		log.info("{} replica {} ({}) of shard {} at {}{}", known == null ? "Registered" : "Updated",
 				replica.replicaId(), replica.role().argument(), replica.shardId(), replica.address(),
 				newShard ? "; the shard joins the ring" : "");
@@ -83,6 +86,10 @@ public class ShardRegistryService {
 
 	public Set<String> shards() {
 		return ring.shards();
+	}
+
+	public List<ReplicaClient> replicas() {
+		return replicaSets.values().stream().flatMap(set -> set.replicas().stream()).toList();
 	}
 
 	public long replicaCount(String shardId, ReplicaRole role) {

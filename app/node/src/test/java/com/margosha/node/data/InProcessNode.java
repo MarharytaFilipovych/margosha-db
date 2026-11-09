@@ -170,6 +170,10 @@ public final class InProcessNode implements AutoCloseable {
 		return context.getBean(MeterRegistry.class);
 	}
 
+	public <T> T bean(Class<T> type) {
+		return context.getBean(type);
+	}
+
 	public ShardClient shardClient() {
 		return TestData.shardClient(port());
 	}

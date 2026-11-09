@@ -1,0 +1,100 @@
+package com.margosha.node.coordinator.controller;
+
+import static com.margosha.node.data.TestData.SHARD_A;
+import static com.margosha.node.data.TestData.SHARD_B;
+import static com.margosha.node.data.TestData.USERS;
+import static com.margosha.node.data.TestData.testDataDir;
+import static com.margosha.node.data.TestData.unique;
+import static com.margosha.node.data.TestData.user;
+import static com.margosha.node.data.TestData.userKeys;
+import static com.margosha.node.data.TestData.usersTable;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+
+import java.time.Duration;
+import java.util.List;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
+
+import com.margosha.api.client.CoordinatorClient;
+import com.margosha.api.model.PrimaryKey;
+import com.margosha.api.model.ShardRegistration;
+import com.margosha.node.coordinator.replica.ReplicaClient;
+import com.margosha.node.data.FakeCloudWatch;
+import com.margosha.node.data.InProcessNode;
+import com.margosha.node.data.InProcessReplicaSet;
+import org.junit.jupiter.api.Test;
+import software.amazon.awssdk.services.cloudwatch.model.MetricDatum;
+
+class ReplicaMetricsRelayTest {
+
+	private static final Duration WAIT = Duration.ofSeconds(20);
+	private static final String UP = "margosha.replica.up.value";
+	private static final String RECORDS = "margosha.replica.records.value";
+
+	@Test
+	void metricsOfAllSevenNodesAreSentAndAStoppedReplicaIsDown() {
+		// Arrange
+		try (InProcessNode coordinator = InProcessNode.replicatedCoordinator(0, testDataDir("coordinator"),
+				"--margosha.metrics.cloudwatch.region=us-east-1", "--margosha.metrics.cloudwatch.step=1s",
+				"--margosha.metrics.relay-interval=200ms", FakeCloudWatch.SOURCE);
+				InProcessReplicaSet shardA = InProcessReplicaSet.start(SHARD_A, coordinator.address());
+				InProcessReplicaSet shardB = InProcessReplicaSet.start(SHARD_B, coordinator.address())) {
+			List<InProcessNode> replicas = Stream.of(shardA, shardB).flatMap(set ->
+					set.replicas().stream()).toList();
+			replicas.forEach(replica -> awaitRegistered(coordinator, replica));
+			FakeCloudWatch cloudWatch = coordinator.bean(FakeCloudWatch.class);
+			CoordinatorClient client = coordinator.client();
+			String users = unique(USERS);
+			client.registerTable(usersTable(users));
+			List<PrimaryKey> keys = userKeys(20);
+
+			// Act
+			keys.forEach(key -> client.createRecord(users, user(key)));
+			keys.forEach(key -> client.readRecord(users, key));
+
+			// Assert: the coordinator's own metrics, and every replica's, are sent marked with its ID
+			await().atMost(WAIT).untilAsserted(() -> {
+				assertThat(cloudWatch.sent()).anyMatch(named("margosha.requests.count")
+						.and(with("role", "coordinator")));
+				for (InProcessNode replica : replicas) {
+					String id = replica.replicaId();
+					assertThat(cloudWatch.last(UP, "replica", id)).as("%s is up", id).contains(1.0);
+					assertThat(cloudWatch.sent()).as("records of %s", id)
+							.anyMatch(named(RECORDS).and(with("replica", id)));
+				}
+				assertThat(cloudWatch.sent()).as("the leader's latency, relayed")
+						.anyMatch(named("margosha.requests.percentile.value").and(with("replica", SHARD_A + "-1"))
+								.and(with("phi", "0.99")));
+				assertThat(cloudWatch.sent()).as("the leader's lag, relayed")
+						.anyMatch(named("margosha.replication.lag.value").and(with("replica", SHARD_A + "-1"))
+								.and(with("follower", SHARD_A + "-2")));
+			});
+			assertThat(cloudWatch.sent()).as("ADR 0012: no sum, average or maximum")
+					.noneMatch(datum -> datum.metricName().matches(".*\\.(sum|avg|max)"));
+
+			// Act: a replica stops
+			String stopped = SHARD_A + "-3";
+			shardA.getFollower3().close();
+
+			// Assert
+			await().atMost(WAIT).until(() -> cloudWatch.last(UP, "replica", stopped).orElseThrow() == 0.0);
+			assertThat(cloudWatch.last(UP, "replica", SHARD_A + "-2")).contains(1.0);
+		}
+	}
+
+	private static Predicate<MetricDatum> named(String name) {
+		return datum -> datum.metricName().equals(name);
+	}
+
+	private static Predicate<MetricDatum> with(String dimension, String value) {
+		return datum -> FakeCloudWatch.has(datum, dimension, value);
+	}
+
+	private static void awaitRegistered(InProcessNode coordinator, InProcessNode replica) {
+		ShardRegistration registration = replica.registration();
+		await().atMost(WAIT).until(() -> coordinator.shardRegistry().replicaSet(registration.shardId())
+				.map(set -> set.replicas().stream().map(ReplicaClient::registration).toList().contains(registration))
+				.orElse(false));
+	}
+}

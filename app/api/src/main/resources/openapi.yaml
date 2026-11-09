@@ -388,6 +388,26 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /metrics:
+    parameters:
+      - $ref: '#/components/parameters/TraceId'
+    get:
+      tags: [replication]
+      operationId: replicaMetrics
+      summary: The replica's metrics, read by the coordinator once a minute
+      responses:
+        '200':
+          description: Every store metric of the replica, tagged with its role, shard and replica ID.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplicaMetrics'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
 components:
   parameters:
     TableName:
@@ -634,6 +654,39 @@ components:
           type: integer
           format: int64
           description: On a follower, log entries received from the leader since it started; 0 on a leader.
+      additionalProperties: false
+
+    ReplicaMetrics:
+      type: object
+      required: [metrics]
+      properties:
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetricValue'
+      additionalProperties: false
+
+    MetricValue:
+      type: object
+      required: [name, type, tags, value]
+      properties:
+        name:
+          type: string
+          example: margosha.requests
+        type:
+          type: string
+          enum: [COUNTER, GAUGE]
+          description: COUNTER is a total since the replica started. GAUGE is the value right now.
+        tags:
+          type: object
+          additionalProperties:
+            type: string
+        value:
+          type: number
+          format: double
+        unit:
+          type: string
+          description: The unit of a gauge, such as milliseconds or seconds, left out for plain numbers.
       additionalProperties: false
 
     Error:

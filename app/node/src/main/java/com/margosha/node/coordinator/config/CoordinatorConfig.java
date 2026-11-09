@@ -9,6 +9,7 @@ import com.margosha.node.common.storage.InMemoryRecordStorage;
 import com.margosha.node.common.storage.RecordStorage;
 import com.margosha.node.coordinator.replica.QuorumReader;
 import com.margosha.node.coordinator.service.RecordService;
+import com.margosha.node.coordinator.metrics.ReplicaMetricsRelay;
 import com.margosha.node.coordinator.service.ShardRegistryService;
 import com.margosha.node.coordinator.service.TableRegistryService;
 import com.margosha.node.coordinator.replica.RemoteReplica;
@@ -67,6 +68,13 @@ public class CoordinatorConfig {
 	public RecordStorage shardRoutingService(ShardRegistryService shardRegistryService, QuorumReader quorumReader,
 			RequestMetrics metrics) {
 		return new ShardRoutingService(shardRegistryService, quorumReader, metrics);
+	}
+
+	@Bean(destroyMethod = "close")
+	@ConditionalOnProperty(name = "margosha.mode", havingValue = "SHARDED")
+	public ReplicaMetricsRelay replicaMetricsRelay(ShardRegistryService shardRegistryService,
+			MeterRegistry meterRegistry, CoordinatorSettings settings) {
+		return new ReplicaMetricsRelay(shardRegistryService, meterRegistry, settings.metrics().relayInterval());
 	}
 
 	@Bean

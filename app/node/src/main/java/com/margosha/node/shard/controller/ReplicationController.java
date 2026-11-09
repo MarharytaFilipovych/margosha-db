@@ -1,13 +1,17 @@
 package com.margosha.node.shard.controller;
 
+import static com.margosha.api.util.PathConstants.METRICS;
 import static com.margosha.api.util.PathConstants.REPLICATION_LOG;
 import static com.margosha.api.util.PathConstants.REPLICATION_STATUS;
 import static org.springframework.util.StringUtils.hasText;
 
 import java.util.Map;
 
+import com.margosha.api.model.ReplicaMetrics;
 import com.margosha.api.model.ReplicaStatus;
 import com.margosha.api.model.ReplicationBatch;
+import com.margosha.node.common.exception.ValidationException;
+import com.margosha.node.common.metrics.MetricsSnapshot;
 import com.margosha.node.shard.replication.exception.NotLeaderException;
 import com.margosha.node.shard.replication.follower.FollowerReplicator;
 import com.margosha.node.shard.replication.leader.ReplicationLeader;
@@ -18,6 +22,7 @@ import com.margosha.node.shard.service.ReplicaReadService;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -35,9 +40,12 @@ public class ReplicationController {
 	private final ReplicaReadService replicaReadService;
 	private final ReplicationLeader leader;
 	private final FollowerReplicator follower;
+	private final MeterRegistry registry;
 
 	public ReplicationController(ReplicaIdentity identity, ReplicaStorage replicaStorage, ReplicaReadService replicaReadService,
-								 ObjectProvider<ReplicationLeader> leader, ObjectProvider<FollowerReplicator> follower) {
+			ObjectProvider<ReplicationLeader> leader, ObjectProvider<FollowerReplicator> follower,
+			MeterRegistry registry) {
+		this.registry = registry;
 		this.identity = identity;
 		this.replicaStorage = replicaStorage;
 		this.replicaReadService = replicaReadService;
@@ -61,6 +69,11 @@ public class ReplicationController {
 				leader.fetch(shard, follower, after, hasText(logId) ? logId : null, max).stream()
 						.map(LogEntry::toReplicationEntry).toList(),
 				replicaStorage.lastVersion(), replicaStorage.ensureLogId());
+	}
+
+	@GetMapping(METRICS)
+	public ReplicaMetrics metrics() {
+		return new ReplicaMetrics(MetricsSnapshot.of(registry));
 	}
 
 	@GetMapping(REPLICATION_STATUS)

@@ -9,7 +9,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @NullMarked
 @ConfigurationProperties("margosha.metrics.cloudwatch")
-public record CloudWatchProperties(boolean enabled, String namespace, Duration step) implements CloudWatchConfig {
+public record CloudWatchProperties(@Nullable String region,
+								   String namespace, Duration step)
+		implements CloudWatchConfig {
 
 	@Override
 	public @Nullable String get(String key) {

@@ -8,6 +8,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.margosha.api.model.Attributes;
 import com.margosha.api.model.PrimaryKey;
+import com.margosha.api.model.ReplicaMetrics;
 import com.margosha.api.model.ShardRegistration;
 import com.margosha.node.coordinator.exception.ShardUnavailableException;
 import com.margosha.node.coordinator.model.ReplicaAnswer;
@@ -84,6 +85,11 @@ public final class FakeReplica implements ReplicaClient {
 	public ReplicaAnswer exists(String table, PrimaryKey key) {
 		ReplicaAnswer current = answer();
 		return new ReplicaAnswer(current.logVersion(), current.exists(), null, current.recordVersion());
+	}
+
+	@Override
+	public ReplicaMetrics metrics() {
+		return new ReplicaMetrics(List.of());
 	}
 
 	private synchronized void write(String write) {

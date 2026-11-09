@@ -10,6 +10,7 @@ public final class ClusterMetrics {
 
 	public static final String REPLICAS = "margosha.cluster.replicas";
 	public static final String RECORDS = "margosha.replica.records";
+	public static final String UP = "margosha.replica.up";
 
 	private ClusterMetrics() { }
 

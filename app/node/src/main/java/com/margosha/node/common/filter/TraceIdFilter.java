@@ -1,5 +1,6 @@
 package com.margosha.node.common.filter;
 
+import static com.margosha.api.util.PathConstants.METRICS;
 import static com.margosha.api.util.PathConstants.REPLICATION_LOG;
 import static com.margosha.api.util.PathConstants.REPLICATION_STATUS;
 import static com.margosha.api.util.PathConstants.SHARDS;
@@ -25,10 +26,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class TraceIdFilter extends OncePerRequestFilter {
 
-	/**
-	 * Requests the nodes send each other all the time (followers polling the log, replicas re-registering)
-	 */
-	private static final Set<String> BACKGROUND_PATHS = Set.of(REPLICATION_LOG, REPLICATION_STATUS, SHARDS);
+	private static final Set<String> BACKGROUND_PATHS = Set.of(REPLICATION_LOG, REPLICATION_STATUS, SHARDS, METRICS);
 
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)

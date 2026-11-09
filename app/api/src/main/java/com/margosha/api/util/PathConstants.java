@@ -11,6 +11,7 @@ public final class PathConstants {
     public static final String REPLICATION = "/replication";
     public static final String REPLICATION_LOG = REPLICATION + "/log";
     public static final String REPLICATION_STATUS = REPLICATION + "/status";
+    public static final String METRICS = "/metrics";
 
     private PathConstants() { }
 }

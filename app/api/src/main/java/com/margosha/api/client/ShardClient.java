@@ -2,6 +2,7 @@ package com.margosha.api.client;
 
 import static com.margosha.api.util.ApiCallsUtil.uri;
 import static com.margosha.api.util.PathConstants.EXISTS;
+import static com.margosha.api.util.PathConstants.METRICS;
 import static com.margosha.api.util.PathConstants.RECORD;
 import static com.margosha.api.util.PathConstants.REPLICATION_LOG;
 import static com.margosha.api.util.PathConstants.REPLICATION_STATUS;
@@ -12,6 +13,7 @@ import org.springframework.web.client.RestClient;
 import com.margosha.api.model.Attributes;
 import com.margosha.api.model.PrimaryKey;
 import com.margosha.api.model.ReplicaExists;
+import com.margosha.api.model.ReplicaMetrics;
 import com.margosha.api.model.ReplicaRecord;
 import com.margosha.api.model.ReplicaStatus;
 import com.margosha.api.model.ReplicationBatch;
@@ -73,5 +75,9 @@ public class ShardClient {
 
     public ReplicaStatus status() {
         return calls.call(HttpMethod.GET, uri(REPLICATION_STATUS), null, ReplicaStatus.class);
+    }
+
+    public ReplicaMetrics metrics() {
+        return calls.call(HttpMethod.GET, uri(METRICS), null, ReplicaMetrics.class);
     }
 }

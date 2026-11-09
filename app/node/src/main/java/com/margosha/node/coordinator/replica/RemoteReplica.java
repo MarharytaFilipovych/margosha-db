@@ -10,6 +10,7 @@ import com.margosha.api.model.ErrorCode;
 import com.margosha.api.model.PrimaryKey;
 import com.margosha.api.model.RecordVersion;
 import com.margosha.api.model.ReplicaExists;
+import com.margosha.api.model.ReplicaMetrics;
 import com.margosha.api.model.ReplicaRecord;
 import com.margosha.api.model.ShardRegistration;
 import com.margosha.api.util.RestClientBuilder;
@@ -73,6 +74,15 @@ public class RemoteReplica implements ReplicaClient {
 	public ReplicaAnswer exists(String table, PrimaryKey key) {
 		ReplicaExists exists = call(table, key, () -> client.existsVersioned(table, key));
 		return new ReplicaAnswer(exists.logVersion(), exists.exists(), null, exists.recordVersion());
+	}
+
+	@Override
+	public ReplicaMetrics metrics() {
+		try {
+			return client.metrics();
+		} catch (ResourceAccessException e) {
+			throw ShardUnavailableException.didNotAnswer(registration.shardId(), registration.replicaId());
+		}
 	}
 
 	private <T> T call(String table, PrimaryKey key, Supplier<T> request) {
