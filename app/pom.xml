@@ -47,6 +47,7 @@
         <module>ring</module>
         <module>node</module>
         <module>ycsb-binding</module>
+        <module>mcp-tools</module>
         <module>mcp-server</module>
     </modules>
 </project>

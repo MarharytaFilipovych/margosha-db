@@ -40,7 +40,7 @@
 ## 5. MCP server (after ADR 0015)
 
 - [x] 5.1 Add the MCP server in the form and with the SDK and transport ADR 0015 decides (a Spring AI version that supports the project's Spring Boot 4.1), configuration from environment variables, no banner and logging away from the protocol stream; verify `./mvnw verify` builds it and, with stdio, a test shows stdout carries only protocol messages
-- [ ] 5.2 Implement `exists_record`, `read_record`, `create_record`, `delete_record` with input schemas, descriptions and tool annotations; map `ApiException` to tool errors with code and message, and "outcome unknown" for 503 on writes; verify tests against an in-process coordinator for the tool list, create→read, delete→exists, not found, already exists, unavailable, and schema violations
+- [x] 5.2 Implement `exists_record`, `read_record`, `create_record`, `delete_record` with input schemas, descriptions and tool annotations; map `ApiException` to tool errors with code and message, and "outcome unknown" for 503 on writes; verify tests against an in-process coordinator for the tool list, create→read, delete→exists, not found, already exists, unavailable, and schema violations
 - [ ] 5.3 Implement the limits and the authorisation from ADR 0015 (in the MCP server and, if the ADR decides so, in the coordinator); verify tests for a table not allowed, missing and wrong credentials (nothing created), and no log line containing the credential
 - [ ] 5.4 Write `m4/mcp.md`: what the server offers, how to configure Claude (Desktop or Code) for it, the credential setup, and the ADR 0015 boundaries; verify the documented config starts the server from a clean checkout
 

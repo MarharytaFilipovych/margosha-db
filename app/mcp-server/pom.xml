@@ -19,6 +19,11 @@
             <version>${project.version}</version>
         </dependency>
         <dependency>
+            <groupId>com.margosha</groupId>
+            <artifactId>mcp-tools</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-mcp-server</artifactId>
         </dependency>
