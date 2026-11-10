@@ -46,8 +46,8 @@
 
 ## 6. Dashboard and alerts (after ADRs 0013 and 0014, and group 4)
 
-- [ ] 6.1 Define the dashboard as code (cluster health, latency p50 / p95 / p99, throughput, error rate for coordinator and replicas, replication lag, shard distribution) where ADR 0013 decides; verify it is created from the repository with no manual edits and every panel shows data from a local or AWS run
-- [ ] 6.2 Define the alerts as code (node down for each of the 7 nodes, p99 latency, replication lag) with ADR 0014's thresholds and durations, and the notification target; verify the definitions validate (`cfn-lint` or the backend's own check) and list all three alert kinds
+- [x] 6.1 Define the dashboard as code (cluster health, latency p50 / p95 / p99, throughput, error rate for coordinator and replicas, replication lag, shard distribution) where ADR 0013 decides; verify it is created from the repository with no manual edits and every panel shows data from a local or AWS run
+- [x] 6.2 Define the alerts as code (node down for each of the 7 nodes, p99 latency, replication lag) with ADR 0014's thresholds and durations, and the notification target; verify the definitions validate (`cfn-lint` or the backend's own check) and list all three alert kinds
 - [ ] 6.3 Add any AWS resources and access the monitoring stack needs to the templates (no new instance, replicas unreachable from outside, secrets outside the repository) and to the pipeline; preview the change set and verify no instance shows `Replacement: True` or `Conditional`
 
 ## 7. Checks on AWS (after groups 3–6)

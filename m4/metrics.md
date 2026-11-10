@@ -1,8 +1,10 @@
 # Metrics: what the store measures
 
-This page lists every metric the nodes collect, its tags, what it shows and why it is there. Decisions behind it:
-[ADR 0012](../adr/0012-metrics.md) (which metrics, and only those a panel, an alert or an SLO uses) and
-[ADR 0013](../adr/0013-monitoring-stack.md) (CloudWatch, with the coordinator sending the replicas' metrics on).
+This page lists every metric the nodes collect, its tags, what it shows and why it is there. 
+
+Decisions behind it:
+* [ADR 0012](../adr/0012-metrics.md) (which metrics, and only those a panel, an alert or an SLO uses)
+* [ADR 0013](../adr/0013-monitoring-stack.md) (CloudWatch, with the coordinator sending the replicas' metrics on)
 
 ## How the metrics get to CloudWatch
 
@@ -100,6 +102,42 @@ aws cloudwatch list-metrics --namespace MargoshaDB --query "Metrics[].MetricName
   show the same number once the followers have caught up.
 - **In CloudWatch:** `margosha.replica.records.value`.
 - **Why:** shows whether the data is spread evenly over the shards.
+
+## The dashboard
+
+The CloudWatch dashboard `margosha-app` is the `MonitoringDashboard` resource in `cfn/margosha-app.yaml`, so the
+pipeline creates and updates it with the stack. Nothing is edited by hand in the console. The stack output
+`DashboardUrl` is its link. Panels, all per minute:
+
+- **Cluster health:** `margosha.replica.up` for each replica (1 up, 0 down), and `margosha.cluster.replicas`
+  (leaders and followers registered per shard). When the coordinator is down, every panel stops getting data.
+- **Latency:** p50, p95 and p99 of `margosha.requests`, one panel each, for the coordinator (one line per operation)
+  and for the replicas (one line per replica and operation).
+- **Throughput:** the count of `margosha.requests`, for the coordinator and for each replica.
+- **Errors:** `margosha.errors` by code, for the coordinator and for each replica, plus the share of 5xx answers
+  (`INTERNAL_ERROR`, `SHARD_UNAVAILABLE`) in all requests. That share appears only after a first 5xx.
+- **Replication lag:** `margosha.replication.lag` for each follower.
+- **Shard distribution:** `margosha.shard.requests` per shard and `margosha.replica.records` per replica.
+
+Every panel is a CloudWatch `SEARCH` on the metric's name and its dimensions, so a replica added later shows up
+without editing the dashboard.
+
+## The alerts
+
+The alarms are also in `cfn/margosha-app.yaml`. Each one e-mails the SNS topic
+`margosha-app-alerts` when it fires and when it is OK again. The address comes from the GitHub variable
+`MARGOSHA_ALERT_EMAIL` (stack parameter `AlertEmail`) and must be confirmed once from the e-mail AWS sends.
+
+- **Node down (7 alarms).** The coordinator: `margosha.cluster.replicas` (shard-a, leader) sent no data for 1 minute.
+  The coordinator sends it every minute, so missing data counts as down. Each replica: `margosha.replica.up` below 1
+  for 1 minute. Here missing data does not count, because it means the coordinator is down, which its own alarm
+  reports.
+- **High latency (5 alarms).** The coordinator's p99 per operation above 50 ms (read, exists) or 100 ms (create,
+  update, delete) in each of 5 minutes in a row.
+- **Replication lag (4 alarms).** A follower more than 10 s behind its leader for 1 minute.
+
+During a deploy the pipeline turns the alarm e-mails off before it restarts the nodes, and on again at the end, also
+when the deploy fails (step "Turn the alarm e-mails on again"). The alarms keep working meanwhile. 
 
 ## What is not collected
 

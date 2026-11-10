@@ -161,12 +161,17 @@ jobs:
           fi
 
       - name: Deploy the application stack (margosha-app) with the version
+        env:
+          ALERT_EMAIL: ${{ vars.MARGOSHA_ALERT_EMAIL }}
         run: |
-          # Parameters not given here (OperatorCidr, BenchClient, ...) keep their current values.
+          overrides=("AppVersion=$VERSION")
+          if [ -n "$ALERT_EMAIL" ]; then
+            overrides+=("AlertEmail=$ALERT_EMAIL")
+          fi
           aws cloudformation deploy \
             --stack-name "$APP_STACK" \
             --template-file cfn/margosha-app.yaml \
-            --parameter-overrides "AppVersion=$VERSION" \
+            --parameter-overrides "${overrides[@]}" \
             --no-fail-on-empty-changeset | tee app-deploy.log
           echo "- \`$APP_STACK\` (AppVersion \`$VERSION\`): $(tail -n 1 app-deploy.log)" >> "$GITHUB_STEP_SUMMARY"
           # No changes: same template and same version as already deployed (e.g. the same commit run again).
@@ -201,7 +206,7 @@ jobs:
             echo "NODES=$(out NodeInstanceIds)"
           } >> "$GITHUB_ENV"
 
-      # ADR 0015: the coordinator reads the agent key from SSM when it starts, so the key is saved before the reboot.
+      # The coordinator reads the agent key from SSM when it starts, so the key is saved before the reboot.
       # The value comes from the MARGOSHA_AGENT_KEY secret and is never printed.
       - name: Save the agent key in SSM
         env:
@@ -212,6 +217,17 @@ jobs:
           else
             aws ssm put-parameter --name /margosha/agent-key --type SecureString --value "$AGENT_KEY" --overwrite > /dev/null
             echo "Saved the agent key in SSM parameter /margosha/agent-key"
+          fi
+
+      # A deploy restarts all 7 nodes, which would send 7 node-down e-mails. The alarms keep working (the
+      # dashboard shows them), while e-mails are off until the last step turns them on again.
+      - name: Turn the alarm e-mails off while the nodes restart
+        run: |
+          alarms=$(aws cloudwatch describe-alarms --alarm-name-prefix "$APP_STACK-" --query "MetricAlarms[].AlarmName" --output text)
+          if [ -n "$alarms" ]; then
+            aws cloudwatch disable-alarm-actions --alarm-names $alarms
+            echo "ALARMS_MUTED=true" >> "$GITHUB_ENV"
+            echo "Alarm e-mails off: $alarms"
           fi
 
       - name: Reboot or start every node
@@ -302,3 +318,14 @@ jobs:
           done
           echo "coordinator: all ${#replicas[@]} replicas registered (${replicas[*]})"
           echo "- all ${#nodes[@]} nodes started version \`$VERSION\` (${nodes[*]}); replicas ${replicas[*]} registered with the coordinator" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Turn the alarm e-mails on again
+        if: ${{ always() && env.ALARMS_MUTED == 'true' }}
+        run: |
+          sleep 120
+          for alarm in $(aws cloudwatch describe-alarms --alarm-name-prefix "$APP_STACK-" --state-value ALARM --query "MetricAlarms[].AlarmName" --output text); do
+            aws cloudwatch set-alarm-state --alarm-name "$alarm" --state-value OK --state-reason "Reset after the deploy restarted the nodes"
+          done
+          alarms=$(aws cloudwatch describe-alarms --alarm-name-prefix "$APP_STACK-" --query "MetricAlarms[].AlarmName" --output text)
+          aws cloudwatch enable-alarm-actions --alarm-names $alarms
+          echo "Alarm e-mails on: $alarms"

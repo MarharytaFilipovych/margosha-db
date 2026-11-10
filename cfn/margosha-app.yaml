@@ -66,9 +66,17 @@ Parameters:
       releases/<AppVersion>/margosha.jar. Changing it updates only the tags (no
       instance is replaced); the pipeline then reboots the nodes. To roll back,
       deploy the stack again with an earlier version.
+  AlertEmail:
+    Type: String
+    Default: ""
+    Description: >
+      E-mail address the alarms are sent to (ADR 0013). The pipeline passes it from the GitHub variable
+      MARGOSHA_ALERT_EMAIL, so it is not in the repository. Empty: the alarms exist but send no e-mail.
+      The address must confirm the subscription once, from the e-mail AWS sends.
 
 Conditions:
   HasOperator: !Not [!Equals [!Ref OperatorCidr, ""]]
+  HasAlertEmail: !Not [!Equals [!Ref AlertEmail, ""]]
   CreateBenchClient: !Equals [!Ref BenchClient, "true"]
   BenchClientWithOperator: !And [!Condition CreateBenchClient, !Condition HasOperator]
 
@@ -608,7 +616,528 @@ Resources:
         - Key: Name
           Value: margosha-bench
 
+  MonitoringDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub "${AWS::StackName}"
+      DashboardBody: !Sub |
+        {
+          "periodOverride": "inherit",
+          "widgets": [
+            {
+              "type": "text", "x": 0, "y": 0, "width": 24, "height": 2,
+              "properties": {
+                "markdown": "## Margosha DB\nMetrics from all 7 nodes, sent by the coordinator once a minute (ADR 0012, 0013). When the coordinator is down, every panel stops getting data. Latencies are in milliseconds, counts are per minute."
+              }
+            },
+            {
+              "type": "metric", "x": 0, "y": 2, "width": 12, "height": 6,
+              "properties": {
+                "title": "Cluster health: replicas up (1 = up, 0 = down)",
+                "region": "${AWS::Region}", "view": "timeSeries", "stat": "Minimum", "period": 60,
+                "yAxis": { "left": { "min": 0, "max": 1.2 } },
+                "metrics": [
+                  [ { "id": "up", "expression": "SEARCH('{MargoshaDB,replica,role,shard} MetricName=\"margosha.replica.up.value\"', 'Minimum', 60)" } ]
+                ]
+              }
+            },
+            {
+              "type": "metric", "x": 12, "y": 2, "width": 12, "height": 6,
+              "properties": {
+                "title": "Cluster health: registered replicas per shard and role",
+                "region": "${AWS::Region}", "view": "timeSeries", "stat": "Minimum", "period": 60,
+                "yAxis": { "left": { "min": 0 } },
+                "metrics": [
+                  [ { "id": "registered", "expression": "SEARCH('{MargoshaDB,role,shard} MetricName=\"margosha.cluster.replicas.value\"', 'Minimum', 60)" } ]
+                ]
+              }
+            },
+            {
+              "type": "metric", "x": 0, "y": 8, "width": 8, "height": 6,
+              "properties": {
+                "title": "Coordinator latency p50 (ms)",
+                "region": "${AWS::Region}", "view": "timeSeries", "stat": "Maximum", "period": 60,
+                "metrics": [
+                  [ { "id": "c50", "expression": "SEARCH('{MargoshaDB,operation,phi,role} MetricName=\"margosha.requests.percentile.value\" role=\"coordinator\" phi=\"0.5\"', 'Maximum', 60)" } ]
+                ]
+              }
+            },
+            {
+              "type": "metric", "x": 8, "y": 8, "width": 8, "height": 6,
+              "properties": {
+                "title": "Coordinator latency p95 (ms)",
+                "region": "${AWS::Region}", "view": "timeSeries", "stat": "Maximum", "period": 60,
+                "metrics": [
+                  [ { "id": "c95", "expression": "SEARCH('{MargoshaDB,operation,phi,role} MetricName=\"margosha.requests.percentile.value\" role=\"coordinator\" phi=\"0.95\"', 'Maximum', 60)" } ]
+                ]
+              }
+            },
+            {
+              "type": "metric", "x": 16, "y": 8, "width": 8, "height": 6,
+              "properties": {
+                "title": "Coordinator latency p99 (ms)",
+                "region": "${AWS::Region}", "view": "timeSeries", "stat": "Maximum", "period": 60,
+                "metrics": [
+                  [ { "id": "c99", "expression": "SEARCH('{MargoshaDB,operation,phi,role} MetricName=\"margosha.requests.percentile.value\" role=\"coordinator\" phi=\"0.99\"', 'Maximum', 60)" } ]
+                ]
+              }
+            },
+            {
+              "type": "metric", "x": 0, "y": 14, "width": 8, "height": 6,
+              "properties": {
+                "title": "Replica latency p50 (ms)",
+                "region": "${AWS::Region}", "view": "timeSeries", "stat": "Maximum", "period": 60,
+                "metrics": [
+                  [ { "id": "r50", "expression": "SEARCH('{MargoshaDB,operation,phi,replica,role,shard} MetricName=\"margosha.requests.percentile.value\" phi=\"0.5\"', 'Maximum', 60)" } ]
+                ]
+              }
+            },
+            {
+              "type": "metric", "x": 8, "y": 14, "width": 8, "height": 6,
+              "properties": {
+                "title": "Replica latency p95 (ms)",
+                "region": "${AWS::Region}", "view": "timeSeries", "stat": "Maximum", "period": 60,
+                "metrics": [
+                  [ { "id": "r95", "expression": "SEARCH('{MargoshaDB,operation,phi,replica,role,shard} MetricName=\"margosha.requests.percentile.value\" phi=\"0.95\"', 'Maximum', 60)" } ]
+                ]
+              }
+            },
+            {
+              "type": "metric", "x": 16, "y": 14, "width": 8, "height": 6,
+              "properties": {
+                "title": "Replica latency p99 (ms)",
+                "region": "${AWS::Region}", "view": "timeSeries", "stat": "Maximum", "period": 60,
+                "metrics": [
+                  [ { "id": "r99", "expression": "SEARCH('{MargoshaDB,operation,phi,replica,role,shard} MetricName=\"margosha.requests.percentile.value\" phi=\"0.99\"', 'Maximum', 60)" } ]
+                ]
+              }
+            },
+            {
+              "type": "metric", "x": 0, "y": 20, "width": 12, "height": 6,
+              "properties": {
+                "title": "Coordinator throughput (requests per minute, by operation)",
+                "region": "${AWS::Region}", "view": "timeSeries", "stat": "Sum", "period": 60,
+                "metrics": [
+                  [ { "id": "cthroughput", "expression": "SEARCH('{MargoshaDB,operation,role} MetricName=\"margosha.requests.count\" role=\"coordinator\"', 'Sum', 60)" } ]
+                ]
+              }
+            },
+            {
+              "type": "metric", "x": 12, "y": 20, "width": 12, "height": 6,
+              "properties": {
+                "title": "Replica throughput (requests per minute, by replica and operation)",
+                "region": "${AWS::Region}", "view": "timeSeries", "stat": "Sum", "period": 60,
+                "metrics": [
+                  [ { "id": "rthroughput", "expression": "SEARCH('{MargoshaDB,operation,replica,role,shard} MetricName=\"margosha.requests.count\"', 'Sum', 60)" } ]
+                ]
+              }
+            },
+            {
+              "type": "metric", "x": 0, "y": 26, "width": 12, "height": 6,
+              "properties": {
+                "title": "Coordinator errors (per minute, by code) and failed requests (5xx, % of all)",
+                "region": "${AWS::Region}", "view": "timeSeries", "stat": "Sum", "period": 60,
+                "metrics": [
+                  [ { "id": "cerrors", "expression": "SEARCH('{MargoshaDB,code,operation,role} MetricName=\"margosha.errors.count\" role=\"coordinator\"', 'Sum', 60)" } ],
+                  [ { "id": "cfailed", "label": "5xx % of requests", "yAxis": "right", "expression": "100 * SUM(SEARCH('{MargoshaDB,code,operation,role} MetricName=\"margosha.errors.count\" role=\"coordinator\" (code=\"INTERNAL_ERROR\" OR code=\"SHARD_UNAVAILABLE\")', 'Sum', 60)) / SUM(SEARCH('{MargoshaDB,operation,role} MetricName=\"margosha.requests.count\" role=\"coordinator\"', 'Sum', 60))" } ]
+                ]
+              }
+            },
+            {
+              "type": "metric", "x": 12, "y": 26, "width": 12, "height": 6,
+              "properties": {
+                "title": "Replica errors (per minute, by replica and code) and failed requests (5xx, % of all)",
+                "region": "${AWS::Region}", "view": "timeSeries", "stat": "Sum", "period": 60,
+                "metrics": [
+                  [ { "id": "rerrors", "expression": "SEARCH('{MargoshaDB,code,operation,replica,role,shard} MetricName=\"margosha.errors.count\"', 'Sum', 60)" } ],
+                  [ { "id": "rfailed", "label": "5xx % of requests", "yAxis": "right", "expression": "100 * SUM(SEARCH('{MargoshaDB,code,operation,replica,role,shard} MetricName=\"margosha.errors.count\" (code=\"INTERNAL_ERROR\" OR code=\"SHARD_UNAVAILABLE\")', 'Sum', 60)) / SUM(SEARCH('{MargoshaDB,operation,replica,role,shard} MetricName=\"margosha.requests.count\"', 'Sum', 60))" } ]
+                ]
+              }
+            },
+            {
+              "type": "metric", "x": 0, "y": 32, "width": 12, "height": 6,
+              "properties": {
+                "title": "Replication lag (seconds behind the leader, by follower)",
+                "region": "${AWS::Region}", "view": "timeSeries", "stat": "Maximum", "period": 60,
+                "yAxis": { "left": { "min": 0 } },
+                "metrics": [
+                  [ { "id": "lag", "expression": "SEARCH('{MargoshaDB,follower,replica,role,shard} MetricName=\"margosha.replication.lag.value\"', 'Maximum', 60)" } ]
+                ]
+              }
+            },
+            {
+              "type": "metric", "x": 12, "y": 32, "width": 6, "height": 6,
+              "properties": {
+                "title": "Shard distribution: requests per shard (per minute)",
+                "region": "${AWS::Region}", "view": "timeSeries", "stat": "Sum", "period": 60,
+                "metrics": [
+                  [ { "id": "shardrequests", "expression": "SEARCH('{MargoshaDB,role,shard} MetricName=\"margosha.shard.requests.count\"', 'Sum', 60)" } ]
+                ]
+              }
+            },
+            {
+              "type": "metric", "x": 18, "y": 32, "width": 6, "height": 6,
+              "properties": {
+                "title": "Shard distribution: records per replica",
+                "region": "${AWS::Region}", "view": "timeSeries", "stat": "Maximum", "period": 60,
+                "metrics": [
+                  [ { "id": "records", "expression": "SEARCH('{MargoshaDB,replica,role,shard} MetricName=\"margosha.replica.records.value\"', 'Maximum', 60)" } ]
+                ]
+              }
+            }
+          ]
+        }
+
+  AlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "${AWS::StackName}-alerts"
+
+  AlertsEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasAlertEmail
+    Properties:
+      TopicArn: !Ref AlertsTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+
+  CoordinatorDownAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-coordinator-down"
+      AlarmDescription: The coordinator sent no metrics for 1 minute.
+      Namespace: MargoshaDB
+      MetricName: margosha.cluster.replicas.value
+      Dimensions:
+        - { Name: role, Value: leader }
+        - { Name: shard, Value: shard-a }
+      Statistic: SampleCount
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+      AlarmActions: [!Ref AlertsTopic]
+      OKActions: [!Ref AlertsTopic]
+
+  ShardA1DownAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-shard-a-1-down"
+      AlarmDescription: Replica shard-a-1 (leader) did not answer the coordinator for 1 minute.
+      Namespace: MargoshaDB
+      MetricName: margosha.replica.up.value
+      Dimensions:
+        - { Name: replica, Value: shard-a-1 }
+        - { Name: role, Value: leader }
+        - { Name: shard, Value: shard-a }
+      Statistic: Minimum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+      OKActions: [!Ref AlertsTopic]
+
+  ShardA2DownAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-shard-a-2-down"
+      AlarmDescription: Replica shard-a-2 (follower) did not answer the coordinator for 1 minute.
+      Namespace: MargoshaDB
+      MetricName: margosha.replica.up.value
+      Dimensions:
+        - { Name: replica, Value: shard-a-2 }
+        - { Name: role, Value: follower }
+        - { Name: shard, Value: shard-a }
+      Statistic: Minimum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+      OKActions: [!Ref AlertsTopic]
+
+  ShardA3DownAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-shard-a-3-down"
+      AlarmDescription: Replica shard-a-3 (follower) did not answer the coordinator for 1 minute.
+      Namespace: MargoshaDB
+      MetricName: margosha.replica.up.value
+      Dimensions:
+        - { Name: replica, Value: shard-a-3 }
+        - { Name: role, Value: follower }
+        - { Name: shard, Value: shard-a }
+      Statistic: Minimum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+      OKActions: [!Ref AlertsTopic]
+
+  ShardB1DownAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-shard-b-1-down"
+      AlarmDescription: Replica shard-b-1 (leader) did not answer the coordinator for 1 minute.
+      Namespace: MargoshaDB
+      MetricName: margosha.replica.up.value
+      Dimensions:
+        - { Name: replica, Value: shard-b-1 }
+        - { Name: role, Value: leader }
+        - { Name: shard, Value: shard-b }
+      Statistic: Minimum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+      OKActions: [!Ref AlertsTopic]
+
+  ShardB2DownAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-shard-b-2-down"
+      AlarmDescription: Replica shard-b-2 (follower) did not answer the coordinator for 1 minute.
+      Namespace: MargoshaDB
+      MetricName: margosha.replica.up.value
+      Dimensions:
+        - { Name: replica, Value: shard-b-2 }
+        - { Name: role, Value: follower }
+        - { Name: shard, Value: shard-b }
+      Statistic: Minimum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+      OKActions: [!Ref AlertsTopic]
+
+  ShardB3DownAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-shard-b-3-down"
+      AlarmDescription: Replica shard-b-3 (follower) did not answer the coordinator for 1 minute.
+      Namespace: MargoshaDB
+      MetricName: margosha.replica.up.value
+      Dimensions:
+        - { Name: replica, Value: shard-b-3 }
+        - { Name: role, Value: follower }
+        - { Name: shard, Value: shard-b }
+      Statistic: Minimum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+      OKActions: [!Ref AlertsTopic]
+
+  ReadLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-read-p99"
+      AlarmDescription: The coordinator's p99 for READ stayed above 50 ms for 5 minutes.
+      Namespace: MargoshaDB
+      MetricName: margosha.requests.percentile.value
+      Dimensions:
+        - { Name: operation, Value: read }
+        - { Name: phi, Value: "0.99" }
+        - { Name: role, Value: coordinator }
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 5
+      DatapointsToAlarm: 5
+      Threshold: 50
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+      OKActions: [!Ref AlertsTopic]
+
+  ExistsLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-exists-p99"
+      AlarmDescription: The coordinator's p99 for EXISTS stayed above 50 ms for 5 minutes.
+      Namespace: MargoshaDB
+      MetricName: margosha.requests.percentile.value
+      Dimensions:
+        - { Name: operation, Value: exists }
+        - { Name: phi, Value: "0.99" }
+        - { Name: role, Value: coordinator }
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 5
+      DatapointsToAlarm: 5
+      Threshold: 50
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+      OKActions: [!Ref AlertsTopic]
+
+  CreateLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-create-p99"
+      AlarmDescription: The coordinator's p99 for CREATE stayed above 100 ms for 5 minutes.
+      Namespace: MargoshaDB
+      MetricName: margosha.requests.percentile.value
+      Dimensions:
+        - { Name: operation, Value: create }
+        - { Name: phi, Value: "0.99" }
+        - { Name: role, Value: coordinator }
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 5
+      DatapointsToAlarm: 5
+      Threshold: 100
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+      OKActions: [!Ref AlertsTopic]
+
+  UpdateLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-update-p99"
+      AlarmDescription: The coordinator's p99 for UPDATE stayed above 100 ms for 5 minutes.
+      Namespace: MargoshaDB
+      MetricName: margosha.requests.percentile.value
+      Dimensions:
+        - { Name: operation, Value: update }
+        - { Name: phi, Value: "0.99" }
+        - { Name: role, Value: coordinator }
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 5
+      DatapointsToAlarm: 5
+      Threshold: 100
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+      OKActions: [!Ref AlertsTopic]
+
+  DeleteLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-delete-p99"
+      AlarmDescription: The coordinator's p99 for DELETE stayed above 100 ms for 5 minutes.
+      Namespace: MargoshaDB
+      MetricName: margosha.requests.percentile.value
+      Dimensions:
+        - { Name: operation, Value: delete }
+        - { Name: phi, Value: "0.99" }
+        - { Name: role, Value: coordinator }
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 5
+      DatapointsToAlarm: 5
+      Threshold: 100
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+      OKActions: [!Ref AlertsTopic]
+
+  # Replication lag: a follower more than 10 s behind its leader for 1 minute. No data means the leader is down,
+  # which its own alarm reports.
+  ShardA2LagAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-shard-a-2-lag"
+      AlarmDescription: Follower shard-a-2 was more than 10 s behind its leader for 1 minute.
+      Namespace: MargoshaDB
+      MetricName: margosha.replication.lag.value
+      Dimensions:
+        - { Name: follower, Value: shard-a-2 }
+        - { Name: replica, Value: shard-a-1 }
+        - { Name: role, Value: leader }
+        - { Name: shard, Value: shard-a }
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+      OKActions: [!Ref AlertsTopic]
+
+  ShardA3LagAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-shard-a-3-lag"
+      AlarmDescription: Follower shard-a-3 was more than 10 s behind its leader for 1 minute.
+      Namespace: MargoshaDB
+      MetricName: margosha.replication.lag.value
+      Dimensions:
+        - { Name: follower, Value: shard-a-3 }
+        - { Name: replica, Value: shard-a-1 }
+        - { Name: role, Value: leader }
+        - { Name: shard, Value: shard-a }
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+      OKActions: [!Ref AlertsTopic]
+
+  ShardB2LagAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-shard-b-2-lag"
+      AlarmDescription: Follower shard-b-2 was more than 10 s behind its leader for 1 minute.
+      Namespace: MargoshaDB
+      MetricName: margosha.replication.lag.value
+      Dimensions:
+        - { Name: follower, Value: shard-b-2 }
+        - { Name: replica, Value: shard-b-1 }
+        - { Name: role, Value: leader }
+        - { Name: shard, Value: shard-b }
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+      OKActions: [!Ref AlertsTopic]
+
+  ShardB3LagAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-shard-b-3-lag"
+      AlarmDescription: Follower shard-b-3 was more than 10 s behind its leader for 1 minute.
+      Namespace: MargoshaDB
+      MetricName: margosha.replication.lag.value
+      Dimensions:
+        - { Name: follower, Value: shard-b-3 }
+        - { Name: replica, Value: shard-b-1 }
+        - { Name: role, Value: leader }
+        - { Name: shard, Value: shard-b }
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+      OKActions: [!Ref AlertsTopic]
+
 Outputs:
+  AlertsTopicArn:
+    Description: The SNS topic the alarms send to.
+    Value: !Ref AlertsTopic
+  DashboardUrl:
+    Description: The M4 CloudWatch dashboard.
+    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards/dashboard/${MonitoringDashboard}"
   ArtifactsBucketName:
     Description: Bucket for the jars (releases/<version>/) and benchmark results.
     Value: !Ref ArtifactsBucket
