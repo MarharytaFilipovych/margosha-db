@@ -201,6 +201,19 @@ jobs:
             echo "NODES=$(out NodeInstanceIds)"
           } >> "$GITHUB_ENV"
 
+      # ADR 0015: the coordinator reads the agent key from SSM when it starts, so the key is saved before the reboot.
+      # The value comes from the MARGOSHA_AGENT_KEY secret and is never printed.
+      - name: Save the agent key in SSM
+        env:
+          AGENT_KEY: ${{ secrets.MARGOSHA_AGENT_KEY }}
+        run: |
+          if [ -z "$AGENT_KEY" ]; then
+            echo "::warning::The MARGOSHA_AGENT_KEY secret is not set, so the coordinator refuses every agent request (401). Requests without the agent key work as before."
+          else
+            aws ssm put-parameter --name /margosha/agent-key --type SecureString --value "$AGENT_KEY" --overwrite > /dev/null
+            echo "Saved the agent key in SSM parameter /margosha/agent-key"
+          fi
+
       - name: Reboot or start every node
         run: |
           IFS=',' read -ra nodes <<< "$NODES"
