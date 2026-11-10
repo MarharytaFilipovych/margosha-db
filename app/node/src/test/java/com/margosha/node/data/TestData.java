@@ -61,6 +61,12 @@ public final class TestData {
 
 	public static final Duration SHARD_TIMEOUT = Duration.ofMillis(500);
 
+	public static final String AGENT_KEY = "test-agent-key-1f6b2c";
+	public static final String AGENT_NOTES = "agent_notes";
+
+	public static final String[] AGENT_ARGS = {"--margosha.agent.key=" + AGENT_KEY,
+			"--margosha.agent.allowed-tables=" + AGENT_NOTES};
+
 	public static final Duration FIRST_RETRY = Duration.ofSeconds(2);
 	public static final Duration MAX_RETRY = Duration.ofSeconds(30);
 

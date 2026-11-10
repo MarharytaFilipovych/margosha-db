@@ -10,12 +10,14 @@ import static com.margosha.mcp.tools.Constants.STORE_UNAVAILABLE;
 import static com.margosha.mcp.tools.Constants.TABLE;
 import static com.margosha.node.data.InProcessMcpServer.content;
 import static com.margosha.node.data.InProcessMcpServer.text;
+import static com.margosha.node.data.TestData.AGENT_ARGS;
+import static com.margosha.node.data.TestData.AGENT_NOTES;
 import static com.margosha.node.data.TestData.ANN;
-import static com.margosha.node.data.TestData.USERS;
 import static com.margosha.node.data.TestData.USER_42;
 import static com.margosha.node.data.TestData.USER_ID;
 import static com.margosha.node.data.TestData.freePort;
 import static com.margosha.node.data.TestData.localAddress;
+import static com.margosha.node.data.TestData.testDataDir;
 import static com.margosha.node.data.TestData.usersTable;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -32,7 +34,7 @@ class RecordToolFailuresTest {
 
 	private static final String INPUT_VALIDATION_FAILED = "input validation failed";
 	private static final String AGE = "age";
-	private static final Map<String, Object> CREATE_ANN = Map.of(TABLE, USERS, RECORD, ANN.values());
+	private static final Map<String, Object> CREATE_ANN = Map.of(TABLE, AGENT_NOTES, RECORD, ANN.values());
 
 	@Test
 	void createWhenTheCoordinatorCannotBeReachedSaysTheOutcomeIsUnknown() {
@@ -52,9 +54,9 @@ class RecordToolFailuresTest {
 	@Test
 	void createWhenTheStoreAnswersUnavailableSaysTheOutcomeIsUnknown() {
 		// Arrange
-		try (InProcessNode coordinator = InProcessNode.shardedCoordinator(0);
+		try (InProcessNode coordinator = InProcessNode.replicatedCoordinator(0, testDataDir("coordinator"), AGENT_ARGS);
 				InProcessMcpServer mcp = InProcessMcpServer.start(coordinator.address())) {
-			coordinator.client().registerTable(usersTable(USERS));
+			coordinator.client().registerTable(usersTable(AGENT_NOTES));
 
 			// Act
 			CallToolResult create = mcp.callTool(CREATE_RECORD, CREATE_ANN);
@@ -90,7 +92,7 @@ class RecordToolFailuresTest {
 
 			// Act
 			CallToolResult create = mcp.callTool(CREATE_RECORD,
-					Map.of(TABLE, USERS, RECORD, Map.of(USER_ID, USER_42.partitionKey(), AGE, 30)));
+					Map.of(TABLE, AGENT_NOTES, RECORD, Map.of(USER_ID, USER_42.partitionKey(), AGE, 30)));
 
 			// Assert
 			assertThat(create.isError()).isTrue();

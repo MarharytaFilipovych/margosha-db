@@ -59,6 +59,13 @@ public final class InProcessNode implements AutoCloseable {
 		return startShard(shardId, registeringWith(coordinatorUrl));
 	}
 
+	/** A coordinator in single mode: records kept in its memory, no shards. */
+	public static InProcessNode singleModeCoordinator(String... extraArgs) {
+		List<String> args = new ArrayList<>(List.of("coordinator", "--mode=single", "--server.port=0"));
+		args.addAll(Arrays.asList(extraArgs));
+		return new InProcessNode(NodeApplication.run(args.toArray(String[]::new)));
+	}
+
 	/** A coordinator for single-replica shards (N = W = R = 1), with its own data folder. */
 	public static InProcessNode shardedCoordinator(int port) {
 		return startCoordinator(port, TestData.testDataDir("coordinator"), SINGLE_REPLICA);

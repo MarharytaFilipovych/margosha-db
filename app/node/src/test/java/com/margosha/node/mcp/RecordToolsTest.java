@@ -11,15 +11,13 @@ import static com.margosha.mcp.tools.Constants.READ_RECORD;
 import static com.margosha.mcp.tools.Constants.RECORD;
 import static com.margosha.mcp.tools.Constants.TABLE;
 import static com.margosha.node.data.InProcessMcpServer.content;
+import static com.margosha.node.data.TestData.AGENT_ARGS;
+import static com.margosha.node.data.TestData.AGENT_NOTES;
 import static com.margosha.node.data.TestData.ANN;
 import static com.margosha.node.data.TestData.BOB;
-import static com.margosha.node.data.TestData.USERS;
 import static com.margosha.node.data.TestData.USER_42;
 import static com.margosha.node.data.TestData.USER_7;
 import static com.margosha.node.data.TestData.apiError;
-import static com.margosha.node.data.TestData.client;
-import static com.margosha.node.data.TestData.localAddress;
-import static com.margosha.node.data.TestData.unique;
 import static com.margosha.node.data.TestData.usersTable;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -27,40 +25,37 @@ import java.util.Map;
 
 import com.margosha.api.client.CoordinatorClient;
 import com.margosha.api.model.ErrorCode;
-import com.margosha.node.annotation.SingleModeCoordinatorTest;
 import com.margosha.node.data.InProcessMcpServer;
+import com.margosha.node.data.InProcessNode;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.web.server.LocalServerPort;
 
-@SingleModeCoordinatorTest
 class RecordToolsTest {
 
-	@LocalServerPort
-	private int port;
-
-	private final String table = unique(USERS);
+	private InProcessNode coordinator;
 	private CoordinatorClient store;
 	private InProcessMcpServer mcp;
 
 	@BeforeEach
 	void setUp() {
-		store = client(port);
-		store.registerTable(usersTable(table));
-		mcp = InProcessMcpServer.start(localAddress(port));
+		coordinator = InProcessNode.singleModeCoordinator(AGENT_ARGS);
+		store = coordinator.client();
+		store.registerTable(usersTable(AGENT_NOTES));
+		mcp = InProcessMcpServer.start(coordinator.address());
 	}
 
 	@AfterEach
 	void tearDown() {
 		mcp.close();
+		coordinator.close();
 	}
 
 	@Test
 	void readAfterCreateReturnsTheRecord() {
 		// Arrange
-		mcp.callTool(CREATE_RECORD, Map.of(TABLE, table, RECORD, ANN.values()));
+		mcp.callTool(CREATE_RECORD, Map.of(TABLE, AGENT_NOTES, RECORD, ANN.values()));
 
 		// Act
 		CallToolResult read = mcp.callTool(READ_RECORD, key(USER_42.partitionKey()));
@@ -73,7 +68,7 @@ class RecordToolsTest {
 	@Test
 	void existsIsFalseAfterDelete() {
 		// Arrange
-		mcp.callTool(CREATE_RECORD, Map.of(TABLE, table, RECORD, ANN.values()));
+		mcp.callTool(CREATE_RECORD, Map.of(TABLE, AGENT_NOTES, RECORD, ANN.values()));
 		mcp.callTool(DELETE_RECORD, key(USER_42.partitionKey()));
 
 		// Act
@@ -87,7 +82,7 @@ class RecordToolsTest {
 	@Test
 	void readOfAMissingRecordReturnsTheNotFoundError() {
 		// Arrange
-		String storeMessage = apiError(() -> store.readRecord(table, USER_7)).error().message();
+		String storeMessage = apiError(() -> store.readRecord(AGENT_NOTES, USER_7)).error().message();
 
 		// Act
 		CallToolResult read = mcp.callTool(READ_RECORD, key(USER_7.partitionKey()));
@@ -100,18 +95,18 @@ class RecordToolsTest {
 	@Test
 	void createOfAnExistingKeyReturnsTheConflictErrorAndKeepsTheRecord() {
 		// Arrange
-		mcp.callTool(CREATE_RECORD, Map.of(TABLE, table, RECORD, ANN.values()));
+		mcp.callTool(CREATE_RECORD, Map.of(TABLE, AGENT_NOTES, RECORD, ANN.values()));
 
 		// Act
-		CallToolResult create = mcp.callTool(CREATE_RECORD, Map.of(TABLE, table, RECORD, BOB.values()));
+		CallToolResult create = mcp.callTool(CREATE_RECORD, Map.of(TABLE, AGENT_NOTES, RECORD, BOB.values()));
 
 		// Assert
 		assertThat(create.isError()).isTrue();
 		assertThat(content(create)).containsEntry(CODE, ErrorCode.RECORD_ALREADY_EXISTS.name());
-		assertThat(store.readRecord(table, USER_42)).isEqualTo(ANN);
+		assertThat(store.readRecord(AGENT_NOTES, USER_42)).isEqualTo(ANN);
 	}
 
-	private Map<String, Object> key(String partitionKey) {
-		return Map.of(TABLE, table, PARTITION_KEY, partitionKey);
+	private static Map<String, Object> key(String partitionKey) {
+		return Map.of(TABLE, AGENT_NOTES, PARTITION_KEY, partitionKey);
 	}
 }

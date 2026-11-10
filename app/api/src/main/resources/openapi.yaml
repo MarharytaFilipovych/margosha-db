@@ -20,6 +20,11 @@ info:
     Trace IDs: every request may send `X-Trace-Id`, and every response returns it, errors included.
     The coordinator passes it to every replica it calls, so one ID finds the request in the logs of every node.
 
+    Agents (ADR 0015): the MCP server sends the agent key in `X-Agent-Key`. A request without this header works as
+    before. A request with it gets 401 `AGENT_KEY_INVALID` when the key is wrong or the coordinator has none, and
+    403 `AGENT_NOT_ALLOWED` unless it is a CREATE, READ, EXISTS or DELETE of a record in an allowed table. Only the
+    coordinator checks the key; replicas don't.
+
     A 503 on a write means its outcome is unknown: the leader may have stored it without enough follower
     confirmations, and it may become visible later. Read the record to find out.
 
@@ -54,6 +59,7 @@ paths:
   /tables:
     parameters:
       - $ref: '#/components/parameters/TraceId'
+      - $ref: '#/components/parameters/AgentKey'
     post:
       tags: [tables]
       operationId: registerTable
@@ -84,6 +90,10 @@ paths:
                 $ref: '#/components/schemas/TableDefinition'
         '400':
           $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/AgentKeyInvalid'
+        '403':
+          $ref: '#/components/responses/AgentNotAllowed'
         '409':
           $ref: '#/components/responses/Conflict'
         '500':
@@ -92,6 +102,7 @@ paths:
   /tables/{tableName}/records:
     parameters:
       - $ref: '#/components/parameters/TraceId'
+      - $ref: '#/components/parameters/AgentKey'
       - $ref: '#/components/parameters/TableName'
     post:
       tags: [records]
@@ -119,6 +130,10 @@ paths:
                 $ref: '#/components/schemas/Record'
         '400':
           $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/AgentKeyInvalid'
+        '403':
+          $ref: '#/components/responses/AgentNotAllowed'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -131,6 +146,7 @@ paths:
   /tables/{tableName}/records/{partitionKey}:
     parameters:
       - $ref: '#/components/parameters/TraceId'
+      - $ref: '#/components/parameters/AgentKey'
       - $ref: '#/components/parameters/TableName'
       - $ref: '#/components/parameters/PartitionKey'
       - $ref: '#/components/parameters/SortKey'
@@ -151,6 +167,10 @@ paths:
               example: { user_id: '42', name: Anna, city: Kyiv }
         '400':
           $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/AgentKeyInvalid'
+        '403':
+          $ref: '#/components/responses/AgentNotAllowed'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -185,6 +205,10 @@ paths:
               example: { user_id: '42', name: Bob }
         '400':
           $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/AgentKeyInvalid'
+        '403':
+          $ref: '#/components/responses/AgentNotAllowed'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -204,6 +228,10 @@ paths:
               $ref: '#/components/headers/TraceId'
         '400':
           $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/AgentKeyInvalid'
+        '403':
+          $ref: '#/components/responses/AgentNotAllowed'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -214,6 +242,7 @@ paths:
   /tables/{tableName}/records/{partitionKey}/exists:
     parameters:
       - $ref: '#/components/parameters/TraceId'
+      - $ref: '#/components/parameters/AgentKey'
       - $ref: '#/components/parameters/TableName'
       - $ref: '#/components/parameters/PartitionKey'
       - $ref: '#/components/parameters/SortKey'
@@ -242,6 +271,10 @@ paths:
                   value: { exists: false }
         '400':
           $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/AgentKeyInvalid'
+        '403':
+          $ref: '#/components/responses/AgentNotAllowed'
         '404':
           $ref: '#/components/responses/TableNotFound'
         '500':
@@ -447,6 +480,16 @@ components:
       schema:
         type: string
       example: 3f1c9a2e4b7d4e1a9c3f2a8b6d0e5f71
+
+    AgentKey:
+      name: X-Agent-Key
+      in: header
+      required: false
+      description: |
+        The agent key, sent only by the MCP server. With it, the coordinator allows only CREATE, READ, EXISTS and
+        DELETE of a record in an allowed table. Never logged.
+      schema:
+        type: string
 
   headers:
     TraceId:
@@ -705,6 +748,8 @@ components:
             - SHARD_UNAVAILABLE
             - NOT_LEADER
             - LOG_MISMATCH
+            - AGENT_KEY_INVALID
+            - AGENT_NOT_ALLOWED
         message:
           type: string
         logVersion:
@@ -760,6 +805,28 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
           example: { code: RECORD_ALREADY_EXISTS, message: 'Record user_id=42 already exists' }
+    AgentKeyInvalid:
+      description: The request has an `X-Agent-Key` that is wrong, or the coordinator has no agent key. Nothing is changed.
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example: { code: AGENT_KEY_INVALID, message: 'The agent key is wrong, or the coordinator has none' }
+    AgentNotAllowed:
+      description: |
+        The request has the right agent key, but it is not a CREATE, READ, EXISTS or DELETE of a record in an
+        allowed table. Nothing is changed.
+      headers:
+        X-Trace-Id:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example: { code: AGENT_NOT_ALLOWED, message: 'Agents may not use table usertable; allowed tables: [agent_notes]' }
     InternalError:
       description: An unexpected error in the server.
       headers:

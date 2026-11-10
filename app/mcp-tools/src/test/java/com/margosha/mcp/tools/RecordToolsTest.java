@@ -1,5 +1,6 @@
 package com.margosha.mcp.tools;
 
+import static com.margosha.mcp.tools.Constants.AGENT_KEY_MISSING;
 import static com.margosha.mcp.tools.Constants.CODE;
 import static com.margosha.mcp.tools.Constants.COORDINATOR_CANNOT_BE_REACHED;
 import static com.margosha.mcp.tools.Constants.COORDINATOR_UNREACHABLE;
@@ -9,14 +10,17 @@ import static com.margosha.mcp.tools.Constants.HTTP_STATUS;
 import static com.margosha.mcp.tools.Constants.MESSAGE;
 import static com.margosha.mcp.tools.Constants.OUTCOME_UNKNOWN;
 import static com.margosha.mcp.tools.Constants.STORE_UNAVAILABLE;
+import static com.margosha.mcp.tools.Constants.TABLE_NOT_ALLOWED;
 import static com.margosha.mcp.tools.config.JsonConfig.JSON_MAPPER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Map;
 
 import com.margosha.api.client.CoordinatorClient;
@@ -33,6 +37,7 @@ import tools.jackson.core.type.TypeReference;
 class RecordToolsTest {
 
 	private static final String USERS = "users";
+	private static final String OTHER_TABLE = "usertable";
 	private static final String PARTITION_KEY = "42";
 	private static final PrimaryKey USER_42 = PrimaryKey.of(PARTITION_KEY);
 	private static final String SHARD_UNAVAILABLE = ErrorCode.SHARD_UNAVAILABLE.name();
@@ -43,7 +48,33 @@ class RecordToolsTest {
 			new ApiError(ErrorCode.SHARD_UNAVAILABLE, STORE_MESSAGE), null);
 
 	private final CoordinatorClient coordinator = mock(CoordinatorClient.class);
-	private final RecordTools tools = new RecordTools(coordinator);
+	private final RecordTools tools = new RecordTools(coordinator, new ToolLimits(List.of(USERS), true));
+
+	@Test
+	void tableThatIsNotAllowedIsRefusedWithoutCallingTheStore() {
+		// Act
+		CallToolResult read = tools.readRecord(OTHER_TABLE, PARTITION_KEY, null);
+
+		// Assert
+		assertThat(read.isError()).isTrue();
+		assertThat(content(read)).isEqualTo(Map.of(CODE, TABLE_NOT_ALLOWED,
+				MESSAGE, "Table " + OTHER_TABLE + " is not allowed for agents; allowed tables: [" + USERS + "]"));
+		verifyNoInteractions(coordinator);
+	}
+
+	@Test
+	void withoutAgentKeyNothingIsSentToTheStore() {
+		// Arrange
+		RecordTools withoutKey = new RecordTools(coordinator, new ToolLimits(List.of(USERS), false));
+
+		// Act
+		CallToolResult delete = withoutKey.deleteRecord(USERS, PARTITION_KEY, null);
+
+		// Assert
+		assertThat(delete.isError()).isTrue();
+		assertThat(content(delete)).containsEntry(CODE, AGENT_KEY_MISSING);
+		verifyNoInteractions(coordinator);
+	}
 
 	@Test
 	void deleteReturnsDeleted() {
@@ -57,7 +88,7 @@ class RecordToolsTest {
 	}
 
 	@Test
-	void aBlankSortKeyIsSentAsNoSortKey() {
+	void blankSortKeyIsSentAsNoSortKey() {
 		// Arrange
 		when(coordinator.recordExists(any(), any())).thenReturn(true);
 
@@ -70,7 +101,7 @@ class RecordToolsTest {
 	}
 
 	@Test
-	void anErrorWithoutABodyUsesTheHttpStatusAsItsCode() {
+	void errorWithoutBodyUsesTheHttpStatusAsItsCode() {
 		// Arrange
 		when(coordinator.readRecord(USERS, USER_42)).thenThrow(new ApiException(INTERNAL_ERROR, null, null));
 
@@ -84,7 +115,7 @@ class RecordToolsTest {
 	}
 
 	@Test
-	void anUnavailableReadSaysTheStoreIsUnavailableButNotThatTheOutcomeIsUnknown() {
+	void unavailableReadSaysStoreIsUnavailableButNotThatOutcomeIsUnknown() {
 		// Arrange
 		when(coordinator.readRecord(USERS, USER_42)).thenThrow(UNAVAILABLE);
 
@@ -97,7 +128,7 @@ class RecordToolsTest {
 	}
 
 	@Test
-	void anUnavailableDeleteSaysTheOutcomeIsUnknown() {
+	void unavailableDeleteSaysOutcomeIsUnknown() {
 		// Arrange
 		doThrow(UNAVAILABLE).when(coordinator).deleteRecord(USERS, USER_42);
 
@@ -111,7 +142,7 @@ class RecordToolsTest {
 	}
 
 	@Test
-	void aReadWhenTheCoordinatorCannotBeReachedSaysTheStoreIsUnavailableButNotThatTheOutcomeIsUnknown() {
+	void readWhenCoordinatorCannotBeReachedSaysStoreIsUnavailableButNotThatOutcomeIsUnknown() {
 		// Arrange
 		when(coordinator.readRecord(USERS, USER_42)).thenThrow(new ResourceAccessException(CONNECTION_REFUSED));
 

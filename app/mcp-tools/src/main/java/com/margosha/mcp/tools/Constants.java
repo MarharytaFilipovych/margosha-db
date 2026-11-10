@@ -27,6 +27,10 @@ public class Constants {
 	/** The code when the coordinator did not answer at all; otherwise the code is the store's own. */
 	public static final String COORDINATOR_UNREACHABLE = "COORDINATOR_UNREACHABLE";
 
+	/** The codes of the limits the MCP server checks before it calls the store. */
+	public static final String AGENT_KEY_MISSING = "AGENT_KEY_MISSING";
+	public static final String TABLE_NOT_ALLOWED = "TABLE_NOT_ALLOWED";
+
 	/** The code prefix, followed by the HTTP status, when the store's answer had no error body. */
 	public static final String HTTP_STATUS = "HTTP_";
 

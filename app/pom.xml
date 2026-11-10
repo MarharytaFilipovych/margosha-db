@@ -23,6 +23,7 @@
         <jackson-annotations.version>2.22</jackson-annotations.version>
         <ycsb.version>0.17.0</ycsb.version>
         <spring-ai.version>2.0.2</spring-ai.version>
+        <aws-sdk.version>2.46.21</aws-sdk.version>
     </properties>
 
     <dependencyManagement>

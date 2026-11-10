@@ -17,14 +17,16 @@ import java.nio.channels.Channels;
 import java.nio.channels.Pipe;
 import java.time.Duration;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import com.margosha.api.client.CoordinatorClient;
-import com.margosha.api.util.RestClientBuilder;
 import com.margosha.mcp.tools.RecordToolSpecifications;
 import com.margosha.mcp.tools.RecordTools;
+import com.margosha.mcp.tools.ToolLimits;
+import com.margosha.mcp.tools.config.AgentCoordinatorClient;
 import io.modelcontextprotocol.json.McpJsonDefaults;
 import io.modelcontextprotocol.json.McpJsonMapper;
 import io.modelcontextprotocol.server.McpServer;
@@ -33,6 +35,7 @@ import io.modelcontextprotocol.server.transport.StdioServerTransportProvider;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import io.modelcontextprotocol.spec.McpSchema.ServerCapabilities;
 import io.modelcontextprotocol.spec.McpSchema.TextContent;
+import org.jspecify.annotations.Nullable;
 import tools.jackson.core.type.TypeReference;
 
 /**
@@ -61,18 +64,25 @@ public final class InProcessMcpServer implements AutoCloseable {
 		this.answers = answers;
 	}
 
+	/** An MCP server with the test agent key that allows only {@link TestData#AGENT_NOTES}. */
 	public static InProcessMcpServer start(String coordinatorUrl) {
+		return start(coordinatorUrl, TestData.AGENT_KEY, List.of(TestData.AGENT_NOTES));
+	}
+
+	public static InProcessMcpServer start(String coordinatorUrl, @Nullable String agentKey,
+			List<String> allowedTables) {
 		try {
 			Pipe toServer = Pipe.open();
 			Pipe fromServer = Pipe.open();
-			CoordinatorClient coordinator = new CoordinatorClient(RestClientBuilder.withTimeout(Duration.ofSeconds(5)),
-					coordinatorUrl);
+			CoordinatorClient coordinator = AgentCoordinatorClient.create(coordinatorUrl, Duration.ofSeconds(5),
+					agentKey);
+			ToolLimits limits = new ToolLimits(allowedTables, agentKey != null);
 			StdioServerTransportProvider transport = new StdioServerTransportProvider(MCP_JSON,
 					Channels.newInputStream(toServer.source()), Channels.newOutputStream(fromServer.sink()));
 			McpSyncServer server = McpServer.sync(transport)
 					.serverInfo("margosha-db", "test")
 					.capabilities(ServerCapabilities.builder().tools(false).build())
-					.tools(RecordToolSpecifications.of(new RecordTools(coordinator)))
+					.tools(RecordToolSpecifications.of(new RecordTools(coordinator, limits)))
 					.build();
 			InProcessMcpServer mcp = new InProcessMcpServer(server,
 					new OutputStreamWriter(Channels.newOutputStream(toServer.sink()), UTF_8),

@@ -34,7 +34,7 @@ class RecordToolSpecificationsTest {
 	private static final Map<String, String> ANN = Map.of("user_id", "42", "name", "Ann");
 
 	private final CoordinatorClient coordinator = mock(CoordinatorClient.class);
-	private final RecordTools tools = new RecordTools(coordinator);
+	private final RecordTools tools = new RecordTools(coordinator, new ToolLimits(List.of(USERS), true));
 
 	@Test
 	void recordAttributeValuesMustBeStrings() {
@@ -42,7 +42,7 @@ class RecordToolSpecificationsTest {
 		SyncToolSpecification create = specification(RecordToolSpecifications.of(tools), CREATE_RECORD);
 
 		// Assert
-		assertThat(property(create, RECORD)).containsEntry(ADDITIONAL_PROPERTIES, Map.of(TYPE, STRING_TYPE));
+		assertThat(property(create)).containsEntry(ADDITIONAL_PROPERTIES, Map.of(TYPE, STRING_TYPE));
 	}
 
 	@Test
@@ -61,14 +61,14 @@ class RecordToolSpecificationsTest {
 	}
 
 	@Test
-	void theChangedCreateToolStillCallsTheStore() {
+	void changedCreateToolStillCallsTheStore() {
 		// Arrange
 		when(coordinator.createRecord(USERS, TableRecord.of(ANN))).thenReturn(TableRecord.of(ANN));
 		SyncToolSpecification create = specification(RecordToolSpecifications.of(tools), CREATE_RECORD);
 
 		// Act
 		CallToolResult result = create.callHandler().apply(null,
-				new CallToolRequest(CREATE_RECORD, Map.of(TABLE, USERS, RECORD, ANN)));
+				CallToolRequest.builder(CREATE_RECORD).arguments(Map.of(TABLE, USERS, RECORD, ANN)).build());
 
 		// Assert
 		assertThat(result.isError()).isFalse();
@@ -80,9 +80,9 @@ class RecordToolSpecificationsTest {
 	}
 
 	@SuppressWarnings("unchecked")
-	private static Map<String, Object> property(SyncToolSpecification specification, String name) {
+	private static Map<String, Object> property(SyncToolSpecification specification) {
 		Map<String, Object> properties = (Map<String, Object>) specification.tool().inputSchema().get(PROPERTIES);
-		return (Map<String, Object>) properties.get(name);
+		return (Map<String, Object>) properties.get(Constants.RECORD);
 	}
 
 	private static Map<String, Object> content(CallToolResult result) {
