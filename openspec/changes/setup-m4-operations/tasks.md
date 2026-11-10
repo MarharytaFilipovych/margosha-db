@@ -35,7 +35,7 @@
 - [x] 4.3 Replication lag in seconds per follower as ADR 0012 decides; verify an in-process test that a stopped follower's lag grows and returns to 0 after it catches up
 - [x] 4.4 Cluster health and shard distribution metrics from ADR 0012; verify a test with 2 shards × 3 replicas showing 1 leader + 2 followers per shard and a distribution value per shard
 - [x] 4.5 If ADR 0013 needs it, the way replica metrics reach the backend (relay through the coordinator, or VPC endpoint configuration); verify on a local multi-node run (or on AWS) that all 7 nodes' metrics arrive
-- [ ] 4.6 Write `m4/metrics.md`: each metric, its tags, what it shows, and the ADR 0012 reason; verify it lists the same metrics the code registers
+- [x] 4.6 Write `m4/metrics.md`: each metric, its tags, what it shows, and the ADR 0012 reason; verify it lists the same metrics the code registers
 
 ## 5. MCP server (after ADR 0015)
 
