@@ -22,10 +22,18 @@
         <jackson-2-bom.version>2.21.8</jackson-2-bom.version>
         <jackson-annotations.version>2.22</jackson-annotations.version>
         <ycsb.version>0.17.0</ycsb.version>
+        <spring-ai.version>2.0.2</spring-ai.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>org.springframework.ai</groupId>
+                <artifactId>spring-ai-bom</artifactId>
+                <version>${spring-ai.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
             <dependency>
                 <groupId>com.fasterxml.jackson.core</groupId>
                 <artifactId>jackson-annotations</artifactId>
@@ -39,5 +47,6 @@
         <module>ring</module>
         <module>node</module>
         <module>ycsb-binding</module>
+        <module>mcp-server</module>
     </modules>
 </project>
