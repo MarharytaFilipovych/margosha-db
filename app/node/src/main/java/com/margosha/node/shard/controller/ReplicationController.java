@@ -8,7 +8,6 @@ import java.util.Map;
 
 import com.margosha.api.model.ReplicaStatus;
 import com.margosha.api.model.ReplicationBatch;
-import com.margosha.node.common.exception.ValidationException;
 import com.margosha.node.shard.replication.exception.NotLeaderException;
 import com.margosha.node.shard.replication.follower.FollowerReplicator;
 import com.margosha.node.shard.replication.leader.ReplicationLeader;
@@ -16,6 +15,9 @@ import com.margosha.node.shard.replication.model.LogEntry;
 import com.margosha.node.shard.replication.model.ReplicaIdentity;
 import com.margosha.node.shard.replication.storage.ReplicaStorage;
 import com.margosha.node.shard.service.ReplicaReadService;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,45 +31,44 @@ public class ReplicationController {
 	private static final int MAX_ENTRIES_PER_FETCH = 1000;
 
 	private final ReplicaIdentity identity;
-	private final ReplicaStorage storage;
-	private final ReplicaReadService reads;
+	private final ReplicaStorage replicaStorage;
+	private final ReplicaReadService replicaReadService;
 	private final ReplicationLeader leader;
 	private final FollowerReplicator follower;
 
-	public ReplicationController(ReplicaIdentity identity, ReplicaStorage storage, ReplicaReadService reads,
-			ObjectProvider<ReplicationLeader> leader, ObjectProvider<FollowerReplicator> follower) {
+	public ReplicationController(ReplicaIdentity identity, ReplicaStorage replicaStorage, ReplicaReadService replicaReadService,
+								 ObjectProvider<ReplicationLeader> leader, ObjectProvider<FollowerReplicator> follower) {
 		this.identity = identity;
-		this.storage = storage;
-		this.reads = reads;
+		this.replicaStorage = replicaStorage;
+		this.replicaReadService = replicaReadService;
 		this.leader = leader.getIfAvailable();
 		this.follower = follower.getIfAvailable();
 	}
 
 	@GetMapping(REPLICATION_LOG)
-	public ReplicationBatch log(@RequestParam long after,
-								@RequestParam String shard,
-								@RequestParam String follower,
+	public ReplicationBatch log(@RequestParam @Min(value = 0, message = "after must be 0 or higher") long after,
+								@RequestParam @NotBlank(message = "shard must be set") String shard,
+								@RequestParam @NotBlank(message = "follower must be set") String follower,
 								@RequestParam(required = false) String logId,
-								@RequestParam(defaultValue = "500") int max) {
+								@RequestParam(defaultValue = "500")
+								@Min(value = 1, message = "max must be between 1 and " + MAX_ENTRIES_PER_FETCH)
+								@Max(value = MAX_ENTRIES_PER_FETCH, message = "max must be between 1 and " + MAX_ENTRIES_PER_FETCH)
+								int max) {
 		if (leader == null) {
 			throw new NotLeaderException(identity.shardId(), identity.replicaId());
-		}
-		if (after < 0 || !hasText(follower) || max < 1 || max > MAX_ENTRIES_PER_FETCH) {
-			throw new ValidationException("after must be 0 or higher, follower must be set, and max between 1 and "
-					+ MAX_ENTRIES_PER_FETCH);
 		}
 		return new ReplicationBatch(
 				leader.fetch(shard, follower, after, hasText(logId) ? logId : null, max).stream()
 						.map(LogEntry::toReplicationEntry).toList(),
-				storage.lastVersion(), storage.ensureLogId());
+				replicaStorage.lastVersion(), replicaStorage.ensureLogId());
 	}
 
 	@GetMapping(REPLICATION_STATUS)
 	public ReplicaStatus status() {
 		return new ReplicaStatus(identity.shardId(), identity.replicaId(), identity.role().argument(),
-				storage.lastVersion(),
+				replicaStorage.lastVersion(),
 				leader != null ? leader.followerPositions() : Map.of(),
-				reads.readsServed(),
+				replicaReadService.readsServed(),
 				follower != null ? follower.entriesReceived() : 0);
 	}
 }
