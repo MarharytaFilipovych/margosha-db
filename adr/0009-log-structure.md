@@ -6,18 +6,17 @@ The leader records every write in a log, and the followers copy it. We need to d
 1. **Where the log lives.**
 2. **What an entry contains.**
 3. **The format**, and how we notice a write that was cut off by a crash.
-4. **When an entry counts as stored**, which is what "W replicas stored it" means (ADR 0007).
+4. **When an entry counts as stored.*
 5. **How the log grows.**
 
 ## Alternatives considered
 
 ### Where the log lives
 
-The brief gives examples ("Kafka, RabbitMQ, physical file on S3, etc").
 - **Kafka or RabbitMQ:** a real log broker, but it needs its own instance (9 of 9 while benchmarking), and Kafka needs
   more than the 1 GiB of RAM a `t3.micro` has. Rejected.
 - **File on S3:** an S3 object can't be appended to, so every write would be a new object. Rejected.
-- **A file on each replica's own disk:** the same idea as the brief's "physical file", but local. Appending is fast and
+- **A file on each replica's own disk:** the idea of a "physical file", but locally. Appending is fast and
   free, and each replica has its own copy, so losing one disk loses one replica, not the data.
 
 ### What an entry contains
@@ -35,7 +34,7 @@ The brief gives examples ("Kafka, RabbitMQ, physical file on S3, etc").
 ### When an entry counts as stored
 
 - **After `write()`:** the data is in the operating system's memory, not yet on disk. Fast, but lost if the machine dies. Rejected.
-- **After `fsync()`:** the data is forced to the disk. Costs about 1–3 ms per write, but survives a power cut. The brief asks W replicas to "durably ack" a write.
+- **After `fsync()`:** the data is forced to the disk. Costs about 1–3 ms per write, but survives a power cut. That is how W replicas "durably ack" a write.
 
 ### Growth
 

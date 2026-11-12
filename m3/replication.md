@@ -1,11 +1,14 @@
 # Replication: how a write reaches every replica, and how a read finds the newest one
 
 This page describes how M3 keeps several copies of every record.
-Decisions behind it: [ADR 0007](../adr/0007-n-w-r-values.md) (N = 3, W = 2, R = 2),
-[ADR 0008](../adr/0008-replica-synchronisation.md) (leader copies through its log, followers pull with long-polling),
-[ADR 0009](../adr/0009-log-structure.md) (append-only JSON lines with a checksum, stored = after fsync),
-[ADR 0010](../adr/0010-ordering-guarantees.md) (version = log position, deletes are tombstones),
-[ADR 0011](../adr/0011-write-acknowledgement.md) (follower confirms with its next position, semi-sync).
+
+Decisions behind it: 
+* [ADR 0007](../adr/0007-n-w-r-values.md) (N = 3, W = 2, R = 2),
+* [ADR 0008](../adr/0008-replica-synchronisation.md) (leader copies through its log, followers pull with long-polling),
+* [ADR 0009](../adr/0009-log-structure.md) (append-only JSON lines with a checksum, stored = after fsync),
+* [ADR 0010](../adr/0010-ordering-guarantees.md) (version = log position, deletes are tombstones),
+* [ADR 0011](../adr/0011-write-acknowledgement.md) (follower confirms with its next position, semi-sync).
+
 Routing a key to its shard is unchanged since M2 ([routing](../m2/routing.md)).
 
 ## Replica sets

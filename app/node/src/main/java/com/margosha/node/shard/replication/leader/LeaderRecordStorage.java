@@ -13,7 +13,7 @@ import lombok.RequiredArgsConstructor;
 public class LeaderRecordStorage implements RecordStorage {
 
 	@NonNull
-	private final ReplicaStorage storage;
+	private final ReplicaStorage replicaStorage;
 
 	@NonNull
 	private final ReplicationLeader leader;
@@ -22,27 +22,27 @@ public class LeaderRecordStorage implements RecordStorage {
 
 	@Override
 	public void create(String table, PrimaryKey key, Attributes attributes) {
-		committed(storage.create(table, key, attributes));
+		committed(replicaStorage.create(table, key, attributes));
 	}
 
 	@Override
 	public Attributes read(String table, PrimaryKey key) {
-		return storage.read(table, key);
+		return replicaStorage.read(table, key);
 	}
 
 	@Override
 	public boolean exists(String table, PrimaryKey key) {
-		return storage.exists(table, key);
+		return replicaStorage.exists(table, key);
 	}
 
 	@Override
 	public void update(String table, PrimaryKey key, Attributes attributes) {
-		committed(storage.update(table, key, attributes));
+		committed(replicaStorage.update(table, key, attributes));
 	}
 
 	@Override
 	public void delete(String table, PrimaryKey key) {
-		committed(storage.delete(table, key));
+		committed(replicaStorage.delete(table, key));
 	}
 
 	private void committed(LogEntry entry) {

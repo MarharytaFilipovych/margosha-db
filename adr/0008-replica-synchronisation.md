@@ -2,9 +2,8 @@
 
 ## Context
 
-Each shard has a leader and 2 followers; only the leader takes writes. We need to decide who copies a write to the
-replicas, how the followers get new entries, and how a restarted follower catches up. When a write counts as done is
-ADR 0011.
+Each shard has a leader and 2 followers. Only the leader takes writes. We need to decide who copies a write to the
+replicas, how the followers get new entries, and how a restarted follower catches up.
 
 ## Alternatives considered
 
@@ -30,7 +29,7 @@ ADR 0011.
 ### Catch-up after a restart
 
 - **Full copy or snapshot:** slow as data grows, or out of scope for M3. Rejected.
-- **Only the entries after the follower's last position:** what the brief asks ("resync only the relevant log range").
+- **Only the entries after the follower's last position:** resyncs only the relevant log range.
 
 ## Decision
 

@@ -13,7 +13,7 @@ import lombok.RequiredArgsConstructor;
 public class FollowerRecordStorage implements RecordStorage {
 
 	@NonNull
-	private final ReplicaStorage storage;
+	private final ReplicaStorage replicaStorage;
 
 	@NonNull
 	private final ReplicaIdentity identity;
@@ -25,12 +25,12 @@ public class FollowerRecordStorage implements RecordStorage {
 
 	@Override
 	public Attributes read(String table, PrimaryKey key) {
-		return storage.read(table, key);
+		return replicaStorage.read(table, key);
 	}
 
 	@Override
 	public boolean exists(String table, PrimaryKey key) {
-		return storage.exists(table, key);
+		return replicaStorage.exists(table, key);
 	}
 
 	@Override
