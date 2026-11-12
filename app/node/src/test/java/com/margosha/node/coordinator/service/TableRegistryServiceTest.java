@@ -7,8 +7,15 @@ import static com.margosha.node.data.TestData.USERS_TABLE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.mockito.AdditionalAnswers.delegatesTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -141,6 +148,32 @@ class TableRegistryServiceTest {
 
 			// Assert
 			assertThat(thrown).isInstanceOf(IllegalStateException.class).hasMessageContaining("damaged at line 1");
+		}
+
+		@Test
+		void writeFailingHalfWayLeavesTheFileAsItWas() throws IOException {
+			// Arrange
+			try (TableRegistryService before = TableRegistryService.durable(file())) {
+				before.register(USERS_TABLE);
+			}
+			byte[] content = Files.readAllBytes(file());
+			FileChannel channel = FileChannel.open(file(), StandardOpenOption.WRITE);
+			FileChannel failing = mock(FileChannel.class, delegatesTo(channel));
+			doAnswer(invocation -> {
+				ByteBuffer line = invocation.getArgument(0);
+				channel.write(line.slice(line.position(), line.remaining() / 2));
+				throw new IOException("No space left on device");
+			}).when(failing).write(any(ByteBuffer.class));
+
+			// Act
+			Throwable thrown;
+			try (TableRegistryService registry = new TableRegistryService(file(), failing)) {
+				thrown = catchThrowable(() -> registry.register(ORDERS_TABLE));
+			}
+
+			// Assert
+			assertThat(thrown).isInstanceOf(UncheckedIOException.class);
+			assertThat(Files.readAllBytes(file())).isEqualTo(content);
 		}
 	}
 }

@@ -2,7 +2,6 @@ package com.margosha.node.coordinator.service;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.nio.file.StandardOpenOption.CREATE;
-import static java.nio.file.StandardOpenOption.READ;
 import static java.nio.file.StandardOpenOption.WRITE;
 
 import java.io.IOException;
@@ -17,14 +16,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.margosha.api.model.TableDefinition;
 import com.margosha.node.coordinator.exception.TableAlreadyExistsException;
 import com.margosha.node.coordinator.exception.TableNotFoundException;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * Table definitions on the coordinator: in memory, and in sharded mode also in a log file.
- * The definition is validated in the controller ({@code @Valid}). Created in {@code CoordinatorConfig}.
- */
 @Slf4j
 public class TableRegistryService implements AutoCloseable {
 
@@ -40,22 +36,26 @@ public class TableRegistryService implements AutoCloseable {
 		this.channel = null;
 	}
 
-	private TableRegistryService(Path file) {
+	TableRegistryService(@NonNull Path file, @NonNull FileChannel channel) {
 		this.file = file;
+		this.channel = channel;
+		try {
+			load();
+		} catch (IOException e) {
+			throw new UncheckedIOException("Cannot read the table file " + file, e);
+		}
+	}
+
+	public static TableRegistryService durable(Path file) {
 		try {
 			Path parent = file.toAbsolutePath().getParent();
 			if (parent != null) {
 				Files.createDirectories(parent);
 			}
-			this.channel = FileChannel.open(file, CREATE, READ, WRITE);
-			load();
+			return new TableRegistryService(file, FileChannel.open(file, CREATE, WRITE));
 		} catch (IOException e) {
 			throw new UncheckedIOException("Cannot open the table file " + file, e);
 		}
-	}
-
-	public static TableRegistryService durable(Path file) {
-		return new TableRegistryService(file);
 	}
 
 	public synchronized TableDefinition register(TableDefinition table) {
@@ -120,12 +120,27 @@ public class TableRegistryService implements AutoCloseable {
 		byte[] json = JSON.writeValueAsBytes(table);
 		ByteBuffer line = ByteBuffer.allocate(json.length + 1).put(json).put(NEWLINE).flip();
 		try {
-			while (line.hasRemaining()) {
-				channel.write(line);
+			long start = channel.position();
+			try {
+				while (line.hasRemaining()) {
+					channel.write(line);
+				}
+				channel.force(false);
+			} catch (IOException e) {
+				undo(start, e);
+				throw e;
 			}
-			channel.force(false);
 		} catch (IOException e) {
 			throw new UncheckedIOException("Cannot write to the table file " + file, e);
+		}
+	}
+
+	private void undo(long start, IOException cause) {
+		try {
+			channel.truncate(start);
+			channel.position(start);
+		} catch (IOException e) {
+			cause.addSuppressed(e);
 		}
 	}
 }
