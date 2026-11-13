@@ -878,7 +878,7 @@ sequenceDiagram
     alt both answer within 50 ms (margosha.shard.read-hedge-delay)
         R2-->>C: 200 older attributes, version 56 (57 not received yet)
     else one fails, or has not answered after 50 ms
-        C->>R3: GET record (the next replica not asked yet; the first R answers are used)
+        C->>R3: GET record (the next replica not asked yet, the first R answers are used)
         R3-->>C: 200 attributes, version 57
     end
     C->>C: highest version wins (57), and a delete with the highest version = not found
