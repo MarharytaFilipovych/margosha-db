@@ -221,13 +221,20 @@ jobs:
 
       # A deploy restarts all 7 nodes, which would send 7 node-down e-mails. The alarms keep working (the
       # dashboard shows them), while e-mails are off until the last step turns them on again.
+      # If the emails can't be turned off, the deploy still goes on: the cost is a few node-down e-mails.
       - name: Turn the alarm e-mails off while the nodes restart
         run: |
-          alarms=$(aws cloudwatch describe-alarms --alarm-name-prefix "$APP_STACK-" --query "MetricAlarms[].AlarmName" --output text)
+          if ! alarms=$(aws cloudwatch describe-alarms --alarm-name-prefix "$APP_STACK-" --query "MetricAlarms[].AlarmName" --output text); then
+            echo "::warning::Could not list the alarms, so their e-mails stay on during this deploy."
+            exit 0
+          fi
           if [ -n "$alarms" ]; then
-            aws cloudwatch disable-alarm-actions --alarm-names $alarms
-            echo "ALARMS_MUTED=true" >> "$GITHUB_ENV"
-            echo "Alarm e-mails off: $alarms"
+            if aws cloudwatch disable-alarm-actions --alarm-names $alarms; then
+              echo "ALARMS_MUTED=true" >> "$GITHUB_ENV"
+              echo "Alarm e-mails off: $alarms"
+            else
+              echo "::warning::Could not turn the alarm e-mails off, so this deploy may send node-down e-mails."
+            fi
           fi
 
       - name: Reboot or start every node
