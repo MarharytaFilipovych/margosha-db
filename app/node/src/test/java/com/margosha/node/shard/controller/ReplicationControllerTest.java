@@ -20,16 +20,19 @@ import java.util.stream.Stream;
 import com.margosha.api.model.ApiError;
 import com.margosha.api.model.ErrorCode;
 import com.margosha.api.model.ReplicationBatch;
+import com.margosha.node.common.metrics.RequestMetrics;
 import com.margosha.node.shard.replication.leader.ReplicationLeader;
 import com.margosha.node.shard.replication.model.ReplicaIdentity;
 import com.margosha.node.shard.replication.storage.ReplicaStorage;
 import com.margosha.node.shard.service.ReplicaReadService;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.json.JsonCompareMode;
@@ -37,6 +40,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @ActiveProfiles("shard")
 @WebMvcTest(ReplicationController.class)
+@Import({RequestMetrics.class, SimpleMeterRegistry.class})
 class ReplicationControllerTest {
 
 	private static final String MAX_OUT_OF_RANGE = "max must be between 1 and 1000";
