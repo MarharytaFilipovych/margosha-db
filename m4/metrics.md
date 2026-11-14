@@ -132,8 +132,9 @@ The alarms are also in `cfn/margosha-app.yaml`. Each one e-mails the SNS topic
 `margosha-app-alerts` when it fires and when it is OK again. The address comes from the GitHub variable
 `MARGOSHA_ALERT_EMAIL` (stack parameter `AlertEmail`) and must be confirmed once from the e-mail AWS sends.
 
-- **Node down (7 alarms).** The coordinator: `margosha.cluster.replicas` (shard-a, leader) sent no data for 1 minute.
-  The coordinator sends it every minute, so missing data counts as down. Each replica: `margosha.replica.up` below 1
+- **Node down (7 alarms).** The coordinator: `margosha.cluster.replicas` (shard-a, leader) sent no value for 2
+  minutes in a row. The coordinator sends it every minute, and `FILL` turns a minute without a value into 0, so the
+  alarm sees the gap at once ([ADR 0013](../adr/0013-monitoring-stack.md)). Each replica: `margosha.replica.up` below 1
   for 1 minute. Here missing data does not count, because it means the coordinator is down, which its own alarm
   reports.
 - **High latency (5 alarms).** The coordinator's p99 per operation above 50 ms (read, exists) or 100 ms (create,

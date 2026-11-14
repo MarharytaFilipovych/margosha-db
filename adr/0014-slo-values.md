@@ -56,12 +56,15 @@ update, delete). The latency alert fires when p99 stays above this for **5 minut
 Each follower's lag should be at most **5 s** in 99% of minutes. The lag alert fires when it stays above **10 s for
 1 minute**.
 
-A node counts as down after **1 minute** without any sign of it. So that deploys don't trigger alerts, the pipeline
+A replica counts as down after **1 minute** in which the coordinator could not reach it. The coordinator counts as
+down after **2 minutes** without its metrics, so that values arriving late don't trigger it
+([ADR 0013](0013-monitoring-stack.md)). So that deploys don't trigger alerts, the pipeline
 turns the alert e-mails off before a deploy and back on after it, also when the deploy fails.
 
 ## Consequences
 
-- Real faults trigger an alert within about 1–2 minutes (node down, lag) or 5 minutes (slow answers).
+- Real faults trigger an alert within about 1–2 minutes (replica down, lag), about 3 minutes (coordinator down) or 5
+  minutes (slow answers).
 - Deploys don't trigger alerts, but a node that doesn't come back after a deploy is noticed only once e-mails are on
   again.
 - While e-mails are off, the dashboard still shows the alarms; only the e-mails stop.

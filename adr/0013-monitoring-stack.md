@@ -41,6 +41,14 @@ When the coordinator stops, its metrics stop too, and its alarm treats "no data"
 coordinator sends an `up` value of 1 or 0, and that alarm fires on 0. For this alarm "no data" does not count, so
 when the coordinator is down we get one alarm, not seven.
 
+The check on AWS ([coordinator_down.md](../m4/checks/coordinator_down.md)) showed that "no data" alone is slow: while
+CloudWatch still finds a value from the last few minutes, it uses that value, so the alarm fired only after 7.5
+minutes. Options:
+- **Accept the delay:** nothing to change, but a stopped coordinator is noticed only after 7–8 minutes. Rejected.
+- **Count each minute without a value as 0:** CloudWatch's `FILL(m, 0)` turns an empty minute into 0, so the alarm
+  sees the gap at once. A minute whose values arrive late would also be 0, so the alarm waits for 2 such minutes.
+We count each minute without a value as 0, and the alarm fires after 2 minutes of zeros.
+
 Alarms send e-mails through SNS. The e-mail address comes from a GitHub variable, so it isn't in the repository, and
 it is confirmed once from the inbox. No secret is needed, because the nodes use `LabRole`. The dashboard, alarms and
 e-mail topic are in `cfn/margosha-app.yaml`. **The launch template doesn't change and no instance is added.**
@@ -51,6 +59,7 @@ e-mail topic are in `cfn/margosha-app.yaml`. **The launch template doesn't chang
 - The number of metrics is the main cost.
 - While the coordinator is down, replica metrics and alarms stop, and only the coordinator's alarm fires. Accepted:
   without the coordinator, clients can't use the store anyway.
-- A stopped replica is noticed within 1 minute plus the alarm's wait time.
+- A stopped replica is noticed within 1 minute plus the alarm's wait time. A stopped coordinator is noticed after
+  about 3 minutes: 2 minutes without values, plus the time until the next check.
 - Each node works out its own percentiles, so the slow-answer alarm watches the coordinator, which sees every client
   request.

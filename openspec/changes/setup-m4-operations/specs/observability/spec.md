@@ -125,6 +125,11 @@ repository and SHALL notify the operator.
 - **WHEN** a replica is stopped for longer than the node-down duration
 - **THEN** the node-down alert fires for that replica and the operator is notified
 
+#### Scenario: Coordinator down alert
+- **WHEN** the coordinator is stopped for longer than its node-down duration
+- **THEN** its node-down alert fires without any value from the coordinator, the replicas' node-down alerts do not
+  fire, and the operator is notified
+
 #### Scenario: Replication lag alert
 - **WHEN** a follower is stopped while records are written to its shard for longer than the lag threshold
 - **THEN** the replication-lag alert fires for that follower

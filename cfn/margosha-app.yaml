@@ -70,7 +70,7 @@ Parameters:
     Type: String
     Default: ""
     Description: >
-      E-mail address the alarms are sent to (ADR 0013). The pipeline passes it from the GitHub variable
+      Email address the alarms are sent to. The pipeline passes it from the GitHub variable
       MARGOSHA_ALERT_EMAIL, so it is not in the repository. Empty: the alarms exist but send no e-mail.
       The address must confirm the subscription once, from the e-mail AWS sends.
 
@@ -627,7 +627,7 @@ Resources:
             {
               "type": "text", "x": 0, "y": 0, "width": 24, "height": 2,
               "properties": {
-                "markdown": "## Margosha DB\nMetrics from all 7 nodes, sent by the coordinator once a minute (ADR 0012, 0013). When the coordinator is down, every panel stops getting data. Latencies are in milliseconds, counts are per minute."
+                "markdown": "## Margosha DB\nMetrics from all 7 nodes, sent by the coordinator once a minute. When the coordinator is down, every panel stops getting data. Latencies are in milliseconds, counts are per minute."
               }
             },
             {
@@ -801,19 +801,31 @@ Resources:
       Protocol: email
       Endpoint: !Ref AlertEmail
 
+  # The coordinator sends this value every minute. FILL turns a minute without it into 0, so the alarm sees the gap at
+  # once instead of using older values. 2 minutes in a row, so values that arrive late don't trigger it.
   CoordinatorDownAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub "${AWS::StackName}-coordinator-down"
-      AlarmDescription: The coordinator sent no metrics for 1 minute.
-      Namespace: MargoshaDB
-      MetricName: margosha.cluster.replicas.value
-      Dimensions:
-        - { Name: role, Value: leader }
-        - { Name: shard, Value: shard-a }
-      Statistic: SampleCount
-      Period: 60
-      EvaluationPeriods: 1
+      AlarmDescription: The coordinator sent no metrics for 2 minutes.
+      Metrics:
+        - Id: sent
+          ReturnData: false
+          MetricStat:
+            Metric:
+              Namespace: MargoshaDB
+              MetricName: margosha.cluster.replicas.value
+              Dimensions:
+                - { Name: role, Value: leader }
+                - { Name: shard, Value: shard-a }
+            Period: 60
+            Stat: SampleCount
+        - Id: filled
+          Label: Values sent by the coordinator (0 = none)
+          Expression: FILL(sent, 0)
+          ReturnData: true
+      EvaluationPeriods: 2
+      DatapointsToAlarm: 2
       Threshold: 1
       ComparisonOperator: LessThanThreshold
       TreatMissingData: breaching
@@ -1045,8 +1057,6 @@ Resources:
       AlarmActions: [!Ref AlertsTopic]
       OKActions: [!Ref AlertsTopic]
 
-  # Replication lag: a follower more than 10 s behind its leader for 1 minute. No data means the leader is down,
-  # which its own alarm reports.
   ShardA2LagAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
