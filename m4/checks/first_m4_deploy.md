@@ -1,6 +1,6 @@
 # The first M4 deploy
 
-Done on 2026-11-13 in us-east-1, version `aca4f05`.
+Done on 2026-11-13 in us-east-1.
 
 ## 0. Setup
 

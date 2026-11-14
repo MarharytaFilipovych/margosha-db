@@ -52,7 +52,7 @@
 
 ## 7. Checks on AWS (after groups 3–6)
 
-- [ ] 7.1 Deploy through the pipeline; verify 7 instances (8 with `BenchClient=true`), all 6 replicas registered, metrics from all 7 nodes in the backend, the dashboard showing data, and a replica's metrics endpoint unreachable from outside the VPC
+- [x] 7.1 Deploy through the pipeline; verify 7 instances (8 with `BenchClient=true`), all 6 replicas registered, metrics from all 7 nodes in the backend, the dashboard showing data, and a replica's metrics endpoint unreachable from outside the VPC
 - [ ] 7.2 Follower down and back: stop one follower while writing for longer than the lag threshold; verify the dashboard shows it down with growing lag, the node-down and lag alerts fire and notify, and both resolve by themselves after it is started and catches up. Write the commands, timings and screenshots into `../../../m4/checks`
 - [ ] 7.3 Coordinator down: stop the coordinator; verify its node-down alert fires (the monitoring does not depend on it to report its own absence, or ADR 0013's documented limit is shown)
 - [ ] 7.4 High latency: drive p99 above the threshold (for example YCSB with more threads, or a lowered threshold for the test); verify the high-latency alert fires and clears, and record how it was triggered
