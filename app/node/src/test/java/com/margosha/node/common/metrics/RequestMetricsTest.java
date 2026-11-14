@@ -80,6 +80,23 @@ class RequestMetricsTest {
 	}
 
 	@Test
+	void readPercentilesAreKeptForDurationsFromMicrosecondsToSeconds() {
+		// Arrange
+		client.readRecord(users, USER_42);
+		Timer reads = registry.get(RequestMetrics.REQUESTS).tag("operation", Operation.READ.tag()).timer();
+		long[] nanos = {1_000L, 600_000L, 3_000_000L, 40_000_000L, 2_500_000_000L};
+
+		// Act
+		IntStream.range(0, 1_000).forEach(i -> reads.record(nanos[i % nanos.length], TimeUnit.NANOSECONDS));
+		reads.takeSnapshot();
+		IntStream.range(0, 1_000).forEach(i -> reads.record(nanos[(i + 2) % nanos.length], TimeUnit.NANOSECONDS));
+		ValueAtPercentile[] percentiles = reads.takeSnapshot().percentileValues();
+
+		// Assert
+		assertThat(percentiles[2].value(TimeUnit.MILLISECONDS)).isGreaterThan(1_000);
+	}
+
+	@Test
 	void onlyTheStoresOwnMetersAreKept() {
 		// Act
 		client.readRecord(users, USER_42);
