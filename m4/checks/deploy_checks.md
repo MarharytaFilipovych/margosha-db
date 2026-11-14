@@ -18,7 +18,7 @@ Uses the setup from [first_m4_deploy.md](first_m4_deploy.md#0-setup) (`$PEM`, `$
 aws ec2 describe-instances --filters "Name=tag:Name,Values=margosha-*" "Name=instance-state-name,Values=pending,running,stopping,stopped" --query "Reservations[].Instances[].[Tags[?Key=='Name']|[0].Value,InstanceId,State.Name,PrivateIpAddress,PublicIpAddress]" --output table
 ```
 
-![The 7 instances](images/instances.png)
+![The 7 instances](images/deploy_checks/instances.png)
 
 7 instances were `running`: the coordinator and the 6 replicas, with the same instance IDs as before the deploy (the
 bench client is not created). Only the coordinator has a public IP (`3.91.184.160`). The replicas show `None`.
@@ -36,7 +36,7 @@ macOS (Terminal):
 aws ec2 get-console-output --instance-id "$COORD" --latest --output text | grep -E "(Registered|Updated) replica" | tail -n 6
 ```
 
-![Coordinator log: 6 replicas registered](images/registered.png)
+![Coordinator log: 6 replicas registered](images/deploy_checks/registered.png)
 
 All 6 replicas registered within 3 seconds after the deploy:
 
@@ -91,7 +91,7 @@ macOS (Terminal):
 aws cloudwatch list-metrics --namespace MargoshaDB --dimensions Name=role,Value=coordinator --recently-active PT3H --query "Metrics[].MetricName" --output text | tr '\t' '\n' | sort -u
 ```
 
-![The coordinator's metrics](images/coordinator-metrics.png)
+![The coordinator's metrics](images/deploy_checks/coordinator-metrics.png)
 
 CloudWatch had the coordinator's `margosha.errors.count`, `margosha.requests.count`,
 `margosha.requests.percentile.value` and `margosha.shard.requests.count`.
@@ -107,17 +107,17 @@ It listed all 6 replicas, shard-a-1 … shard-b-3. So CloudWatch gets metrics fr
 **5. Look at the stack** in the CloudFormation console (stack `margosha-app`, tabs **Stack info**, **Outputs** and
 **Resources**):
 
-![Stack info](images/stack-info.png)
+![Stack info](images/deploy_checks/stack-info.png)
 
 The stack is `UPDATE_COMPLETE`, updated by the pipeline at 12:08:51 (14:08:51 UTC+2 in the console).
 
-![Stack outputs](images/stack-outputs.png)
+![Stack outputs](images/deploy_checks/stack-outputs.png)
 
 The outputs show `AppVersion` `adc280a`, the `DashboardUrl` and the `AlertsTopicArn`.
 
-![Stack resources, part 1](images/stack-resources-1.png)
+![Stack resources, part 1](images/deploy_checks/stack-resources-1.png)
 
-![Stack resources, part 2](images/stack-resources-2.png)
+![Stack resources, part 2](images/deploy_checks/stack-resources-2.png)
 
 The stack has 33 resources. The 7 instances are `UPDATE_COMPLETE`: they were updated in place, not replaced. The
 dashboard, the SNS topic, its e-mail subscription and the 16 alarms are `CREATE_COMPLETE`.
@@ -132,54 +132,54 @@ With the time range set to 3 hours (09:30–12:30), the panels show two bursts o
 before the last deploy, and the one from step 3 at about 12:25. Between them, the lines have short gaps at about
 10:45 and 12:09, while the deploys restarted the coordinator.
 
-![Cluster health](images/dashboard-health.png)
+![Cluster health](images/deploy_checks/dashboard-health.png)
 
 All 6 replicas are up (1), and every shard has 1 leader and 2 followers registered.
 
-![Coordinator latency p50, p95, p99](images/dashboard-coordinator-latency.png)
+![Coordinator latency p50, p95, p99](images/deploy_checks/dashboard-coordinator-latency.png)
 
 The coordinator has a line for create and for read. The first requests after a restart, at 10:17, took up to
 192 ms at p95 and p99 (the JVM had just started). The requests at 12:25 took a few milliseconds.
 
-![Replica latency p50](images/dashboard-replica-p50.png)
+![Replica latency p50](images/deploy_checks/dashboard-replica-p50.png)
 
-![Replica latency p95](images/dashboard-replica-p95.png)
+![Replica latency p95](images/deploy_checks/dashboard-replica-p95.png)
 
-![Replica latency p99](images/dashboard-replica-p99.png)
+![Replica latency p99](images/deploy_checks/dashboard-replica-p99.png)
 
 Every replica has a line for each of its operations: creates on the leaders, reads on all replicas. At 12:25 the
 slowest was about 10.6 ms at p50, 75 ms at p95 and 80 ms at p99.
 
-![Coordinator and replica throughput](images/dashboard-throughput.png)
+![Coordinator and replica throughput](images/deploy_checks/dashboard-throughput.png)
 
 The coordinator handled 21 requests in the busiest minute. Each replica handled up to 12 requests a minute, split by
 operation.
 
-![Coordinator errors and replication lag](images/dashboard-coordinator-errors-and-lag.png)
+![Coordinator errors and replication lag](images/deploy_checks/dashboard-coordinator-errors-and-lag.png)
 
 The coordinator's errors show one `RECORD_NOT_FOUND` for each burst, the missing record of step 3. The
 "5xx % of requests" line is empty, because no request failed with a 5xx. The replication lag of all 4 followers is 0.
 
-![Replica errors](images/dashboard-replica-errors.png)
+![Replica errors](images/deploy_checks/dashboard-replica-errors.png)
 
 The replicas of shard B, which holds the key `missing`, show the same not-found: shard-b-3 answered it at 12:24.
 
-![Requests per shard](images/dashboard-requests-per-shard.png)
+![Requests per shard](images/deploy_checks/dashboard-requests-per-shard.png)
 
 At 12:25 shard B got 25 requests and shard A about 16, as the ring spread the record IDs.
 
-![Records per replica](images/dashboard-records-per-replica.png)
+![Records per replica](images/deploy_checks/dashboard-records-per-replica.png)
 
 After both bursts, every replica of shard A holds 19 records and every replica of shard B holds 21 (40 in all). The
 replicas of one shard hold the same number.
 
 **7. Look at the alarms** in the CloudWatch console (**Alarms → All alarms**):
 
-![Alarms overview](images/alarms-overview.png)
+![Alarms overview](images/deploy_checks/alarms-overview.png)
 
-![The 16 alarms, part 1](images/alarms-1.png)
+![The 16 alarms, part 1](images/deploy_checks/alarms-1.png)
 
-![The 16 alarms, part 2](images/alarms-2.png)
+![The 16 alarms, part 2](images/deploy_checks/alarms-2.png)
 
 All 16 alarms are `OK`, with actions enabled. None changed state during the deploy at 12:08: the last change is
 10:16 for the coordinator's alarm and the day before for the others.
@@ -190,7 +190,7 @@ All 16 alarms are `OK`, with actions enabled. None changed state during the depl
 aws ec2 describe-security-groups --filters "Name=tag:Name,Values=margosha-shard-sg" --query "SecurityGroups[0].IpPermissions[].[FromPort,ToPort,join(',', IpRanges[].CidrIp),join(',', UserIdGroupPairs[].GroupId)]" --output table
 ```
 
-![The replicas' security group](images/security-group.png)
+![The replicas' security group](images/deploy_checks/security-group.png)
 
 Port 8080 is open only to the coordinator's security group (`sg-0751b712f91a4fe6b`) and the replicas' own
 (`sg-093f8a46b08321f31`). Port 22 is open only to the coordinator's. No IP range is allowed, so no `0.0.0.0/0`.
@@ -212,7 +212,7 @@ for ip in $REPLICAS; do
 done
 ```
 
-![No replica answers from the laptop](images/metrics-from-laptop.png)
+![No replica answers from the laptop](images/deploy_checks/metrics-from-laptop.png)
 
 None of the 6 replicas answered.
 
@@ -229,7 +229,7 @@ FIRST=${REPLICAS%% *}
 ssh -i "$PEM" -o StrictHostKeyChecking=accept-new "ec2-user@$COORD_PUB" "curl -s -m 5 http://$FIRST:8080/metrics | head -c 300; echo"
 ```
 
-![The replica answers the coordinator](images/metrics-from-coordinator.png)
+![The replica answers the coordinator](images/deploy_checks/metrics-from-coordinator.png)
 
 The replica answered with its JSON (`{"metrics":[{"name":"margosha.requests.percentile",…`). So the endpoint is there,
 and only the outside can't reach it.

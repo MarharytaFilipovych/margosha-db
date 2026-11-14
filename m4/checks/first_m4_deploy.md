@@ -97,7 +97,7 @@ in place (their `AppVersion` tag). No instance was replaced, so their disks and 
 aws cloudformation describe-stack-events --region us-east-1 --stack-name margosha-app --max-items 60 --query "StackEvents[?ResourceStatus=='UPDATE_IN_PROGRESS' || ResourceStatus=='CREATE_COMPLETE'].[LogicalResourceId,ResourceType,ResourceStatus]" --output table
 ```
 
-![Stack events: alarms created, instances updated in place](images/first-deploy-stack-events.png)
+![Stack events: alarms created, instances updated in place](images/first_m4_deploy/first-deploy-stack-events.png)
 
 The template changes of M4's monitoring are only additions (the `AlertEmail` parameter and its condition, the
 dashboard, the SNS topic and e-mail subscription, the 16 alarms, two outputs). Nothing in the launch template, the
@@ -128,7 +128,7 @@ aws iam simulate-principal-policy --policy-source-arn "arn:aws:iam::${ACCOUNT}:r
 aws iam simulate-principal-policy --policy-source-arn "arn:aws:iam::${ACCOUNT}:role/LabRole" --action-names ssm:GetParameter kms:Decrypt --query "EvaluationResults[].[EvalActionName,EvalDecision]" --output text
 ```
 
-![Policy simulator: the alarm calls and reading the agent key are allowed](images/first-deploy-permissions.png)
+![Policy simulator: the alarm calls and reading the agent key are allowed](images/first_m4_deploy/first-deploy-permissions.png)
 
 All six are `allowed`.
 

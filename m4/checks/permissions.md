@@ -44,7 +44,7 @@ aws sts get-caller-identity --query Arn --output text
 aws ec2 describe-instances --filters "Name=tag:Name,Values=margosha-*" --query "Reservations[].Instances[].[Tags[?Key=='Name']|[0].Value,State.Name,IamInstanceProfile.Arn]" --output text
 ```
 
-![Setup, caller identity and the nodes' instance profiles](images/setup-and-identity.png)
+![Setup, caller identity and the nodes' instance profiles](images/permissions/setup-and-identity.png)
 
 My CLI is `voclabs`. All 7 nodes are `LabRole`.
 
@@ -77,7 +77,7 @@ for ROLE in voclabs LabRole; do
 done
 ```
 
-![Policy simulator for voclabs and LabRole](images/policy-simulator.png)
+![Policy simulator for voclabs and LabRole](images/permissions/policy-simulator.png)
 
 All 16 are `allowed` for both roles. Full answers:
 [voclabs-policy-simulator.json](command_outputs/voclabs-policy-simulator.json),
@@ -146,19 +146,19 @@ aws ssm delete-parameter --name /margosha/permcheck; echo "exit $?"
 **CloudWatch.** All `exit 0`. The alarm treats missing data as a problem, which a node-down alarm needs. The
 dashboard has no errors:
 
-![CloudWatch metric, alarm and dashboard](images/cloudwatch-calls.png)
+![CloudWatch metric, alarm and dashboard](images/permissions/cloudwatch-calls.png)
 
 **SNS.** Topic created, subscription fails only on the address, topic deleted:
 
-![SNS topic and subscription](images/sns-calls.png)
+![SNS topic and subscription](images/permissions/sns-calls.png)
 
 **VPC endpoint.** It would have worked:
 
-![CloudWatch VPC endpoint dry run](images/vpc-endpoint-dry-run.png)
+![CloudWatch VPC endpoint dry run](images/permissions/vpc-endpoint-dry-run.png)
 
 **SSM parameter.** An encrypted value is saved, read back and deleted:
 
-![SSM SecureString parameter](images/ssm-parameter.png)
+![SSM SecureString parameter](images/permissions/ssm-parameter.png)
 
 The endpoint also needs CloudWatch in the VPC's zones and DNS turned on:
 
@@ -178,7 +178,7 @@ aws ec2 describe-vpc-attribute --vpc-id "$VPC" --attribute enableDnsHostnames --
 aws ec2 describe-vpc-endpoints --filters "Name=vpc-id,Values=$VPC" --query "VpcEndpoints[].[ServiceName,VpcEndpointType]" --output text
 ```
 
-![CloudWatch endpoint service, VPC DNS settings and existing endpoints](images/vpc-endpoint-checks.png)
+![CloudWatch endpoint service, VPC DNS settings and existing endpoints](images/permissions/vpc-endpoint-checks.png)
 
 Both are fine. The only endpoint today is S3 (from M2).
 
@@ -189,7 +189,7 @@ Which nodes SSM can reach (same on Windows and macOS):
 aws ssm describe-instance-information --query "InstanceInformationList[].[InstanceId,PingStatus]" --output text
 ```
 
-![Nodes managed by SSM](images/ssm-managed-nodes.png)
+![Nodes managed by SSM](images/permissions/ssm-managed-nodes.png)
 
 Only the coordinator. The replicas have no internet, so SSM can't reach them.
 
@@ -215,7 +215,7 @@ aws cloudwatch list-metrics --namespace margosha-permcheck --query "Metrics[].Me
 
 If it says `InProgress`, run `get-command-invocation` again.
 
-![Metric sent from the coordinator as LabRole](images/labrole-run-command.png)
+![Metric sent from the coordinator as LabRole](images/permissions/labrole-run-command.png)
 
 `LabRole` can send metrics. Both test metrics arrived: `check` (from my laptop) and `check-from-node` (from the
 coordinator). They can't be deleted; they vanish after two weeks and cost almost nothing.
