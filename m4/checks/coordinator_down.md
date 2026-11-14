@@ -7,8 +7,8 @@ to `OK` by itself and the store worked.
 
 **Found:** the alarm fired **7 min 31 s** after the stop, not within 1–2 minutes as
 [ADR 0014](../../adr/0014-slo-values.md) expects. See [Why the alarm took 7.5 minutes](#why-the-alarm-took-75-minutes).
-The alarm was then changed to count a minute without values as 0, and the check is run again in
-[After the fix](#after-the-fix).
+The alarm was then changed to count a minute without values as 0. Run again in [After the fix](#after-the-fix), it
+fired **2 min 47 s** after the stop.
 
 Account `797089401427`, region `us-east-1`, 2026-11-14. All times are UTC.
 
@@ -287,43 +287,72 @@ minute whose values arrive late doesn't trigger it ([ADR 0013](../../adr/0013-mo
 **What should happen:** the alarm fires about 3 minutes after the coordinator stops, and only this alarm fires. While
 the coordinator is running, the alarm stays `OK`.
 
-**How it was run:** the change was previewed with the change set commands from the README
-([Before pushing a template change](../../README.md#before-pushing-a-template-change-will-it-replace-the-nodes)) and
-deployed by the pipeline. Then steps 2, 4, 5 and 7 above were run again with the same commands. The parts the fix
+**How it was run:** the change was deployed by the pipeline.
+Then steps 2, 4, 5 and 7 above were run again with the same commands. The parts the fix
 doesn't change (a client can't reach the store, the replica alarms stay `OK`, the store works after the start) are
 shown in the first run and were not repeated.
 
 ### Results
 
-TODO: after the run.
-
-![Change set preview](images/coordinator_down/fix-change-set.png)
+**The new alarm after the deploy:** `OK`, 2 periods, 2 datapoints to alarm, missing data `breaching`, and the
+expression `FILL(sent, 0)`.
 
 ![The new alarm](images/coordinator_down/fix-alarm.png)
 
+**Stop.** The stop was sent at **16:34:50** and the coordinator was stopped at **16:35:22**.
+
 ![Coordinator stopped](images/coordinator_down/fix-stop.png)
 
-![Waiting for the alarm](images/coordinator_down/fix-wait-alarm.png)
+**Alarm.** The alarm went to `ALARM` at **16:37:37**, 2 min 47 s after the stop. Its reason: the minutes 16:35 and
+16:36 both had the value 0, so 2 of 2 were below 1. The email came at the same minute. At 16:41:04, 3 minutes later,
+it was still the only alarm in `ALARM`.
 
 ![ALARM email](images/coordinator_down/fix-email-alarm.png)
 
-![Coordinator started, alarm OK](images/coordinator_down/fix-start.png)
+![Only the coordinator alarm in alarm](images/coordinator_down/fix-wait-alarm.png)
+
+**Start.** The coordinator was `running` at **16:43:23**. The alarm went back to `OK` at **16:45:37**, 2 min 14 s
+later, as soon as the minute 16:44 had a value again. The `OK` email came at the same minute.
+
+![Coordinator started](images/coordinator_down/fix-start.png)
+
+![Waiting for OK](images/coordinator_down/fix-wait-ok.png)
 
 ![OK email](images/coordinator_down/fix-email-ok.png)
 
+**History.** The CLI prints local time (UTC+2). The two newest lines are this run (16:37:37 and 16:45:37 UTC), the
+others are the first run and the outage before it.
+
 ![Alarm history after the fix](images/coordinator_down/fix-history.png)
+
+The console shows the same, plus the deploy. The alarm was updated at 16:28:53, and the pipeline muted and unmuted the
+alarm emails until 16:33:12. The alarm stayed `OK` during the deploy. The coordinator's values never dropped to 0 for
+2 minutes then.
+
+![Alarm graph after the fix](images/coordinator_down/fix-alarm-graph.png)
+
+![Alarm history in the console](images/coordinator_down/fix-alarm-history-console.png)
+
+The graph now shows the new expression for the whole 3 hours: each outage is a run of zeros. The first run's outage
+(15:06–15:20) shows zeros from 15:07, but the alarm, which then did not use `FILL`, fired only at 15:13:37.
 
 ### Timeline after the fix
 
 | Time (UTC) | What happened |
 |---|---|
-| | deploy with the new alarm |
-| | stop of the coordinator sent |
-| | coordinator stopped |
-| | coordinator alarm `ALARM`, email sent |
-| | coordinator `running` again |
-| | coordinator alarm `OK`, email sent |
+| 16:28:53 | deploy updates the alarm |
+| 16:33:12 | deploy ends, alarm emails on again, alarm still `OK` |
+| 16:34:50 | stop of the coordinator sent |
+| 16:35:22 | coordinator stopped |
+| 16:37:37 | coordinator alarm `ALARM`, email sent (2 min 47 s after the stop) |
+| 16:41:04 | still only the coordinator alarm in `ALARM` |
+| 16:43:23 | coordinator `running` again |
+| 16:45:37 | coordinator alarm `OK`, email sent (2 min 14 s after the start) |
 
 ### Result after the fix
 
-TODO: after the run.
+- **The alarm is now on time:** it fired 2 min 47 s after the stop, instead of 7 min 31 s before the fix. This is
+  the "about 3 minutes" [ADR 0014](../../adr/0014-slo-values.md) now gives for the coordinator.
+- **Only one alarm fires:** the coordinator alarm was the only one in `ALARM`, also 6 minutes after the stop.
+- **No false alarm:** the alarm stayed `OK` during the deploy and while the coordinator was running.
+- **It resolves by itself:** 2 min 14 s after the coordinator was running, the alarm was `OK` again, with an email.
