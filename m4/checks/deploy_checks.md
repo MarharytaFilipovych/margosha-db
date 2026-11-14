@@ -1,14 +1,12 @@
-# Checks after the M4 deploy (task 7.1)
+# Checks after the M4 deploy
 
 **What was checked:** the pipeline deployed M4 with 7 instances, all 6 replicas registered with the coordinator,
 CloudWatch gets metrics from all 7 nodes, the dashboard shows data, the 16 alarms exist, and a replica's metrics
 endpoint can't be reached from outside the VPC.
 
-Account `797089401427`, region `us-east-1`, 2026-11-14. All times are UTC.
+Checked on 2026-11-14. All times are UTC.
 
-Uses the setup from [first_m4_deploy.md](first_m4_deploy.md#0-setup) (`$PEM`, `$COORD`, `$COORD_PUB`, `$API`,
-`$REPLICAS`). Plain `aws` commands are written on one line, so they run as they are on **Windows (PowerShell)** and
-**macOS (Terminal)**. Commands that use variables or loops are given for both.
+Uses the setup from [first_m4_deploy.md](first_m4_deploy.md#0-setup).
 
 ## Commands
 

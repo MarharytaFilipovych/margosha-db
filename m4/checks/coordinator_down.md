@@ -10,11 +10,9 @@ to `OK` by itself and the store worked.
 The alarm was then changed to count a minute without values as 0. Run again in [After the fix](#after-the-fix), it
 fired **2 min 47 s** after the stop.
 
-Account `797089401427`, region `us-east-1`, 2026-11-14. All times are UTC.
+Checked on 2026-11-14. All times are UTC.
 
-Uses the setup from [first_m4_deploy.md](first_m4_deploy.md#0-setup) (`$PEM`, `$COORD`, `$COORD_PUB`, `$API`). Plain
-`aws` commands are written on one line, so they run as they are on **Windows (PowerShell)** and **macOS (Terminal)**.
-Commands that use variables or loops are given for both.
+Uses the setup from [first_m4_deploy.md](first_m4_deploy.md#0-setup).
 
 ## What should happen
 
@@ -126,8 +124,6 @@ The alarm went to `ALARM` at **15:13:37** and the email came at the same minute.
 treated as breaching.
 
 ![ALARM email: coordinator down](images/coordinator_down/email-alarm.png)
-
-Screenshots of the alarms while the coordinator was down:
 
 ![Alarms overview: 1 in alarm, 15 OK](images/coordinator_down/alarms-overview-in-alarm.png)
 
@@ -298,6 +294,7 @@ shown in the first run and were not repeated.
 expression `FILL(sent, 0)`.
 
 ![The new alarm](images/coordinator_down/fix-alarm.png)
+![The new alarm](images/coordinator_down/fix-alarm-console.png)
 
 **Stop.** The stop was sent at **16:34:50** and the coordinator was stopped at **16:35:22**.
 

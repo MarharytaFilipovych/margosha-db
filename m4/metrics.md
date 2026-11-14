@@ -30,7 +30,7 @@ A replica's `GET /metrics` answer example:
 {
   "metrics":[
     {"name":"margosha.requests","type":"COUNTER","tags":{"operation":"read","role":"leader","shard":"shard-a","replica":"shard-a-1"},"value":20.0},
-    {"name":"margosha.requests.percentile","type":"GAUGE","tags":{"operation":"read","phi":"0.99","role":"leader","shard":"shard-a","replica":"shard-a-1"},"value":3.1,"unit":"milliseconds"},
+    {"name":"margosha.requests.percentile","type":"GAUGE","tags":{"operation":"read","phi":"0.99","role":"leader","shard":"shard-a","replica":"shard-a-1"},"value":0.0031,"unit":"seconds"},
     {"name":"margosha.replication.lag","type":"GAUGE","tags":{"follower":"shard-a-2","role":"leader","shard":"shard-a","replica":"shard-a-1"},"value":0.0,"unit":"seconds"},
     {"name":"margosha.replica.records","type":"GAUGE","tags":{"role":"leader","shard":"shard-a","replica":"shard-a-1"},"value":20.0}
   ]
@@ -48,7 +48,11 @@ aws cloudwatch list-metrics --namespace MargoshaDB --query "Metrics[].MetricName
 
 - **Kind:** timer, on the coordinator and on every replica.
 - **Tags:** `operation` = `create`, `read`, `exists`, `update` or `delete`. Followers only have `read` and `exists`.
-- **Shows:** how many requests of each operation the node handled, and how long they took at p50, p95 and p99 over the last minute in milliseconds.
+- **Shows:** how many requests of each operation the node handled, and how long they took at p50, p95 and p99 over the last minute.
+- **Unit:** the coordinator sends its latencies in milliseconds, the replicas in seconds (`0.0031` is 3.1 ms), because
+  only the coordinator's metrics library is set up for CloudWatch. Every value carries its unit, so the dashboard
+  shows both in milliseconds. The unit matters only when reading raw numbers, for example from the CLI, or for an
+  alarm on a replica's latency.
 - **In CloudWatch:** `margosha.requests.count` (throughput) and `margosha.requests.percentile.value` with the dimension `phi` = `0.5`, `0.95` or `0.99`.
 - **Why:** the latency and throughput panels, the high-p99 alert and the latency SLO. The coordinator's p99 for reads
   and for writes are SLIs, because the coordinator sees every client request. The replicas' numbers show which

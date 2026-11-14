@@ -1,6 +1,6 @@
 # The first M4 deploy
 
-Done on 2026-11-13 in us-east-1.
+Checked on 2026-11-13.
 
 ## 0. Setup
 

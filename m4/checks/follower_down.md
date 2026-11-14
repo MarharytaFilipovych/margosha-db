@@ -4,11 +4,9 @@
 and its replication lag growing. The node-down alarm and the lag alarm fired and sent an email. After the follower was
 started again and caught up, both alarms went back to `OK` by themselves and sent an email again.
 
-Account `797089401427`, region `us-east-1`, 2026-11-14. All times are UTC.
+Checked on 2026-11-14. All times are UTC.
 
-Uses the setup from [first_m4_deploy.md](first_m4_deploy.md#0-setup) (`$PEM`, `$COORD`, `$COORD_PUB`, `$API`,
-`$REPLICAS`). Plain `aws` commands are written on one line, so they run as they are on **Windows (PowerShell)** and
-**macOS (Terminal)**. Commands that use variables or loops are given for both.
+Uses the setup from [first_m4_deploy.md](first_m4_deploy.md#0-setup).
 
 ## What should happen
 

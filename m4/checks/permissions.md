@@ -1,6 +1,6 @@
 # What the monitoring options need from the lab roles
 
-Checked on 2026-11-03 in us-east-1. Used for ADR 0013 (monitoring stack).
+Checked on 2026-11-03. Used for ADR 0013 (monitoring stack).
 
 Two roles:
 - **`voclabs`**: my lab user. My CLI and the pipeline use it. It creates the dashboard, alarms and other resources.
@@ -9,8 +9,6 @@ Two roles:
 **`exit 0`** means the command worked. A refused command shows an `AccessDenied` error and a number other than 0.
 
 ## 0. Setup
-
-Run once. It finds the IDs, so you don't type them.
 
 Windows (PowerShell):
 ```powershell
@@ -38,7 +36,6 @@ echo "account $ACCOUNT  vpc $VPC  private $PRIVATE_A $PRIVATE_B  coordinator $CO
 
 ## 1. Which role is used where
 
-Same commands on Windows and macOS:
 ```bash
 aws sts get-caller-identity --query Arn --output text
 aws ec2 describe-instances --filters "Name=tag:Name,Values=margosha-*" --query "Reservations[].Instances[].[Tags[?Key=='Name']|[0].Value,State.Name,IamInstanceProfile.Arn]" --output text
