@@ -42,6 +42,8 @@ public class ReplicaMetricsRelay implements AutoCloseable {
 	private final Map<String, AtomicInteger> up = new ConcurrentHashMap<>();
 	/** Replica ID → what the coordinator keeps for each of its meters. */
 	private final Map<String, Map<MeterKey, ReplicaValue>> values = new ConcurrentHashMap<>();
+	/** The replicas this coordinator has read at least once since it started. */
+	private final Set<String> readBefore = ConcurrentHashMap.newKeySet();
 
 	public ReplicaMetricsRelay(@NonNull ShardRegistryService shardRegistryService, @NonNull MeterRegistry registry,
 							   @NonNull Duration interval) {
@@ -81,11 +83,15 @@ public class ReplicaMetricsRelay implements AutoCloseable {
 		if (isUp.getAndSet(1) == 0) {
 			log.info("Replica {} of shard {} sends its metrics", registration.replicaId(), registration.shardId());
 		}
+		// A counter that was not there at an earlier read started at 0 since then, so all of its value is new. On the
+		// first read of a replica (after the coordinator starts), a counter may hold the replica's whole history, which
+		// was already counted before, so only its later growth is counted.
+		boolean newCountersStartedAtZero = !readBefore.add(registration.replicaId());
 		Set<MeterKey> seen = new HashSet<>();
 		for (MetricValue value : metrics.metrics()) {
 			MeterKey key = new MeterKey(value.name(), value.type(), value.tags());
 			seen.add(key);
-			own.computeIfAbsent(key, k -> register(value)).update(value.value());
+			own.computeIfAbsent(key, k -> register(value, newCountersStartedAtZero)).update(value.value());
 		}
 		own.forEach((key, replicaValue) -> {
 			if (!seen.contains(key)) {
@@ -106,8 +112,8 @@ public class ReplicaMetricsRelay implements AutoCloseable {
 		return value;
 	}
 
-	private ReplicaValue register(MetricValue value) {
-		ReplicaValue replicaValue = new ReplicaValue(value.type());
+	private ReplicaValue register(MetricValue value, boolean startedAtZero) {
+		ReplicaValue replicaValue = new ReplicaValue(value.type(), startedAtZero);
 		Tags tags = Tags.of(value.tags().entrySet().stream().map(tag -> Tag.of(tag.getKey(), tag.getValue())).toList());
 		switch (value.type()) {
 			case GAUGE -> Gauge.builder(value.name(), replicaValue, ReplicaValue::gauge)
@@ -139,10 +145,12 @@ public class ReplicaMetricsRelay implements AutoCloseable {
 		private final MetricType type;
 		private volatile double gauge = Double.NaN;
 		private final DoubleAdder total = new DoubleAdder();
-		private double lastSeen = Double.NaN;
+		/** The counter's value at the previous read: unknown (NaN) on a first read, 0 when it started at 0. */
+		private double lastSeen;
 
-		private ReplicaValue(MetricType type) {
+		private ReplicaValue(MetricType type, boolean startedAtZero) {
 			this.type = type;
+			this.lastSeen = startedAtZero ? 0 : Double.NaN;
 		}
 
 		void update(double value) {

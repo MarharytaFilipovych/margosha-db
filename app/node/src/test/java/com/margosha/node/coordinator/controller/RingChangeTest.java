@@ -24,6 +24,7 @@ import com.margosha.api.model.PrimaryKey;
 import com.margosha.node.annotation.ShardedCoordinatorTest;
 import com.margosha.node.data.InProcessNode;
 import com.margosha.node.coordinator.service.ShardRegistryService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,6 +55,12 @@ class RingChangeTest {
 		client.registerShard(shardA.registration());
 		client.registerShard(shardB.registration());
 		client.registerTable(usersTable(users));
+	}
+
+	@AfterEach
+	void tearDown() {
+		shardA.close();
+		shardB.close();
 	}
 
 	@Test

@@ -9,7 +9,7 @@ M4 needs metrics from all 7 nodes, a dashboard, and alerts (node down, slow answ
 - Changing the launch template replaces all 7 nodes and loses their logs (M3).
 - The whole course has $50, and anything AWS bills while the lab is stopped costs money every day (M1).
 
-Both lab roles may use everything the options below need ([permissions.md](../m4/permission_checks/permissions.md)).
+Both lab roles may use everything the options below need ([permissions.md](../m4/checks/permissions.md)).
 
 ## Alternatives considered
 

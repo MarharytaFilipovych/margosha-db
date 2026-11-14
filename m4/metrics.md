@@ -14,6 +14,10 @@ Decisions behind it:
   (`shard-a`) and `replica` (`shard-a-1`). A metric's own tag of the same name wins over these.
 - Each replica shows its metrics as JSON on `GET /metrics`. Replicas have no internet, so the coordinator reads that
   endpoint on every replica once a minute and sends the values on with its own.
+- A replica's counters are totals since the replica started, so for each counter the coordinator sends how much it grew
+  since its previous read. A counter that first appears after an earlier read started at 0, so all of it is counted.
+  On the coordinator's first read of a replica, after the coordinator starts, a counter may already hold the
+  replica's history, which was counted before the restart. So only its later growth is counted.
 - The coordinator sends everything to CloudWatch once a minute, in the namespace `MargoshaDB`. This is on only when
   it has a region, which on AWS comes from `/etc/margosha/stack.env`. On a laptop and in tests nothing is sent.
 - Tags become CloudWatch dimensions, and CloudWatch adds a suffix to the name: `.value` for a gauge, `.count` for a
@@ -154,15 +158,15 @@ when the deploy fails (step "Turn the alarm e-mails on again"). The alarms keep 
 | `common.config.CountAndPercentilesOnly` | coordinator | Drops the sum, average and maximum before sending |
 | `common.metrics.RequestMetrics` | every node | `margosha.requests`, `margosha.errors`, `margosha.shard.requests` |
 | `common.metrics.ReplicationLagMetrics` | leader | `margosha.replication.lag` |
-| `common.metrics.ClusterMetrics` | coordinator, replicas | `margosha.cluster.replicas`, `margosha.replica.records`; the name of `margosha.replica.up` |
+| `common.metrics.ClusterMetrics` | coordinator, replicas | `margosha.cluster.replicas`, `margosha.replica.records`, and the name of `margosha.replica.up` |
 | `common.metrics.MetricsSnapshot` | replicas | Turns the replica's metrics into the `GET /metrics` answer |
-| `coordinator.metrics.ReplicaMetricsRelay` | coordinator | Reads every replica's metrics once a minute: `margosha.replica.up` |
+| `coordinator.metrics.ReplicaMetricsRelay` | coordinator | Reads every replica's metrics once a minute and sends them on, counters as their growth since the previous read: `margosha.replica.up` |
 | `application*.properties` | every node | Namespace, send interval, relay interval, `role` / `shard` / `replica` tags |
 
 | Case | Test |
 |---|---|
-| Read and update latencies are recorded; only `margosha.*` is kept; no actuator endpoint answers; a not-found read increments only the not-found count | `RequestMetricsTest` |
+| Read and update latencies are recorded, only `margosha.*` is kept, no actuator endpoint answers, and a not-found read increments only the not-found count | `RequestMetricsTest` |
 | A stopped follower's lag grows and returns to 0 after it catches up | `ReplicationLagTest` |
 | 1 leader and 2 followers per shard, requests and records per shard (2 shards × 3 replicas) | `ClusterMetricsTest` |
-| All 7 nodes' metrics are sent, no sum / average / maximum, a stopped replica goes to 0 | `ReplicaMetricsRelayTest` |
+| All 7 nodes' metrics are sent, no sum / average / maximum, a stopped replica goes to 0. A replica's first requests are counted in full. After the coordinator restarts, a replica's earlier requests are not counted again | `ReplicaMetricsRelayTest` |
 | A region in `stack.env` turns sending to CloudWatch on, no region keeps it off | `CloudWatchSwitchTest` |

@@ -2,7 +2,7 @@
 
 ## 1. Decisions (before the code that depends on them)
 
-- [x] 1.1 Check with the AWS CLI, using the lab credentials, what the monitoring options need from `LabRole`: CloudWatch `PutMetricData` / `PutMetricAlarm` / `PutDashboard`, SNS topic + e-mail subscription, a CloudWatch interface VPC endpoint, SSM parameters. Write the commands and answers in `../../../m4/permission_checks`; verify every option in design.md "ADR 0013" is marked allowed or denied
+- [x] 1.1 Check with the AWS CLI, using the lab credentials, what the monitoring options need from `LabRole`: CloudWatch `PutMetricData` / `PutMetricAlarm` / `PutDashboard`, SNS topic + e-mail subscription, a CloudWatch interface VPC endpoint, SSM parameters. Write the commands and answers in `../../../m4/checks`; verify every option in design.md "ADR 0013" is marked allowed or denied
 - [x] 1.2 ADR 0013: monitoring stack in `adr/` (option chosen from design.md "ADR 0013", how each of the 7 nodes is seen as down including the coordinator, where notifications go, the secret it needs and where it lives, whether it changes the launch template and the migration if so, where the dashboard and alert definitions live, cost per lab hour); verify it uses the result of 1.1 and states that no instance is added
 - [x] 1.3 ADR 0012: metrics collected and why in `adr/` (each metric with its tags and the panel, alert or SLO that uses it, which are SLIs and why the others are not, percentiles vs histograms for the chosen backend, how lag in seconds is measured, how metrics are exposed); verify every metric has a consumer in the brief's dashboard, alerts or SLOs and the list covers p50 / p95 / p99, throughput and error rate for the coordinator and the replicas
 - [x] 1.4 ADR 0014: SLO values in `adr/` (availability, read and write p99 targets, replication lag target, node-down duration and so the detection time, and each alert's threshold and duration, with the M3 benchmark numbers as the basis and the alternatives from design.md); verify each alert in `specs/observability` has a threshold and a duration in it, and each SLO names its SLI from ADR 0012
@@ -17,14 +17,14 @@
 - [x] 2.3 Add the `LastWriteWins` comparator and use it in `QuorumReader` instead of the highest log version; verify unit tests for a later version, a winning delete, equal versions (same winner in both orders), and a replica that never received the record
 - [x] 2.4 In-process test for `specs/conflict-resolution`: two clients updating one key concurrently (every replica converges to the same winner); verify it passes with `./mvnw verify`
 - [x] 2.5 Write `m4/lww.md`: what the version is, who assigns it, where LWW is applied, and why the store has no concurrent writers today; verify its examples match the tests
-- [ ] 2.6 Make the replicas start with empty data folders on the first M4 deploy, as ADR 0016 decides (M3 logs have no versions and are not read); verify on AWS that every replica starts and registers after the deploy
+- [x] 2.6 Make the replicas start with empty data folders on the first M4 deploy, as ADR 0016 decides (M3 logs have no versions and are not read); verify on AWS that every replica starts and registers after the deploy
 
 ## 3. Structured logs and trace IDs (after ADR 0017)
 
 - [x] 3.1 Switch every role to the structured log format from ADR 0017 with `role`, `shard`, `replica` fields; verify a test that a log line parses with those fields and the message
 - [x] 3.2 Trace ID filter on both roles as ADR 0017 decides (accept a valid client value, otherwise generate one; MDC; response header, errors included; one line with method, path, status and `durationMs` when the request ends); verify `CoordinatorControllerTest` cases for generated, kept, and invalid IDs, an error response with the header, and the end-of-request line with its duration
 - [x] 3.3 Propagate the trace ID to the replicas the coordinator calls, including `QuorumReader`'s virtual threads, and log one line per replica call with the replica, status and `durationMs`; verify an in-process test (2 shards × 3 replicas, log capture) that one write's trace ID appears on the coordinator and the leader, one read's on the replicas that answered, and that each call's duration is at least the replica's own and at most the coordinator's request duration
-- [ ] 3.4 Check every log search in `.github/workflows/pipeline.yml` and the README (`Running as`, `Registered replica`, `downloaded`, …) against the new log lines and fix the ones that break; verify the pipeline's wait step passes on a test deploy
+- [x] 3.4 Check every log search in `.github/workflows/pipeline.yml` and the README (`Running as`, `Registered replica`, `downloaded`, …) against the new log lines and fix the ones that break; verify the pipeline's wait step passes on a test deploy
 - [x] 3.5 Update `openapi.yaml` with the trace ID header on every operation and the version in replica reads and log entries; verify `OpenApiSpecTest` passes and the YCSB round-trip test passes unchanged (client API unchanged)
 - [x] 3.6 Write `m4/tracing.md`: the header, the log format, and the helper command (Windows and macOS) that collects one trace ID's lines from every running node's console output and prints them as a timeline (start time, node, step, status, duration); verify one run of it shows a write's coordinator request, call to the leader and the leader's handling in order with durations
 
@@ -48,16 +48,16 @@
 
 - [x] 6.1 Define the dashboard as code (cluster health, latency p50 / p95 / p99, throughput, error rate for coordinator and replicas, replication lag, shard distribution) where ADR 0013 decides; verify it is created from the repository with no manual edits and every panel shows data from a local or AWS run
 - [x] 6.2 Define the alerts as code (node down for each of the 7 nodes, p99 latency, replication lag) with ADR 0014's thresholds and durations, and the notification target; verify the definitions validate (`cfn-lint` or the backend's own check) and list all three alert kinds
-- [ ] 6.3 Add any AWS resources and access the monitoring stack needs to the templates (no new instance, replicas unreachable from outside, secrets outside the repository) and to the pipeline; preview the change set and verify no instance shows `Replacement: True` or `Conditional`
+- [x] 6.3 Add any AWS resources and access the monitoring stack needs to the templates (no new instance, replicas unreachable from outside, secrets outside the repository) and to the pipeline; preview the change set and verify no instance shows `Replacement: True` or `Conditional`
 
 ## 7. Checks on AWS (after groups 3–6)
 
 - [ ] 7.1 Deploy through the pipeline; verify 7 instances (8 with `BenchClient=true`), all 6 replicas registered, metrics from all 7 nodes in the backend, the dashboard showing data, and a replica's metrics endpoint unreachable from outside the VPC
-- [ ] 7.2 Follower down and back: stop one follower while writing for longer than the lag threshold; verify the dashboard shows it down with growing lag, the node-down and lag alerts fire and notify, and both resolve by themselves after it is started and catches up. Write the commands, timings and screenshots into `../../../m4/permission_checks`
+- [ ] 7.2 Follower down and back: stop one follower while writing for longer than the lag threshold; verify the dashboard shows it down with growing lag, the node-down and lag alerts fire and notify, and both resolve by themselves after it is started and catches up. Write the commands, timings and screenshots into `../../../m4/checks`
 - [ ] 7.3 Coordinator down: stop the coordinator; verify its node-down alert fires (the monitoring does not depend on it to report its own absence, or ADR 0013's documented limit is shown)
 - [ ] 7.4 High latency: drive p99 above the threshold (for example YCSB with more threads, or a lowered threshold for the test); verify the high-latency alert fires and clears, and record how it was triggered
-- [ ] 7.5 Tracing: write and read a record and follow its trace ID through the coordinator and the replicas it called using `m4/tracing.md`; verify the lines and add them to `../../../m4/permission_checks`
-- [ ] 7.6 LWW on AWS: write the same key from two clients at once and read it from every replica; verify all replicas hold the same winner, and add the output to `../../../m4/permission_checks`
+- [ ] 7.5 Tracing: write and read a record and follow its trace ID through the coordinator and the replicas it called using `m4/tracing.md`; verify the lines and add them to `../../../m4/checks`
+- [ ] 7.6 LWW on AWS: write the same key from two clients at once and read it from every replica; verify all replicas hold the same winner, and add the output to `../../../m4/checks`
 - [ ] 7.7 MCP with a client: connect Claude to the MCP server against the deployed store, use all four tools, try a refused action (table not allowed or missing credential) and ask the agent to update a record (no tool); verify the session transcript is saved in `m4/mcp_session.md`
 
 ## 8. End-to-end checks

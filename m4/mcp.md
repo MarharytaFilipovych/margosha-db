@@ -142,7 +142,7 @@ aws ssm describe-parameters --parameter-filters "Key=Name,Values=/margosha/agent
 ```
 
 Check that the coordinator has the key. Its console must show `Agent requests: key set; allowed tables:
-[agent_notes]` after its last boot (with `$COORD` from the README's "Find the nodes"):
+[agent_notes]` after its last boot (with `$COORD` from the README's M3 [How to verify it, step 1](../README.md#how-to-verify-it-2)):
 
 Windows (PowerShell):
 ```powershell

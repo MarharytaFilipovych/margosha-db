@@ -3,6 +3,8 @@ package com.margosha.node.coordinator.controller;
 import static com.margosha.node.data.TestData.SHARD_A;
 import static com.margosha.node.data.TestData.SHARD_B;
 import static com.margosha.node.data.TestData.USERS;
+import static com.margosha.node.data.TestData.freePort;
+import static com.margosha.node.data.TestData.localAddress;
 import static com.margosha.node.data.TestData.testDataDir;
 import static com.margosha.node.data.TestData.unique;
 import static com.margosha.node.data.TestData.user;
@@ -11,6 +13,7 @@ import static com.margosha.node.data.TestData.usersTable;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.function.Predicate;
@@ -81,6 +84,71 @@ class ReplicaMetricsRelayTest {
 			await().atMost(WAIT).until(() -> cloudWatch.last(UP, "replica", stopped).orElseThrow() == 0.0);
 			assertThat(cloudWatch.last(UP, "replica", SHARD_A + "-2")).contains(1.0);
 		}
+	}
+
+	@Test
+	void replicasFirstRequestsAreCountedInFull() {
+		// Arrange
+		try (InProcessNode coordinator = startCoordinator(0, testDataDir("coordinator"));
+				InProcessReplicaSet shardA = InProcessReplicaSet.start(SHARD_A, coordinator.address());
+				InProcessReplicaSet shardB = InProcessReplicaSet.start(SHARD_B, coordinator.address())) {
+			FakeCloudWatch cloudWatch = coordinator.bean(FakeCloudWatch.class);
+			awaitAllRead(cloudWatch, shardA, shardB);
+			String users = unique(USERS);
+			coordinator.client().registerTable(usersTable(users));
+
+			// Act
+			userKeys(20).forEach(key -> coordinator.client().createRecord(users, user(key)));
+
+			// Assert
+			await().atMost(WAIT).untilAsserted(() -> assertThat(leaderCreates(cloudWatch)).isEqualTo(20));
+		}
+	}
+
+	@Test
+	void afterTheCoordinatorRestartsReplicasEarlierRequestsAreNotCountedAgain() {
+		// Arrange
+		int port = freePort();
+		Path coordinatorDir = testDataDir("coordinator");
+		try (InProcessNode first = startCoordinator(port, coordinatorDir);
+				InProcessReplicaSet shardA = InProcessReplicaSet.start(SHARD_A, localAddress(port));
+				InProcessReplicaSet shardB = InProcessReplicaSet.start(SHARD_B, localAddress(port))) {
+			awaitAllRead(first.bean(FakeCloudWatch.class), shardA, shardB);
+			String users = unique(USERS);
+			first.client().registerTable(usersTable(users));
+			userKeys(20).forEach(key -> first.client().createRecord(users, user(key)));
+			first.close();
+			try (InProcessNode second = startCoordinator(port, coordinatorDir)) {
+				FakeCloudWatch cloudWatch = second.bean(FakeCloudWatch.class);
+				awaitAllRead(cloudWatch, shardA, shardB);
+
+				// Act
+				userKeys(25).subList(20, 25).forEach(key -> second.client().createRecord(users, user(key)));
+
+				// Assert
+				await().atMost(WAIT).during(Duration.ofSeconds(2))
+						.untilAsserted(() -> assertThat(leaderCreates(cloudWatch)).isEqualTo(5));
+			}
+		}
+	}
+
+	private static InProcessNode startCoordinator(int port, Path dataDir) {
+		return InProcessNode.replicatedCoordinator(port, dataDir, "--margosha.metrics.cloudwatch.region=us-east-1",
+				"--margosha.metrics.cloudwatch.step=1s", "--margosha.metrics.relay-interval=200ms", FakeCloudWatch.SOURCE);
+	}
+
+	private static void awaitAllRead(FakeCloudWatch cloudWatch, InProcessReplicaSet... shards) {
+		List<String> replicas = Stream.of(shards).flatMap(set -> set.replicas().stream())
+				.map(InProcessNode::replicaId).toList();
+		await().atMost(WAIT).until(() -> replicas.stream()
+				.allMatch(id -> cloudWatch.last(UP, "replica", id).orElse(0.0) == 1.0));
+	}
+
+	private static double leaderCreates(FakeCloudWatch cloudWatch) {
+		return cloudWatch.sent().stream()
+				.filter(named("margosha.requests.count").and(with("operation", "create")).and(with("role", "leader")))
+				.mapToDouble(MetricDatum::value)
+				.sum();
 	}
 
 	private static Predicate<MetricDatum> named(String name) {
