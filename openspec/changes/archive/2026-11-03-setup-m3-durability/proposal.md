@@ -16,17 +16,17 @@ Scope of this change:
 
 ## Decisions required before implementation (ADRs)
 
-- **Values of N / W / R:** decided in [ADR 0007](../../../adr/0007-n-w-r-values.md): N = 3, W = 2, R = 2, with W and R
+- **Values of N / W / R:** decided in [ADR 0007](../../../../adr/0007-n-w-r-values.md): N = 3, W = 2, R = 2, with W and R
   configurable.
-- **Replica synchronisation mechanism:** decided in [ADR 0008](../../../adr/0008-replica-synchronisation.md): the
+- **Replica synchronisation mechanism:** decided in [ADR 0008](../../../../adr/0008-replica-synchronisation.md): the
   leader copies writes through its log, followers pull with long-polling, a restarted follower resumes after its last
   entry.
-- **Write acknowledgement:** decided in [ADR 0011](../../../adr/0011-write-acknowledgement.md): followers confirm with
+- **Write acknowledgement:** decided in [ADR 0011](../../../../adr/0011-write-acknowledgement.md): followers confirm with
   their next position, the leader answers after W − 1 confirmations (semi-sync) or 503 after about 1 s. Split from the
   synchronisation ADR because it answers a different question (when a write counts as done vs how entries move).
-- **Log structure:** decided in [ADR 0009](../../../adr/0009-log-structure.md): an append-only file on each replica's
+- **Log structure:** decided in [ADR 0009](../../../../adr/0009-log-structure.md): an append-only file on each replica's
   disk, one JSON line per entry with a checksum, stored = after fsync.
-- **Ordering guarantees:** decided in [ADR 0010](../../../adr/0010-ordering-guarantees.md): the leader orders writes
+- **Ordering guarantees:** decided in [ADR 0010](../../../../adr/0010-ordering-guarantees.md): the leader orders writes
   one at a time per shard, the version is the log position, deletes are tombstones. The brief lists log structure and ordering guarantees as one mandatory ADR;
   they are split because they answer different questions (what the log is vs what order a client can rely on).
 

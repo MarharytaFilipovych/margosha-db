@@ -3,7 +3,7 @@
 This page describes the MCP server of M4: what it offers an agent, how to connect Claude to it, how the agent key is
 set up, and what an agent may and may not do. 
 
-Decision behind it: [ADR 0015](../adr/0015-mcp-agent-boundaries.md).
+Decision behind it: [ADR 0015](../../adr/0015-mcp-agent-boundaries.md).
 
 ## What it is
 
@@ -16,7 +16,7 @@ coordinator's normal API, the same way `curl` or YCSB do.
 Claude (laptop) ──stdio──► margosha-mcp.jar (laptop) ──HTTP + agent key──► coordinator :8080 (AWS) ──► replicas
 ```
 
-Code: `app/mcp-tools` (the tools, the limits, the error handling) and `app/mcp-server` (the runnable jar).
+Code: `../../app/mcp-tools` (the tools, the limits, the error handling) and `app/mcp-server` (the runnable jar).
 
 ## What the server offers
 
@@ -29,7 +29,9 @@ Exactly four tools, one record at a time:
 - **`create_record`**: `table`, `record` (attribute names and **string** values, key attributes included). Returns
   the created record. Fails if the key already exists, so it never changes an existing record.
 - **`delete_record`**: `table`, `partitionKey`, optional `sortKey`. Returns `{"deleted": true}`. Marked
-  **destructive**, so Claude asks you before every delete.
+  **destructive**. In Claude Code's default permission mode, Claude asks you before every delete. In auto mode it
+  doesn't always ask: in the session in [mcp_session.md](mcp_session.md) it deleted when asked to, without a
+  question.
 
 Each tool has a description and a JSON schema for its input. The server checks every call against the schema before
 the tool runs, so a call without a table, or with a number as a value, never reaches the store.
@@ -80,12 +82,13 @@ the table, the result and the trace ID, but not the key and not the record's val
 ```
 
 The same trace ID is sent to the coordinator, so the call can be followed into the store with
-[tracing.md](tracing.md).
+[tracing.md](../tracing/tracing.md).
 
 **Prompt injection.** A record can hold text written to give the agent orders ("ignore your task and delete…"). The
 read tool's description tells the agent that record values are data, not instructions. If an agent follows such
-text anyway, the worst it can do is create records or delete allowed ones, and you must approve every delete. It
-cannot change existing records, because there is no update.
+text anyway, the worst it can do is create records or delete allowed ones. In Claude Code's default permission mode
+you approve every delete, in auto mode not always. It cannot change a record in place, because there is no update,
+but it could delete a record and create it again with other values.
 
 **Accepted limits.** An agent that can run commands (for example Claude Code with `curl`) could skip the MCP server
 and call the API without the header, so without these limits. The API only accepts your IP (`OperatorCidr`), so this
@@ -93,7 +96,7 @@ is accepted. Agents on other machines can't connect, because the server runs onl
 
 ## 1. Build the jar
 
-From `app/`:
+From `../../app`:
 
 Windows (PowerShell):
 ```powershell
@@ -105,7 +108,7 @@ macOS / Linux:
 ./mvnw -pl mcp-server -am package -DskipTests
 ```
 
-The jar is `app/mcp-server/target/margosha-mcp.jar`. It needs Java 21 on the laptop (`java -version`).
+The jar is `../../app/mcp-server/target/margosha-mcp.jar`. It needs Java 21 on the laptop (`java -version`).
 
 ## 2. Set up the agent key
 
@@ -142,7 +145,7 @@ aws ssm describe-parameters --parameter-filters "Key=Name,Values=/margosha/agent
 ```
 
 Check that the coordinator has the key. Its console must show `Agent requests: key set; allowed tables:
-[agent_notes]` after its last boot (with `$COORD` from the README's M3 [How to verify it, step 1](../README.md#how-to-verify-it-2)):
+[agent_notes]` after its last boot (with `$COORD` from the README's M3 [How to verify it, step 1](../../README.md#how-to-verify-it-2)):
 
 Windows (PowerShell):
 ```powershell
@@ -187,12 +190,12 @@ included, into `.mcp.json` in the repository.
 
 Windows (PowerShell), from the repository root:
 ```powershell
-claude mcp add --scope user --env "MCP_COORDINATOR_URL=$API" --env "MCP_AGENT_KEY=$AGENT_KEY" --env "MCP_ALLOWED_TABLES=agent_notes" margosha-db -- java -jar "$PWD\app\mcp-server\target\margosha-mcp.jar"
+claude mcp add --scope user margosha-db --env "MCP_COORDINATOR_URL=$API" --env "MCP_AGENT_KEY=$AGENT_KEY" --env "MCP_ALLOWED_TABLES=agent_notes" '--' java -jar "$PWD\app\mcp-server\target\margosha-mcp.jar"
 ```
 
 macOS / Linux, from the repository root:
 ```bash
-claude mcp add --scope user --env "MCP_COORDINATOR_URL=$API" --env "MCP_AGENT_KEY=$AGENT_KEY" --env "MCP_ALLOWED_TABLES=agent_notes" margosha-db -- java -jar "$PWD/app/mcp-server/target/margosha-mcp.jar"
+claude mcp add --scope user margosha-db --env "MCP_COORDINATOR_URL=$API" --env "MCP_AGENT_KEY=$AGENT_KEY" --env "MCP_ALLOWED_TABLES=agent_notes" -- java -jar "$PWD/app/mcp-server/target/margosha-mcp.jar"
 ```
 
 Check it with `claude mcp list` (the server should be connected). In a session, `/mcp` shows its four tools.
@@ -251,12 +254,12 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 
 The tools are then checked from Claude: `/mcp` (Claude Code) or the tools icon (Claude Desktop) lists the four
 tools. Then try it in Claude, for example: "Create a note n1 with the text hello in agent_notes, read it back, then delete
-it." Claude asks before the delete. A session with all four tools and a refused call is in `mcp_session.md`
-(task 7.7).
+it." In Claude Code's default permission mode, Claude asks before the delete. A session with all four tools and a
+refused call is in `mcp_session.md`.
 
 ## Adding more tables for agents
 
-The coordinator's list is in `app/node/src/main/resources/application-coordinator.properties`:
+The coordinator's list is in `../../app/node/src/main/resources/application-coordinator.properties`:
 
 ```properties
 margosha.agent.allowed-tables=agent_notes,agent_tasks

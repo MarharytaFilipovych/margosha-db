@@ -106,7 +106,7 @@ line.
 
 ## After the benchmark
 
-The bench client was switched off with `BenchClient=false`, as in [procedure.md, step 8](procedure.md#8-turn-off-the-bench-client-task-116):
+The bench client was switched off with `BenchClient=false`, as in [procedure.md, step 8](procedure.md#8-turn-off-the-bench-client):
 
 - `aws ec2 describe-instances` → `"terminated"`;
 - through the coordinator's public IP: `POST /tables/usertable/records` → `201 {"field0":"x","ycsb_key":"after-bench"}`,

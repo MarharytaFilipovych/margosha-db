@@ -2,7 +2,7 @@
 
 Milestone 2 of the Cloud Architectures capstone turns the M1 network into a working key-value store that spreads its data across several machines (horizontal sharding). A single node can only hold as much data and serve as many requests as one machine allows; splitting the keys across shards with a consistent hashing ring lets the store grow by adding shards, while moving as few keys as possible when a shard joins or leaves.
 
-M2 runs in the AWS Academy Learner Lab (`LabRole` / `LabInstanceProfile`, \$50 for the whole course, max 9 running instances). The M1 budget and quota review ([quotas_and_budget.md](../../../m1/quotas_and_budget.md)) already fixed the shape of the deployment: one `t3.micro` coordinator in the public subnet, two `t3.micro` shards in the private subnets with no internet access, an S3 gateway endpoint, a `t3.small` YCSB client only while benchmarking, and GitHub Actions for CI/CD. The YCSB numbers from M2 are the baseline that M3 and M5 are compared against, so they must be recorded and kept.
+M2 runs in the AWS Academy Learner Lab (`LabRole` / `LabInstanceProfile`, \$50 for the whole course, max 9 running instances). The M1 budget and quota review ([quotas_and_budget.md](../../../../m1/quotas_and_budget.md)) already fixed the shape of the deployment: one `t3.micro` coordinator in the public subnet, two `t3.micro` shards in the private subnets with no internet access, an S3 gateway endpoint, a `t3.small` YCSB client only while benchmarking, and GitHub Actions for CI/CD. The YCSB numbers from M2 are the baseline that M3 and M5 are compared against, so they must be recorded and kept.
 
 ## What Changes
 
@@ -43,7 +43,7 @@ These are not decided in this proposal. Each is recorded in its own ADR, and the
 
 - New Java 21 application in the repository (coordinator, shard, YCSB binding), built with Maven into a single jar.
 - New API specification file in the repository (format set by the API protocol ADR).
-- `cfn/margosha-vpc-stack.yaml` gets the S3 gateway endpoint. New template `cfn/margosha-app.yaml` for the application. This keeps the two-stack layout of [ADR 0002](../../../adr/0002-stack-layout.md).
+- `cfn/margosha-vpc-stack.yaml` gets the S3 gateway endpoint. New template `cfn/margosha-app.yaml` for the application. This keeps the two-stack layout of [ADR 0002](../../../../adr/0002-stack-layout.md).
 - New GitHub Actions workflow. It uses the Learner Lab session credentials stored as repository secrets, which expire every session and must be refreshed before a deploy.
 - Records are kept in memory, so they are lost when a node restarts (a deploy, or the Learner Lab stopping the instances). Durability is the topic of M3.
 - AWS cost: as estimated in M1 (about \$0.036 per hour while the coordinator and shards run, YCSB client only while benchmarking). The instances run only during work sessions.

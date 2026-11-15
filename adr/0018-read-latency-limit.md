@@ -11,7 +11,7 @@ The checks showed how long reads take when the store is quiet:
 - With about 4–5 reads a second from one client, the coordinator's read p99 was 33–75 ms per minute. It was above
   50 ms in 3 of 5 minutes. The p50 was 11–23 ms and the p95 21–31 ms ([high_latency.md](../m4/checks/high_latency.md)).
 - A normal read takes about 28 ms on the coordinator, but only 2–4 ms on the replicas. The first read after a quiet
-  period can take more than 100 ms ([traces.md](../m4/checks/traces.md)).
+  period can take more than 100 ms ([traces.md](../m4/tracing/traces.md)).
 - All nodes had plenty of CPU credits, and nothing was broken.
 
 So with light, steady traffic, the read alert almost goes off even though nothing is wrong. It didn't go off only

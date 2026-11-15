@@ -26,7 +26,7 @@
 - [x] 3.3 Propagate the trace ID to the replicas the coordinator calls, including `QuorumReader`'s virtual threads, and log one line per replica call with the replica, status and `durationMs`; verify an in-process test (2 shards × 3 replicas, log capture) that one write's trace ID appears on the coordinator and the leader, one read's on the replicas that answered, and that each call's duration is at least the replica's own and at most the coordinator's request duration
 - [x] 3.4 Check every log search in `.github/workflows/pipeline.yml` and the README (`Running as`, `Registered replica`, `downloaded`, …) against the new log lines and fix the ones that break; verify the pipeline's wait step passes on a test deploy
 - [x] 3.5 Update `openapi.yaml` with the trace ID header on every operation and the version in replica reads and log entries; verify `OpenApiSpecTest` passes and the YCSB round-trip test passes unchanged (client API unchanged)
-- [x] 3.6 Write `m4/tracing.md`: the header, the log format, and the helper command (Windows and macOS) that collects one trace ID's lines from every running node's console output and prints them as a timeline (start time, node, step, status, duration); verify one run of it shows a write's coordinator request, call to the leader and the leader's handling in order with durations
+- [x] 3.6 Write `../../../m4/tracing/tracing.md`: the header, the log format, and the helper command (Windows and macOS) that collects one trace ID's lines from every running node's console output and prints them as a timeline (start time, node, step, status, duration); verify one run of it shows a write's coordinator request, call to the leader and the leader's handling in order with durations
 
 ## 4. Metrics (after ADRs 0012 and 0013, and group 2 if lag uses the write's time)
 
@@ -42,7 +42,7 @@
 - [x] 5.1 Add the MCP server in the form and with the SDK and transport ADR 0015 decides (a Spring AI version that supports the project's Spring Boot 4.1), configuration from environment variables, no banner and logging away from the protocol stream; verify `./mvnw verify` builds it and, with stdio, a test shows stdout carries only protocol messages
 - [x] 5.2 Implement `exists_record`, `read_record`, `create_record`, `delete_record` with input schemas, descriptions and tool annotations; map `ApiException` to tool errors with code and message, and "outcome unknown" for 503 on writes; verify tests against an in-process coordinator for the tool list, create→read, delete→exists, not found, already exists, unavailable, and schema violations
 - [x] 5.3 Implement the limits and the authorisation from ADR 0015 (in the MCP server and, if the ADR decides so, in the coordinator); verify tests for a table not allowed, missing and wrong credentials (nothing created), and no log line containing the credential
-- [x] 5.4 Write `m4/mcp.md`: what the server offers, how to configure Claude (Desktop or Code) for it, the credential setup, and the ADR 0015 boundaries; verify the documented config starts the server from a clean checkout
+- [x] 5.4 Write `../../../m4/mcp/mcp.md`: what the server offers, how to configure Claude (Desktop or Code) for it, the credential setup, and the ADR 0015 boundaries; verify the documented config starts the server from a clean checkout
 
 ## 6. Dashboard and alerts (after ADRs 0013 and 0014, and group 4)
 
@@ -56,9 +56,9 @@
 - [x] 7.2 Follower down and back: stop one follower while writing for longer than the lag threshold; verify the dashboard shows it down with growing lag, the node-down and lag alerts fire and notify, and both resolve by themselves after it is started and catches up. Write the commands, timings and screenshots into `../../../m4/checks`
 - [x] 7.3 Coordinator down: stop the coordinator; verify its node-down alert fires (the monitoring does not depend on it to report its own absence, or ADR 0013's documented limit is shown)
 - [x] 7.4 High latency: drive p99 above the threshold (for example YCSB with more threads, or a lowered threshold for the test); verify the high-latency alert fires and clears, and record how it was triggered
-- [x] 7.5 Tracing: write and read a record and follow its trace ID through the coordinator and the replicas it called using `m4/tracing.md`; verify the lines and add them to `../../../m4/checks`
+- [x] 7.5 Tracing: write and read a record and follow its trace ID through the coordinator and the replicas it called using `../../../m4/tracing/tracing.md`; verify the lines and add them to `../../../m4/checks`
 - [x] 7.6 LWW on AWS: write the same key from two clients at once and read it from every replica; verify all replicas hold the same winner, and add the output to `../../../m4/checks`
-- [ ] 7.7 MCP with a client: connect Claude to the MCP server against the deployed store, use all four tools, try a refused action (table not allowed or missing credential) and ask the agent to update a record (no tool); verify the session transcript is saved in `m4/mcp_session.md`
+- [x] 7.7 MCP with a client: connect Claude to the MCP server against the deployed store, use all four tools, try a refused action (table not allowed or missing credential) and ask the agent to update a record (no tool); verify the session transcript is saved in `../../../m4/mcp/mcp_session.md`
 
 ## 8. End-to-end checks
 

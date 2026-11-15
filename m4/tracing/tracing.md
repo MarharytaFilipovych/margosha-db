@@ -1,7 +1,7 @@
 # Tracing: following one request through the store
 
 This page describes how M4 follows one client request from the coordinator to the replicas it calls, and how to see
-it as a timeline with durations. Decision behind it: [ADR 0017](../adr/0017-logging-and-trace-ids.md) (own
+it as a timeline with durations. Decision behind it: [ADR 0017](../../adr/0017-logging-and-trace-ids.md) (own
 `X-Trace-Id` header, Spring Boot JSON logs, logs stay on each node, one helper command).
 
 ## The trace ID

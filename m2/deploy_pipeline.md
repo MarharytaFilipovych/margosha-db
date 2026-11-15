@@ -34,7 +34,7 @@ merged into `main` (fast-forward to `bc9991f`), and the push started run **#6**:
 
 Next, a deploy was started by hand (**Actions → pipeline → Run workflow**, branch `main`). It deployed the same commit,
 so it uploaded the same jar, and the nodes rebooted again at **18:45** and downloaded `6a4c6e2ba1aff288` again (logs below).
-Another hand-started run, after the template change, is shown in [check 4](#4-deploy-started-by-hand-task-103).
+Another hand-started run, after the template change, is shown in [check 4](#4-deploy-started-by-hand).
 
 ### 2. Application-only change
 

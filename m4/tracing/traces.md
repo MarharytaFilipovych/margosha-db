@@ -1,19 +1,19 @@
 # Following a request by its trace ID
 
 **What is checked:** one write and a few reads are sent, each with a trace ID that the client picks. Every answer
-comes back with that ID. The [tracing helper](../tracing.md#the-timeline-command) then finds the lines with this ID on
+comes back with that ID. The [tracing helper](tracing.md#the-timeline-command) then finds the lines with this ID on
 the coordinator and on the replicas it called, and prints them as one timeline with durations.
 
-The 5 reads also help with a question left open by the [high-latency check](high_latency.md): a read took about 20 ms
+The 5 reads also help with a question left open by the [high-latency check](../checks/high_latency.md): a read took about 20 ms
 on the coordinator, but only about 0.1 ms on the replicas. The timeline shows where the rest of the time goes.
 
 Checked on 2026-11-15. All times are UTC.
 
-Uses the setup from [first_m4_deploy.md](first_m4_deploy.md#0-setup).
+Uses the setup from [first_m4_deploy.md](../checks/first_m4_deploy.md#0-setup).
 
 ## What should happen
 
-From [tracing.md](../tracing.md):
+From [tracing.md](tracing.md):
 
 - **Write** (W = 2): the coordinator's request, its call to the shard's leader, and the leader's own work. The
   followers copy the write from the leader's log, so they don't show up in the trace.
@@ -51,9 +51,9 @@ for i in 1 2 3 4 5; do
 done
 ```
 
-![The write](images/traces/write-request.png)
+![The write](images/write-request.png)
 
-![The 5 reads](images/traces/read-requests.png)
+![The 5 reads](images/read-requests.png)
 
 The write got `201` and the 5 reads got `200`. Each answer came back with the trace ID that was sent.
 
@@ -74,7 +74,7 @@ macOS (Terminal):
 ./m4/tracing/trace.sh "trace-write-$RUN"
 ```
 
-![The write's timeline](images/traces/write.png)
+![The write's timeline](images/write.png)
 
 The write took 304 ms on the coordinator. 142 ms of that passed before it called the leader shard-b-1, because this was
 the first request after a quiet period (the coordinator had to look up the table and the shard). The call took 121 ms.
@@ -100,9 +100,9 @@ macOS (Terminal):
 for i in 1 2 3 4 5; do echo "--- read $i"; ./m4/tracing/trace.sh "trace-read-$RUN-$i"; done
 ```
 
-![Reads 1 to 3](images/traces/reads-1-3.png)
+![Reads 1 to 3](images/reads-1-3.png)
 
-![Reads 4 and 5](images/traces/reads-4-5.png)
+![Reads 4 and 5](images/reads-4-5.png)
 
 Every read asked 2 replicas of shard B at the same time, and every replica it asked logged the same trace ID. The
 durations fit inside each other: each call took longer than the replica's own work, and each coordinator request took
@@ -135,7 +135,7 @@ Read 1 was the first read after a quiet period. shard-b-2 needed 116 ms for its 
 coordinator spent 27 ms before it made the calls. A few reads like this in one minute are enough to push p99 above
 50 ms.
 
-This explains what the [high-latency check](high_latency.md) saw: when the store is quiet, a normal read takes about
+This explains what the [high-latency check](../checks/high_latency.md) saw: when the store is quiet, a normal read takes about
 28 ms on the coordinator, and the first read after a quiet period can take more than 100 ms. The trace doesn't show why
 the second call and the end of the request each take about 10 ms. A call is timed until the replica's answer arrives,
 so reading and comparing the answers may be part of the 9–10 ms after the calls. Finding the real cause would be
@@ -146,7 +146,7 @@ performance work, which is not part of this check.
 - **The trace ID follows the request across nodes:** every answer came back with the ID that was sent. The write was
   found on the coordinator and on the leader, and each read on the coordinator and on every replica it asked.
 - **The timeline shows the order of the steps and how long each took,** and the durations fit inside each other, as
-  [tracing.md](../tracing.md) says.
+  [tracing.md](tracing.md) says.
 - **The helper had a bug on AWS, and it is fixed:** it now also reads console lines that have systemd's prefix.
 - **Most of a read's time is spent outside the replicas:** about 28 ms on the coordinator, for only 2–4 ms of work on
   the replicas. Together with the high-latency check, this led to raising the read limit from 50 ms to 100 ms

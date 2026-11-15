@@ -5,7 +5,7 @@
 See proposal.md - Why. What already exists and limits the approach:
 
 - **Network** (`cfn/margosha-vpc-stack.yaml`): VPC `10.0.0.0/16`, public subnet in `us-east-1a`, private subnets A (`us-east-1a`) and B (`us-east-1b`) sharing one local-only route table. It exports `VpcId`, `PublicSubnetId`, `PrivateSubnetAId`, `PrivateSubnetBId`. It does not export the route table IDs.
-- **Deployment shape and costs** are fixed by [quotas_and_budget.md](../../../m1/quotas_and_budget.md): `t3.micro` coordinator (public) and 2 shards (private), `t3.small` YCSB client only while benchmarking, standard CPU credits, 8 GiB gp3, `LabInstanceProfile`, no NAT Gateway, S3 gateway endpoint, GitHub Actions.
+- **Deployment shape and costs** are fixed by [quotas_and_budget.md](../../../../m1/quotas_and_budget.md): `t3.micro` coordinator (public) and 2 shards (private), `t3.small` YCSB client only while benchmarking, standard CPU credits, 8 GiB gp3, `LabInstanceProfile`, no NAT Gateway, S3 gateway endpoint, GitHub Actions.
 - **No internet in the private subnets.** Shards can reach only the VPC and, after this change, S3. They cannot reach Docker Hub, Maven Central, SSM or the CloudFormation API. They can install AL2023 packages (Corretto 21 is one) because the AL2023 repositories are in S3.
 - **No IAM.** Instances use `LabInstanceProfile`; GitHub Actions uses the lab session credentials from repository secrets, which expire with every session.
 - **`t3.micro` has 1 GiB RAM.** With the OS and the JVM's own overhead, about 512 MiB is left for the heap. Records are kept in memory, so this limits how many records a shard can hold.
@@ -62,7 +62,7 @@ Each node keeps, per table, a hash map from primary key to the record's attribut
 - *Alternative*: storing records on disk. Rejected: M2 does not ask for durability; it is the topic of M3.
 
 ### 6. Coordinator metadata
-Table definitions and the shard list are kept in memory on the coordinator. After a coordinator restart they are empty: the shards register again by themselves, because each shard repeats its registration every 10 s (`margosha.shard.register-refresh-interval`), not only when it starts; the client registers its table again (the benchmark script does this first). The repeat was added after the M2 AI critique ([m2/ai_critique.md](../../../m2/ai_critique.md), finding 1): with registration only on start, a coordinator restarted on its own (crash, systemd restart) stayed without shards until they were restarted by hand.
+Table definitions and the shard list are kept in memory on the coordinator. After a coordinator restart they are empty: the shards register again by themselves, because each shard repeats its registration every 10 s (`margosha.shard.register-refresh-interval`), not only when it starts; the client registers its table again (the benchmark script does this first). The repeat was added after the M2 AI critique ([m2/ai_critique.md](../../../../m2/ai_critique.md), finding 1): with registration only on start, a coordinator restarted on its own (crash, systemd restart) stayed without shards until they were restarted by hand.
 - *Alternative*: a metadata file on the coordinator's disk. Rejected: not needed while the records themselves are lost on a restart.
 
 ### 7. Ring with stable positions

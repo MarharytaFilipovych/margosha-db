@@ -284,6 +284,6 @@ console), the pipeline muting and unmuting the alarm emails during the deploy of
 
 **After this check, the read limit was raised from 50 ms to 100 ms**
 ([ADR 0018](../../adr/0018-read-latency-limit.md)). At low load, 3 of the 5 minutes were above 50 ms with no fault,
-and the [trace](traces.md) showed that a normal read costs about 28 ms on the coordinator. The check above was run
+and the [trace](../tracing/traces.md) showed that a normal read costs about 28 ms on the coordinator. The check above was run
 with the 50 ms that the template had then. The template now sets 100 ms, so to repeat the check, step 5 puts the alarm
 back with `--threshold 100` and the description "The coordinator's p99 for READ stayed above 100 ms for 5 minutes.".

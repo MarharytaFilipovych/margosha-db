@@ -17,7 +17,7 @@ M2 state (see the archived change `2026-10-30-setup-m2-sharding` and `m2/`):
   shards have no internet (S3 only, through the gateway endpoint).
 
 Scope set in the proposal: leader-based replication, no failover in M3. N / W / R are decided in
-[ADR 0007](../../../adr/0007-n-w-r-values.md) (N = 3, W = 2, R = 2, W and R configurable).
+[ADR 0007](../../../../adr/0007-n-w-r-values.md) (N = 3, W = 2, R = 2, W and R configurable).
 
 ## Goals / Non-Goals
 
@@ -48,7 +48,7 @@ These are written before the code that depends on them. Below is a summary of ea
 considered; the ADR is the source.
 
 **ADR 0008: replica synchronisation mechanism.** Decided in
-[ADR 0008](../../../adr/0008-replica-synchronisation.md): the leader copies writes through its log; followers pull the
+[ADR 0008](../../../../adr/0008-replica-synchronisation.md): the leader copies writes through its log; followers pull the
 entries after their position with long-polling; a restarted follower resumes from the last entry in its own log. The
 questions and alternatives it answers:
 - *Who copies a write to the replicas*: the coordinator sends each write to all N replicas and counts their answers
@@ -65,7 +65,7 @@ questions and alternatives it answers:
 - *Catch-up after a restart*: a full copy from the leader, a snapshot plus the rest of the log, or only the entries after
   the follower's stored position (the brief asks for "only the relevant log range").
 
-**ADR 0011: write acknowledgement.** Decided in [ADR 0011](../../../adr/0011-write-acknowledgement.md): a follower's
+**ADR 0011: write acknowledgement.** Decided in [ADR 0011](../../../../adr/0011-write-acknowledgement.md): a follower's
 next request's position is its confirmation; the leader answers after W − 1 confirmations (semi-sync) or 503 after
 about 1 s, shorter than the coordinator's 2 s shard timeout. The questions and alternatives it answers:
 - *How a follower confirms*: a separate acknowledgement request, or the position in its next fetch (a follower only asks
@@ -75,7 +75,7 @@ about 1 s, shorter than the coordinator's 2 s shard timeout. The questions and a
 - *Timeout*: after it the write fails with 503 and its outcome is unknown; the cost on the write path is measured in
   the benchmark.
 
-**ADR 0009: log structure.** Decided in [ADR 0009](../../../adr/0009-log-structure.md): an append-only file on each
+**ADR 0009: log structure.** Decided in [ADR 0009](../../../../adr/0009-log-structure.md): an append-only file on each
 replica's disk, one JSON line per entry holding the write's result and a CRC32, stored = after fsync, never trimmed.
 The questions and alternatives it answers:
 - *Where the log lives*: a broker (Kafka, RabbitMQ: another instance, at the 9-instance limit while benchmarking, and
@@ -90,7 +90,7 @@ The questions and alternatives it answers:
 - *Growth*: the log grows forever (compaction and snapshots are out of scope), or old entries are trimmed.
 - Points for the ADR: how long rebuilding from the log takes on start, and what a damaged entry in the middle means.
 
-**ADR 0010: ordering guarantees.** Decided in [ADR 0010](../../../adr/0010-ordering-guarantees.md): the leader
+**ADR 0010: ordering guarantees.** Decided in [ADR 0010](../../../../adr/0010-ordering-guarantees.md): the leader
 handles writes one at a time per shard, the version is the entry's log position, deletes are tombstones, the order is
 per shard. The questions and alternatives it answers:
 - *Who sets the order*: the leader alone, writes handled one at a time per shard (one lock), or concurrently with order
