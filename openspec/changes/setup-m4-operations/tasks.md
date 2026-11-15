@@ -62,8 +62,8 @@
 
 ## 8. End-to-end checks
 
-- [ ] 8.1 Fresh deploy from the pipeline into an account where only `margosha-vpc` exists; verify all 7 nodes come up, every replica registers, metrics, dashboard and alerts exist, and the store works, with no manual console steps beyond those ADR 0013 documents
-- [ ] 8.2 Run `openspec validate setup-m4-operations --strict`; verify it passes
+- [x] 8.1 Fresh deploy from the pipeline into an account where only `margosha-vpc` exists; verify all 7 nodes come up, every replica registers, metrics, dashboard and alerts exist, and the store works, with no manual console steps beyond those ADR 0013 documents
+- [x] 8.2 Run `openspec validate setup-m4-operations --strict`; verify it passes
 
 ## 9. Deliverables (apply to every milestone)
 
