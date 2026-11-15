@@ -39,8 +39,10 @@ function Get-Consoles {
 
 $steps = foreach ($console in Get-Consoles) {
     foreach ($line in $console.Text -split "`r?`n") {
-        if (-not $line.StartsWith('{') -or -not $line.Contains("`"$TraceId`"")) { continue }
-        try { $log = $line | ConvertFrom-Json } catch { continue }
+        if (-not $line.Contains("`"$TraceId`"")) { continue }
+        $json = $line.IndexOf('{"')
+        if ($json -lt 0) { continue }
+        try { $log = $line.Substring($json) | ConvertFrom-Json } catch { continue }
         if ($log.traceId -ne $TraceId) { continue }
 
         $end = [DateTimeOffset]::Parse($log.'@timestamp')

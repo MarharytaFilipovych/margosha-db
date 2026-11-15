@@ -30,6 +30,7 @@ consoles() {
 
 steps=$(consoles | { grep -F "\"$trace_id\"" || true; } | jq -R -r --arg trace "$trace_id" '
   (index("\t")) as $tab | .[:$tab] as $node | .[$tab + 1:]
+  | (index("{\"")) as $json | select($json != null) | .[$json:]
   | (try fromjson catch empty) | select(type == "object" and .traceId == $trace)
   | (.["@timestamp"] | capture("^(?<s>[^.Z+]+)(\\.(?<f>[0-9]+))?")) as $t
   | (($t.s + "Z" | fromdateiso8601) * 1000 + ("0." + ($t.f // "0") | tonumber) * 1000) as $end

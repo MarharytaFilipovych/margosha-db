@@ -141,8 +141,8 @@ The alarms are also in `cfn/margosha-app.yaml`. Each one e-mails the SNS topic
   alarm sees the gap at once ([ADR 0013](../adr/0013-monitoring-stack.md)). Each replica: `margosha.replica.up` below 1
   for 1 minute. Here missing data does not count, because it means the coordinator is down, which its own alarm
   reports.
-- **High latency (5 alarms).** The coordinator's p99 per operation above 50 ms (read, exists) or 100 ms (create,
-  update, delete) in each of 5 minutes in a row.
+- **High latency (5 alarms).** The coordinator's p99 per operation (read, exists, create, update, delete) above
+  100 ms in each of 5 minutes in a row. The read limit was 50 ms until [ADR 0018](../adr/0018-read-latency-limit.md).
 - **Replication lag (4 alarms).** A follower more than 10 s behind its leader for 1 minute.
 
 During a deploy the pipeline turns the alarm e-mails off before it restarts the nodes, and on again at the end, also

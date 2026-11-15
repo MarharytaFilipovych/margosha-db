@@ -956,7 +956,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub "${AWS::StackName}-read-p99"
-      AlarmDescription: The coordinator's p99 for READ stayed above 50 ms for 5 minutes.
+      AlarmDescription: The coordinator's p99 for READ stayed above 100 ms for 5 minutes.
       Namespace: MargoshaDB
       MetricName: margosha.requests.percentile.value
       Dimensions:
@@ -967,7 +967,7 @@ Resources:
       Period: 60
       EvaluationPeriods: 5
       DatapointsToAlarm: 5
-      Threshold: 50
+      Threshold: 100
       ComparisonOperator: GreaterThanThreshold
       TreatMissingData: notBreaching
       AlarmActions: [!Ref AlertsTopic]
@@ -977,7 +977,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub "${AWS::StackName}-exists-p99"
-      AlarmDescription: The coordinator's p99 for EXISTS stayed above 50 ms for 5 minutes.
+      AlarmDescription: The coordinator's p99 for EXISTS stayed above 100 ms for 5 minutes.
       Namespace: MargoshaDB
       MetricName: margosha.requests.percentile.value
       Dimensions:
@@ -988,7 +988,7 @@ Resources:
       Period: 60
       EvaluationPeriods: 5
       DatapointsToAlarm: 5
-      Threshold: 50
+      Threshold: 100
       ComparisonOperator: GreaterThanThreshold
       TreatMissingData: notBreaching
       AlarmActions: [!Ref AlertsTopic]

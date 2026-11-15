@@ -50,8 +50,9 @@ updates about 28 ms (34 ms in the slowest run). A deploy restarts all 7 nodes at
 The store should answer **99.5%** of client requests without a 5xx in each hour, not counting deploys. A 404 or a 409
 counts as a success, because it is a correct answer.
 
-The coordinator's p99 should stay at or below **50 ms for reads** (read, exists) and **100 ms for writes** (create,
-update, delete). The latency alert fires when p99 stays above this for **5 minutes**.
+The coordinator's p99 should stay at or below **100 ms for reads** (read, exists) and **100 ms for writes** (create,
+update, delete). The latency alert fires when p99 stays above this for **5 minutes**. The read limit was first 50 ms
+and was raised by [ADR 0018](0018-read-latency-limit.md), after the checks on AWS.
 
 Each follower's lag should be at most **5 s** in 99% of minutes. The lag alert fires when it stays above **10 s for
 1 minute**.

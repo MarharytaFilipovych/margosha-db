@@ -281,3 +281,9 @@ console), the pipeline muting and unmuting the alarm emails during the deploy of
 - **The check found a bug:** the jar contained HdrHistogram 2.1.4 instead of 2.2.2, so the read percentiles reached
   CloudWatch as 0 and no latency alarm could fire. It is fixed in `app/node/pom.xml`, with a test
   ([First try](#first-try-the-alarm-could-not-fire)).
+
+**After this check, the read limit was raised from 50 ms to 100 ms**
+([ADR 0018](../../adr/0018-read-latency-limit.md)). At low load, 3 of the 5 minutes were above 50 ms with no fault,
+and the [trace](traces.md) showed that a normal read costs about 28 ms on the coordinator. The check above was run
+with the 50 ms that the template had then. The template now sets 100 ms, so to repeat the check, step 5 puts the alarm
+back with `--threshold 100` and the description "The coordinator's p99 for READ stayed above 100 ms for 5 minutes.".
