@@ -101,7 +101,7 @@ aws ec2 terminate-instances --region us-east-1 --instance-ids i-0ca070eea85727e7
   during the update and fails the same way. In M3 it also costs data: the old nodes must be terminated first, so the
   store is down during the update, and the replicas' logs on their disks are lost. Such a change must be planned as a
   migration. To see before pushing whether a change replaces the nodes, see
-  [README, "Before pushing a template change"](../../README.md#before-pushing-a-template-change-will-it-replace-the-nodes).
+  [M2, "Before pushing a template change"](../../M2.md#before-pushing-a-template-change-will-it-replace-the-nodes).
   For this deploy, the preview showed `Coordinator`, `ShardA` and `ShardB` as `Modify / Conditional` (replaced) and
   `ShardA2` … `ShardB3` as `Add`:
 

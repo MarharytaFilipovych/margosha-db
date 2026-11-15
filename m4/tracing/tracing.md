@@ -64,12 +64,12 @@ keeps the lines with the trace ID and prints them in order of start time:
 
 Windows (PowerShell):
 ```powershell
-.\m4\tracing\trace.ps1 -TraceId my-test-1
+.\m4\tracing\commands\trace.ps1 -TraceId my-test-1
 ```
 
 macOS, needs `jq` (`brew install jq`):
 ```bash
-./m4/tracing/trace.sh my-test-1
+./m4/tracing/commands/trace.sh my-test-1
 ```
 
 Columns: start time (UTC), milliseconds since the first step, the step's duration, its status, the node, and the step.
@@ -115,7 +115,7 @@ from the test's output.
   at least as long as its calls.
 - **Only recent requests.** `get-console-output` returns about the last 64 KB of a node's console, which is a few
   minutes when the store is quiet but well under a second during a benchmark. Older lines are in each node's journal
-  (`$PEM`, `$COORD_PUB` and the replicas' private IPs as in the M3 checks in the README; a replica is reached through
+  (`$PEM`, `$COORD_PUB` and the replicas' private IPs as in M3's [How to verify it, step 1](../../M3.md#how-to-verify-it); a replica is reached through
   the coordinator):
 
   Windows (PowerShell):

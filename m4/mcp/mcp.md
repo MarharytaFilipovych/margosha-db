@@ -70,7 +70,7 @@ These limits are checked twice:
    - **401** `AGENT_KEY_INVALID` when the key is wrong, or when the coordinator has no key,
    - **403** `AGENT_NOT_ALLOWED` for anything other than create, read, check or delete of a record in an allowed
      table.
-   Requests **without** the header (`curl`, YCSB, the README commands) work as before.
+   Requests **without** the header (`curl`, YCSB, the commands in the milestone pages) work as before.
 
 So even a changed or badly set up MCP server can't do more than the four operations on the allowed tables.
 
@@ -145,7 +145,7 @@ aws ssm describe-parameters --parameter-filters "Key=Name,Values=/margosha/agent
 ```
 
 Check that the coordinator has the key. Its console must show `Agent requests: key set; allowed tables:
-[agent_notes]` after its last boot (with `$COORD` from the README's M3 [How to verify it, step 1](../../README.md#how-to-verify-it-2)):
+[agent_notes]` after its last boot (with `$COORD` from M3's [How to verify it, step 1](../../M3.md#how-to-verify-it)):
 
 Windows (PowerShell):
 ```powershell
@@ -160,7 +160,7 @@ aws ec2 get-console-output --instance-id "$COORD" --latest --output text | grep 
 If it says `no key, all refused` or `Could not read the agent key from SSM`, the secret was not set, or the
 coordinator could not read the parameter.
 
-**Register the agent table once**, with a normal request (no agent key), using `$API` from the README:
+**Register the agent table once**, with a normal request (no agent key), using `$API` from M3's [How to verify it, step 1](../../M3.md#how-to-verify-it):
 
 Windows (PowerShell):
 ```powershell

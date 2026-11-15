@@ -184,7 +184,7 @@ The instance was `running` at **15:18:57** with the new public IP `44.203.95.68`
 15:21:28 and `OK` at 15:22:00.
 
 **6. Show that the store works again.** The coordinator keeps its shard list only in memory, so it starts empty. The
-replicas register again within 10 seconds ([README](../../README.md), startup path). A write and a read through the
+replicas register again within 10 seconds ([M2, shard registration](../../M2.md#shard-registration-sharded-mode-when-a-shard-starts)). A write and a read through the
 coordinator show that the store is back:
 
 Windows (PowerShell):

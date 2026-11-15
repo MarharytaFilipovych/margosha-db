@@ -179,7 +179,7 @@ mean the credentials have expired or a node is not running.
 
 ### 1. Deploy the commit to benchmark
 
-Push it to `main`, or start **Actions → pipeline → Run workflow** on `main` (README, "Deploy pipeline"). Then run step 0
+Push it to `main`, or start **Actions → pipeline → Run workflow** on `main` ([M2, "Deploy pipeline"](../../M2.md#deploy-pipeline)). Then run step 0
 again: it picks up the new version.
 
 Check that both jars of this version are in the bucket:

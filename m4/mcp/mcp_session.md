@@ -94,7 +94,7 @@ Save the session with `/export mcp-session.txt`.
 
 Two sessions were run:
 
-- **First session, in auto mode:** [outputs/mcp-session.txt](outputs/mcp-session-auto-mode.txt). It uses all four tools, a
+- **First session, in auto mode:** [outputs/mcp-session-auto-mode.txt](outputs/mcp-session-auto-mode.txt). It uses all four tools, a
   table that is not allowed, and an update request.
 - **Second session, in default mode:** [outputs/mcp-session-default-mode.txt](outputs/mcp-session-default-mode.txt).
   It checks that Claude asks before each call, and tries a note with an order in it.

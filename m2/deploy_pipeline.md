@@ -4,7 +4,7 @@
 
 **Spec:** `delivery-pipeline` in `openspec/changes/archive/2026-10-30-setup-m2-sharding`
 
-**How to use it** (refresh the secrets, start a deploy by hand): [README, "Deploy pipeline"](../README.md#deploy-pipeline).
+**How to use it** (refresh the secrets, start a deploy by hand): [M2, "Deploy pipeline"](../M2.md#deploy-pipeline).
 
 The `deploy` job runs after `check` passes on a push to `main` or when started by hand, one run at a time. In order, it:
 1. deploys `margosha-vpc`;

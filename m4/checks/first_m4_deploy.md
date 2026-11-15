@@ -4,7 +4,7 @@ Checked on 2026-11-13.
 
 ## 0. Setup
 
-I set the same variables as in the README's M3 [How to verify it, step 1](../../README.md#how-to-verify-it-2), which every section below uses: the SSH key, the
+I set the same variables as in M3's [How to verify it, step 1](../../M3.md#how-to-verify-it), which every section below uses: the SSH key, the
 coordinator's instance ID and public IP, the API address, and the 6 replicas' private IPs. The SSH key is the lab's
 `labsuser.pem` (**AWS Details → Download PEM**), in `~/.ssh/`. I ran everything from the repository root with the lab
 credentials.

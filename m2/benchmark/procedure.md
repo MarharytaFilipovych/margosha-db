@@ -134,7 +134,7 @@ The last line must print the bucket name and three `i-…` IDs. Blank values mea
 
 ### 1. Deploy the commit to benchmark
 
-Push it to `main`, or start **Actions → pipeline → Run workflow** on `main` (README, "Deploy pipeline"). The run's Summary
+Push it to `main`, or start **Actions → pipeline → Run workflow** on `main` ([M2, "Deploy pipeline"](../../M2.md#deploy-pipeline)). The run's Summary
 lists both jars. Note the commit from the Summary: it goes into the results.
 
 Check that both jars are in the bucket:

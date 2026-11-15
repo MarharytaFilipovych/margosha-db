@@ -8,11 +8,11 @@
   A node's console output holds only about its last 64 KB, so it finds requests from the last minutes.
 
 .EXAMPLE
-  .\m4\tracing\trace.ps1 -TraceId 3f1c9a2e4b7d4e1a9c3f2a8b6d0e5f71
+  .\m4\tracing\commands\trace.ps1 -TraceId 3f1c9a2e4b7d4e1a9c3f2a8b6d0e5f71
 
 .EXAMPLE
   # Saved console output instead of AWS: one file per node, named <node>.log
-  .\m4\tracing\trace.ps1 -TraceId my-trace -FromDir .\saved-consoles
+  .\m4\tracing\commands\trace.ps1 -TraceId my-trace -FromDir .\saved-consoles
 #>
 param(
     [Parameter(Mandatory = $true)] [string] $TraceId,

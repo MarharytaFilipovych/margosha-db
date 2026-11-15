@@ -66,12 +66,12 @@ node's console output can be a little behind its log.
 
 Windows (PowerShell):
 ```powershell
-.\m4\tracing\trace.ps1 -TraceId "trace-write-$RUN"
+.\m4\tracing\commands\trace.ps1 -TraceId "trace-write-$RUN"
 ```
 
 macOS (Terminal):
 ```bash
-./m4/tracing/trace.sh "trace-write-$RUN"
+./m4/tracing/commands/trace.sh "trace-write-$RUN"
 ```
 
 ![The write's timeline](images/write.png)
@@ -92,12 +92,12 @@ every line from AWS. It had only been tried on saved logs, which don't have this
 
 Windows (PowerShell):
 ```powershell
-1..5 | ForEach-Object { "--- read $_"; .\m4\tracing\trace.ps1 -TraceId "trace-read-$RUN-$_" }
+1..5 | ForEach-Object { "--- read $_"; .\m4\tracing\commands\trace.ps1 -TraceId "trace-read-$RUN-$_" }
 ```
 
 macOS (Terminal):
 ```bash
-for i in 1 2 3 4 5; do echo "--- read $i"; ./m4/tracing/trace.sh "trace-read-$RUN-$i"; done
+for i in 1 2 3 4 5; do echo "--- read $i"; ./m4/tracing/commands/trace.sh "trace-read-$RUN-$i"; done
 ```
 
 ![Reads 1 to 3](images/reads-1-3.png)

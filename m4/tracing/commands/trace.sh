@@ -4,8 +4,8 @@
 # traceId is the given one, and prints them in order of start time (the line's time minus its durationMs).
 # Needs jq (included in macOS 15 and later; otherwise: brew install jq). Node clocks are UTC on AWS.
 #
-#   ./m4/tracing/trace.sh 3f1c9a2e4b7d4e1a9c3f2a8b6d0e5f71
-#   ./m4/tracing/trace.sh my-trace ./saved-consoles     # saved console output instead: one <node>.log per node
+#   ./m4/tracing/commands/trace.sh 3f1c9a2e4b7d4e1a9c3f2a8b6d0e5f71
+#   ./m4/tracing/commands/trace.sh my-trace ./saved-consoles     # saved console output instead: one <node>.log per node
 set -euo pipefail
 
 trace_id=${1:?usage: trace.sh <trace-id> [folder of <node>.log files]}
