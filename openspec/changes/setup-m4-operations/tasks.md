@@ -57,7 +57,7 @@
 - [x] 7.3 Coordinator down: stop the coordinator; verify its node-down alert fires (the monitoring does not depend on it to report its own absence, or ADR 0013's documented limit is shown)
 - [x] 7.4 High latency: drive p99 above the threshold (for example YCSB with more threads, or a lowered threshold for the test); verify the high-latency alert fires and clears, and record how it was triggered
 - [x] 7.5 Tracing: write and read a record and follow its trace ID through the coordinator and the replicas it called using `m4/tracing.md`; verify the lines and add them to `../../../m4/checks`
-- [ ] 7.6 LWW on AWS: write the same key from two clients at once and read it from every replica; verify all replicas hold the same winner, and add the output to `../../../m4/checks`
+- [x] 7.6 LWW on AWS: write the same key from two clients at once and read it from every replica; verify all replicas hold the same winner, and add the output to `../../../m4/checks`
 - [ ] 7.7 MCP with a client: connect Claude to the MCP server against the deployed store, use all four tools, try a refused action (table not allowed or missing credential) and ask the agent to update a record (no tool); verify the session transcript is saved in `m4/mcp_session.md`
 
 ## 8. End-to-end checks
