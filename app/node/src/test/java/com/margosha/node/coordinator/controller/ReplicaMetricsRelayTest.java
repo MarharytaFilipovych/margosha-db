@@ -132,9 +132,48 @@ class ReplicaMetricsRelayTest {
 		}
 	}
 
-	private static InProcessNode startCoordinator(int port, Path dataDir) {
-		return InProcessNode.replicatedCoordinator(port, dataDir, "--margosha.metrics.cloudwatch.region=us-east-1",
-				"--margosha.metrics.cloudwatch.step=1s", "--margosha.metrics.relay-interval=200ms", FakeCloudWatch.SOURCE);
+	@Test
+	void expectedReplicaThatNeverRegistersIsDownAfterTheGraceTime() {
+		// Arrange
+		try (InProcessNode coordinator = startCoordinator(0, testDataDir("coordinator"),
+				"--margosha.metrics.expected-replica-grace=1s")) {
+			FakeCloudWatch cloudWatch = coordinator.bean(FakeCloudWatch.class);
+
+			// Act
+			try (InProcessReplicaSet shardA = InProcessReplicaSet.start(SHARD_A, coordinator.address())) {
+
+				// Assert
+				awaitAllRead(cloudWatch, shardA);
+				await().atMost(WAIT).untilAsserted(() -> Stream.of(1, 2, 3).map(number -> SHARD_B + "-" + number)
+						.forEach(id -> assertThat(cloudWatch.last(UP, "replica", id)).as("%s is down", id)
+								.contains(0.0)));
+			}
+		}
+	}
+
+	@Test
+	void expectedReplicaThatHasNotRegisteredHasNoValueDuringTheGraceTime() {
+		// Arrange
+		try (InProcessNode coordinator = startCoordinator(0, testDataDir("coordinator"),
+				"--margosha.metrics.expected-replica-grace=10m")) {
+			FakeCloudWatch cloudWatch = coordinator.bean(FakeCloudWatch.class);
+
+			// Act
+			try (InProcessReplicaSet shardA = InProcessReplicaSet.start(SHARD_A, coordinator.address())) {
+				awaitAllRead(cloudWatch, shardA);
+
+				// Assert
+				await().during(Duration.ofSeconds(2)).atMost(WAIT)
+						.untilAsserted(() -> assertThat(cloudWatch.last(UP, "replica", SHARD_B + "-1")).isEmpty());
+			}
+		}
+	}
+
+	private static InProcessNode startCoordinator(int port, Path dataDir, String... extraArgs) {
+		List<String> args = Stream.concat(Stream.of("--margosha.metrics.cloudwatch.region=us-east-1",
+				"--margosha.metrics.cloudwatch.step=1s", "--margosha.metrics.relay-interval=200ms", FakeCloudWatch.SOURCE),
+				Stream.of(extraArgs)).toList();
+		return InProcessNode.replicatedCoordinator(port, dataDir, args.toArray(String[]::new));
 	}
 
 	private static void awaitAllRead(FakeCloudWatch cloudWatch, InProcessReplicaSet... shards) {

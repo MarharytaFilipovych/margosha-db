@@ -1,8 +1,13 @@
 package com.margosha.node.common.logging;
 
+import static com.margosha.node.data.LogLines.fileLineWith;
 import static com.margosha.node.data.LogLines.lineWith;
 import static com.margosha.node.data.TestData.testDataDir;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+
+import java.nio.file.Path;
+import java.time.Duration;
 
 import com.margosha.node.NodeApplication;
 import org.junit.jupiter.api.Test;
@@ -55,6 +60,25 @@ class StructuredLogTest {
 					.containsEntry("role", "coordinator")
 					.doesNotContainKeys("shard", "replica");
 			assertThat(lineWith(output, "Running as coordinator")).containsEntry("role", "coordinator");
+		}
+	}
+
+	@Test
+	void logLineIsAlsoWrittenToTheLogFileInTheDataFolder() {
+		// Arrange
+		Path dataDir = testDataDir("log-file");
+		try (ConfigurableApplicationContext coordinator = start("coordinator", "--mode=single", "--server.port=0",
+				"--margosha.data-dir=" + dataDir, "--logging.file.name=${margosha.data-dir}/logs/margosha.log")) {
+
+			// Act
+			LoggerFactory.getLogger(StructuredLogTest.class).info("Structured log check in the file");
+
+			// Assert
+			Path file = dataDir.resolve("logs").resolve("margosha.log");
+			await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
+					assertThat(fileLineWith(file, "Structured log check in the file")).hasValueSatisfying(line ->
+							assertThat(line).containsEntry("message", "Structured log check in the file")
+									.containsEntry("role", "coordinator")));
 		}
 	}
 

@@ -78,4 +78,8 @@ last one in its log wins everywhere (`ConcurrentWritesTest`: two clients, 50 upd
 the leader's last write, with the leader's counter at 101: 1 create and 100 updates).
 
 The vector clock and the concurrent case only matter once more than one node can write a record, for example after
-a leader change, which is not part of this milestone.
+a leader change or when M5 moves keys to a new shard (ADR 0016). Neither is part of this milestone. So the check on
+AWS ([concurrent_writes.md](checks/concurrent_writes.md)) shows the leader's order, and the concurrent rules (steps 2
+and 3 above) are checked only by the unit tests.
+
+What LWW gives up: when two writes are concurrent, one of them is dropped, and the client that sent it gets no error.

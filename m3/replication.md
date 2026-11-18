@@ -161,8 +161,9 @@ not disappear; it only shows up on some reads before the others.
 
 Not fixed in M3 ([AI critique](ai_critique.md), finding 4). The fix would be for the leader to answer reads only up to
 the newest version W replicas have stored (it knows that from `followerPositions`), keeping the previous value of a
-key until its new version is confirmed. That changes the write path that was benchmarked, so it is left for M4, where
-consistency models are the topic.
+key until its new version is confirmed. That changes the write path that was benchmarked, so it was left for M4.
+M4 did not change it: Last-Write-Wins picks the leader's unconfirmed copy, because its version is higher. It stays a
+known limit ([M4 AI critique](../m4/ai_critique.md), finding 7).
 
 ## What happens when replicas are down
 

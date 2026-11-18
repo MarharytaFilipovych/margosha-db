@@ -1057,6 +1057,92 @@ Resources:
       AlarmActions: [!Ref AlertsTopic]
       OKActions: [!Ref AlertsTopic]
 
+  AvailabilityAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-availability"
+      AlarmDescription: More than 5% of at least 20 client requests in 5 minutes failed with a 5xx.
+      Metrics:
+        - Id: failed
+          ReturnData: false
+          MetricStat:
+            Metric:
+              Namespace: MargoshaDB
+              MetricName: margosha.requests.failed.count
+              Dimensions:
+                - { Name: role, Value: coordinator }
+            Period: 300
+            Stat: Sum
+        - Id: creates
+          ReturnData: false
+          MetricStat:
+            Metric:
+              Namespace: MargoshaDB
+              MetricName: margosha.requests.count
+              Dimensions:
+                - { Name: operation, Value: create }
+                - { Name: role, Value: coordinator }
+            Period: 300
+            Stat: Sum
+        - Id: reads
+          ReturnData: false
+          MetricStat:
+            Metric:
+              Namespace: MargoshaDB
+              MetricName: margosha.requests.count
+              Dimensions:
+                - { Name: operation, Value: read }
+                - { Name: role, Value: coordinator }
+            Period: 300
+            Stat: Sum
+        - Id: exists
+          ReturnData: false
+          MetricStat:
+            Metric:
+              Namespace: MargoshaDB
+              MetricName: margosha.requests.count
+              Dimensions:
+                - { Name: operation, Value: exists }
+                - { Name: role, Value: coordinator }
+            Period: 300
+            Stat: Sum
+        - Id: updates
+          ReturnData: false
+          MetricStat:
+            Metric:
+              Namespace: MargoshaDB
+              MetricName: margosha.requests.count
+              Dimensions:
+                - { Name: operation, Value: update }
+                - { Name: role, Value: coordinator }
+            Period: 300
+            Stat: Sum
+        - Id: deletes
+          ReturnData: false
+          MetricStat:
+            Metric:
+              Namespace: MargoshaDB
+              MetricName: margosha.requests.count
+              Dimensions:
+                - { Name: operation, Value: delete }
+                - { Name: role, Value: coordinator }
+            Period: 300
+            Stat: Sum
+        - Id: total
+          ReturnData: false
+          Expression: FILL(creates, 0) + FILL(reads, 0) + FILL(exists, 0) + FILL(updates, 0) + FILL(deletes, 0)
+        - Id: share
+          Label: 5xx % of client requests (0 below 20 requests)
+          Expression: IF(total >= 20, 100 * FILL(failed, 0) / total, 0)
+          ReturnData: true
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+      OKActions: [!Ref AlertsTopic]
+
   ShardA2LagAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:

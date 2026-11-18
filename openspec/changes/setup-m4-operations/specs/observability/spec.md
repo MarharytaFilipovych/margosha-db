@@ -53,6 +53,10 @@ is up, also when the node itself has stopped and cannot report anything.
 - **WHEN** a replica's instance is stopped
 - **THEN** within the time set in the SLO ADR the monitoring backend shows that node as down, while the other nodes stay up
 
+#### Scenario: Replica that never registers after the coordinator starts
+- **WHEN** the coordinator starts and an expected replica does not register within the time set in the expected-replicas ADR
+- **THEN** the monitoring backend shows that replica as down, while it shows no value for it before that time
+
 ### Requirement: Structured logs
 Every node SHALL write its log as structured lines in the format chosen in the logging ADR, with at least the time,
 level, node role, replica ID (on replicas), logger, message, and the trace ID when the line belongs to a request.
@@ -60,6 +64,10 @@ level, node role, replica ID (on replicas), logger, message, and the trace ID wh
 #### Scenario: Log line format
 - **WHEN** a replica handles a request and writes a log line about it
 - **THEN** the line can be parsed in the chosen format and includes the time, level, role, replica ID, message and the request's trace ID
+
+#### Scenario: Log lines kept in a file
+- **WHEN** a node handles a request
+- **THEN** the same structured line is also written to the node's log file in its data folder, which is rotated by size as the log-file ADR decides
 
 ### Requirement: Trace ID for every client request
 The coordinator SHALL give every client request a trace ID, or keep the one the client sent in the trace ID header if
@@ -92,8 +100,8 @@ handling of the request with it.
 ### Requirement: Timeline of a request
 Every node SHALL write one log line when it finishes handling a request, and the coordinator one line when each call
 to a replica ends, each with the trace ID, the step, its status and its duration in milliseconds. The repository SHALL
-provide a command that collects the lines of one trace ID from all running nodes and prints them in order of start
-time with their durations.
+provide a command that collects the lines of one trace ID from all running nodes, from their console output or from
+their log files, and prints them in order of start time with their durations.
 
 #### Scenario: Timeline of a write
 - **WHEN** a client creates a record and an operator runs the command with the response's trace ID
@@ -117,8 +125,9 @@ It SHALL be defined as code in the repository.
 - **THEN** the dashboard shows that node as down and its replication lag growing
 
 ### Requirement: Alerts for critical events
-Alerts SHALL fire for a node that is down, for p99 latency above its threshold, and for replication lag above its
-threshold in seconds, with the thresholds and durations set in the SLO ADR. Alerts SHALL be defined as code in the
+Alerts SHALL fire for a node that is down, for p99 latency above its threshold, for replication lag above its
+threshold in seconds, with the thresholds and durations set in the SLO ADR, and for a share of 5xx answers above
+the threshold set in the availability-alarm ADR. Alerts SHALL be defined as code in the
 repository and SHALL notify the operator.
 
 #### Scenario: Node down alert
@@ -137,6 +146,14 @@ repository and SHALL notify the operator.
 #### Scenario: High latency alert
 - **WHEN** the coordinator's p99 latency for an operation stays above the threshold for the alert's duration
 - **THEN** the high-latency alert fires for that operation
+
+#### Scenario: Availability alert
+- **WHEN** the share of the coordinator's answers that are 5xx stays above the threshold for the alert's duration, with at least the minimum number of requests
+- **THEN** the availability alert fires
+
+#### Scenario: Failed answers are counted
+- **WHEN** the coordinator answers a record request with a 5xx
+- **THEN** its count of failed requests grows by one, while a 4xx answer leaves it unchanged
 
 #### Scenario: Alert clears after recovery
 - **WHEN** the stopped replica is started again and catches up with its leader

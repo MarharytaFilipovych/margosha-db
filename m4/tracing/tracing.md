@@ -129,6 +129,26 @@ from the test's output.
   ssh -i "$PEM" "ec2-user@$COORD_PUB" "journalctl -u margosha --since '10 min ago' | grep my-test-1"
   ssh -i "$PEM" -o ProxyCommand="ssh -i $PEM -W %h:%p ec2-user@$COORD_PUB" ec2-user@10.0.1.15 "journalctl -u margosha --since '10 min ago' | grep my-test-1"
   ```
+- **Under heavy load the journal may drop lines.** By default journald keeps at most 10,000 lines per 30 seconds for
+  one service and drops the rest ("Suppressed N messages"). During a benchmark each node writes more than that.
+- **The log files keep everything.** Every node also writes the same JSON lines to
+  `/var/lib/margosha/logs/margosha.log`. A file is closed at 20 MB and compressed, and up to 200 MB are kept per node
+  ([ADR 0020](../../adr/0020-log-file.md)). The helper reads them over SSH with `-Files` (Windows) or
+  `--files` (macOS), the replicas through the coordinator. Use it for older requests and for requests made under
+  load:
+
+  Windows (PowerShell):
+  ```powershell
+  .\m4\tracing\commands\trace.ps1 -TraceId my-test-1 -Files -Pem $PEM
+  ```
+
+  macOS (Terminal):
+  ```bash
+  ./m4/tracing/commands/trace.sh my-test-1 --files "$PEM"
+  ```
+
+  On Windows the path in `$PEM` must have no spaces, because Windows PowerShell can't pass it inside the SSH jump
+  option.
 - **The console output can lag a little** behind the node's log, so if a fresh request is missing, run the helper
   again after a few seconds.
 - **Write path only to the leader.** A trace shows the coordinator, the leader and, for reads, the replicas that
@@ -142,11 +162,11 @@ from the test's output.
 | `common.filter.TraceIdFilter` | every node | Takes or makes the ID, puts it in the log context and the response, logs the end of the request |
 | `coordinator.interceptor.ReplicaCallInterceptor` | coordinator | Sends the ID to the replica, logs the end of each call |
 | `coordinator.replica.QuorumReader` | coordinator | Copies the log context into the parallel read tasks |
-| `application*.properties` | every node | JSON logs, `role` / `shard` / `replica` fields |
+| `application*.properties` | every node | JSON logs on the console and in `logs/margosha.log`, `role` / `shard` / `replica` fields |
 
 | Case | Test |
 |---|---|
 | Generated, kept and replaced IDs; the header on errors; the end line with its duration | `CoordinatorControllerTest` |
 | A write traced on the coordinator and the leader, a read on the replicas asked; durations nest | `TraceAcrossNodesTest` |
-| A log line is JSON with `role`, `shard`, `replica` | `StructuredLogTest` |
+| A log line is JSON with `role`, `shard`, `replica`, and is also written to the log file in the data folder | `StructuredLogTest` |
 | Expected errors are one WARN line without a stack trace | `ApiExceptionHandlerTest` |

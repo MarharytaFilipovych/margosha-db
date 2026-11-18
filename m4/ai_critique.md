@@ -26,6 +26,11 @@ Fix: let the coordinator know the replicas it expects (the 6 IDs, from a propert
 gauges at start with the value 0, so a replica that never shows up is "down", not "no data". A cheaper fix is one alarm
 per shard on `margosha.cluster.replicas` (leader below 1, followers below 2).
 
+> **Response: fixed.** The coordinator expects `<shard>-1` … `<shard>-3` for each shard in
+> `margosha.metrics.expected-shards`. An expected replica has no `up` value for 3 minutes after the coordinator starts,
+> and 0 after that until it answers, so its node-down alarm fires ([ADR 0019](../adr/0019-expected-replicas.md),
+> `ReplicaMetricsRelayTest`).
+
 ## 2. ADR 0018 moved the read limit to fit a slowdown nobody explained (medium–high)
 
 In M3, under about 1,000 requests per second, reads had a p99 of about 15 ms. In M4, with almost no load, a normal
@@ -65,6 +70,10 @@ node (Spring Boot `logging.file.*` in the jar, no template change) and let the h
 per-request line only for slow or failed requests, and for requests that carry a client trace ID. At least write the
 limit down in `tracing.md`.
 
+> **Response: fixed.** Every node also writes its JSON log to `logs/margosha.log` in its data folder, rotated at
+> 20 MB, up to 200 MB. The trace helper reads these files over SSH with `-Files` / `--files` ([ADR 0020](../adr/0020-log-file.md),
+> `StructuredLogTest`, `tracing.md`).
+
 ## 4. Two of the three SLOs are not measured or alerted (medium)
 
 ADR 0014 sets three SLOs, but only latency has an alarm based on the SLO. Availability (99.5% of requests without a
@@ -81,6 +90,11 @@ Fix: one alarm on the same expression the dashboard already has (5xx share above
 "burn rate" version over 5 minutes), with `FILL(..., 0)` so it works before the first error. Write in ADR 0014 that
 the SLI is seen from inside the coordinator and doesn't count a coordinator outage, which only the coordinator-down
 alarm reports.
+
+> **Response: partly fixed.** A new counter `margosha.requests.failed` and an availability alarm: more than 5% of at
+> least 20 requests in 5 minutes answered with a 5xx ([ADR 0021](../adr/0021-availability-alarm.md)). ADR 0021 also
+> says that the SLI doesn't see a coordinator outage. Not changed: the 5 s lag target has no alarm of its own. The
+> 10 s lag alarm is looser on purpose, so that short pauses don't trigger it (ADR 0014).
 
 ## 5. The agent key limits a request, it doesn't let it in (medium)
 

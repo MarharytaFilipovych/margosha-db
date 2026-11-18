@@ -69,6 +69,17 @@ aws cloudwatch list-metrics --namespace MargoshaDB --query "Metrics[].MetricName
   the 5xx codes (`INTERNAL_ERROR`, `SHARD_UNAVAILABLE`) count as failures. The share of the coordinator's requests
   without them is the availability SLI.
 
+### `margosha.requests.failed`: requests answered with a 5xx
+
+- **Kind:** counter, on the coordinator and on every replica.
+- **Tags:** only the node's own. No operation and no code.
+- **Shows:** how many record requests ended with a 5xx (`INTERNAL_ERROR`, `SHARD_UNAVAILABLE`), all operations
+  together. A counter appears only after its first 5xx.
+- **In CloudWatch:** `margosha.requests.failed.count`.
+- **Why:** the availability alarm. An alarm can't search for metrics like the dashboard, so it needs fixed metric
+  names. With this counter it needs 6 metrics, instead of 15 error counters by operation and code
+  ([ADR 0021](../adr/0021-availability-alarm.md)).
+
 ### `margosha.replication.lag`: how far a follower is behind
 
 - **Kind:** gauge, in seconds, on each leader.
@@ -140,13 +151,28 @@ The alarms are also in `cfn/margosha-app.yaml`. Each one e-mails the SNS topic
   minutes in a row. The coordinator sends it every minute, and `FILL` turns a minute without a value into 0, so the
   alarm sees the gap at once ([ADR 0013](../adr/0013-monitoring-stack.md)). Each replica: `margosha.replica.up` below 1
   for 1 minute. Here missing data does not count, because it means the coordinator is down, which its own alarm
-  reports.
+  reports. A replica that never registers after the coordinator starts is also reported: the coordinator expects
+  `<shard>-1` … `<shard>-3` for each shard in `margosha.metrics.expected-shards` and sends 0 for one that hasn't
+  registered 3 minutes after it started ([ADR 0019](../adr/0019-expected-replicas.md)).
 - **High latency (5 alarms).** The coordinator's p99 per operation (read, exists, create, update, delete) above
   100 ms in each of 5 minutes in a row. The read limit was 50 ms until [ADR 0018](../adr/0018-read-latency-limit.md).
 - **Replication lag (4 alarms).** A follower more than 10 s behind its leader for 1 minute.
+- **Availability (1 alarm).** More than 5% of the coordinator's record requests in 5 minutes answered with a 5xx,
+  counted only when there were at least 20 requests ([ADR 0021](../adr/0021-availability-alarm.md)). The alarm divides
+  `margosha.requests.failed` by the sum of `margosha.requests.count` over the 5 operations.
 
 During a deploy the pipeline turns the alarm e-mails off before it restarts the nodes, and on again at the end, also
 when the deploy fails (step "Turn the alarm e-mails on again"). The alarms keep working meanwhile. 
+
+## What it costs
+
+CloudWatch bills custom metrics, alarms and dashboards (AWS prices, not the lab's bill):
+
+- **Metrics:** about 120–140 (5 operations × count and 3 percentiles on the coordinator and on each leader,
+  2 × 4 on each follower, plus up, lag, records, errors and failed requests). At $0.30 per metric per month, billed
+  per hour while they are sent, that is about $0.05 per lab hour.
+- **Alarms:** 17 at $0.10 per month each, about $1.70 per month. They are billed also while the lab is stopped.
+- **Dashboard:** one, which is free.
 
 ## What is not collected
 
@@ -161,11 +187,12 @@ when the deploy fails (step "Turn the alarm e-mails on again"). The alarms keep 
 |---|---|---|
 | `common.config.MetricsConfig` | every node | Keeps only `margosha.*` metrics. It makes the CloudWatch registry when a region is set |
 | `common.config.CountAndPercentilesOnly` | coordinator | Drops the sum, average and maximum before sending |
-| `common.metrics.RequestMetrics` | every node | `margosha.requests`, `margosha.errors`, `margosha.shard.requests` |
+| `common.metrics.RequestMetrics` | every node | `margosha.requests`, `margosha.errors`, `margosha.requests.failed`, `margosha.shard.requests` |
 | `common.metrics.ReplicationLagMetrics` | leader | `margosha.replication.lag` |
 | `common.metrics.ClusterMetrics` | coordinator, replicas | `margosha.cluster.replicas`, `margosha.replica.records`, and the name of `margosha.replica.up` |
 | `common.metrics.MetricsSnapshot` | replicas | Turns the replica's metrics into the `GET /metrics` answer |
-| `coordinator.metrics.ReplicaMetricsRelay` | coordinator | Reads every replica's metrics once a minute and sends them on, counters as their growth since the previous read: `margosha.replica.up` |
+| `coordinator.metrics.ReplicaMetricsRelay` | coordinator | Reads every replica's metrics once a minute and sends them on, counters as their growth since the previous read: `margosha.replica.up`, also for expected replicas that never registered |
+| `coordinator.metrics.ExpectedReplica` | coordinator | The replicas the coordinator expects: `<shard>-1` (leader) … `<shard>-N` for each shard in `margosha.metrics.expected-shards` |
 | `application*.properties` | every node | Namespace, send interval, relay interval, `role` / `shard` / `replica` tags |
 
 | Case | Test |
@@ -173,5 +200,6 @@ when the deploy fails (step "Turn the alarm e-mails on again"). The alarms keep 
 | Read and update latencies are recorded, only `margosha.*` is kept, no actuator endpoint answers, and a not-found read increments only the not-found count | `RequestMetricsTest` |
 | A stopped follower's lag grows and returns to 0 after it catches up | `ReplicationLagTest` |
 | 1 leader and 2 followers per shard, requests and records per shard (2 shards × 3 replicas) | `ClusterMetricsTest` |
-| All 7 nodes' metrics are sent, no sum / average / maximum, a stopped replica goes to 0. A replica's first requests are counted in full. After the coordinator restarts, a replica's earlier requests are not counted again | `ReplicaMetricsRelayTest` |
+| All 7 nodes' metrics are sent, no sum / average / maximum, a stopped replica goes to 0. A replica's first requests are counted in full. After the coordinator restarts, a replica's earlier requests are not counted again. An expected replica that never registers has no value during the grace time and 0 after it | `ReplicaMetricsRelayTest` |
+| A 5xx answer increments `margosha.requests.failed`, a 4xx answer doesn't | `ShardUnavailableTest`, `RequestMetricsTest` |
 | A region in `stack.env` turns sending to CloudWatch on, no region keeps it off | `CloudWatchSwitchTest` |

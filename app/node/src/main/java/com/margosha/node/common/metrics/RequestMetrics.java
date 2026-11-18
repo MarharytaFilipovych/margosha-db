@@ -19,6 +19,7 @@ public class RequestMetrics {
 
 	public static final String REQUESTS = "margosha.requests";
 	public static final String ERRORS = "margosha.errors";
+	public static final String FAILED = "margosha.requests.failed";
 	public static final String SHARD_REQUESTS = "margosha.shard.requests";
 
 	private final MeterRegistry registry;
@@ -45,6 +46,13 @@ public class RequestMetrics {
 				.description("Record requests this node answered with an error")
 				.tag("operation", operation.tag())
 				.tag("code", code.name())
+				.register(registry)
+				.increment();
+	}
+
+	public void failed() {
+		Counter.builder(FAILED)
+				.description("Record requests this node answered with a 5xx, all operations together")
 				.register(registry)
 				.increment();
 	}

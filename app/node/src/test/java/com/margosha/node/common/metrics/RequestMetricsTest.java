@@ -174,6 +174,24 @@ class RequestMetricsTest {
 				.isEqualTo(1);
 	}
 
+	@Test
+	void clientErrorIsNotCountedAsFailed() {
+		// Arrange
+		double before = failedCount();
+
+		// Act
+		ApiException error = apiError(() -> client.readRecord(users, PrimaryKey.of("nobody")));
+
+		// Assert
+		assertThat(error.code()).isEqualTo(ErrorCode.RECORD_NOT_FOUND);
+		assertThat(failedCount()).isEqualTo(before);
+	}
+
+	private double failedCount() {
+		Counter failed = registry.find(RequestMetrics.FAILED).counter();
+		return failed == null ? 0 : failed.count();
+	}
+
 	private Map<String, Double> errorCounts() {
 		return registry.find(RequestMetrics.ERRORS).counters().stream().collect(Collectors.toMap(
 				counter -> counter.getId().getTag("operation") + "/" + counter.getId().getTag("code"), Counter::count));

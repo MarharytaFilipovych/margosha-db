@@ -29,8 +29,11 @@ import com.margosha.api.model.ErrorCode;
 import com.margosha.api.model.PrimaryKey;
 import com.margosha.api.model.TableRecord;
 import com.margosha.node.annotation.ShardedCoordinatorTest;
+import com.margosha.node.common.metrics.RequestMetrics;
 import com.margosha.node.data.InProcessNode;
 import com.margosha.node.coordinator.service.ShardRegistryService;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,6 +53,9 @@ class ShardUnavailableTest {
 	@Autowired
 	private ShardRegistryService shardRegistry;
 
+	@Autowired
+	private MeterRegistry meterRegistry;
+
 	private CoordinatorClient client;
 	private final String users = unique(USERS);
 
@@ -68,6 +74,19 @@ class ShardUnavailableTest {
 		// Assert
 		assertShardUnavailable(create, "No shard is registered");
 		assertShardUnavailable(read, "No shard is registered");
+	}
+
+	@Test
+	void serverErrorIsCountedAsFailed() {
+		// Arrange
+		double before = failedCount();
+
+		// Act
+		ApiException error = apiError(() -> client.createRecord(users, ANN));
+
+		// Assert
+		assertShardUnavailable(error, "No shard is registered");
+		assertThat(failedCount() - before).isEqualTo(1);
 	}
 
 	@Test
@@ -136,6 +155,11 @@ class ShardUnavailableTest {
 			assertThat(waited).isGreaterThanOrEqualTo(SHARD_TIMEOUT);
 			assertThat(readFromShardA).isEqualTo(user(keyOfShardA));
 		}
+	}
+
+	private double failedCount() {
+		Counter failed = meterRegistry.find(RequestMetrics.FAILED).counter();
+		return failed == null ? 0 : failed.count();
 	}
 
 	private void register(InProcessNode... shards) {

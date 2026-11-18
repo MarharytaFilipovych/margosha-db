@@ -104,6 +104,9 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <redirectTestOutputToFile>true</redirectTestOutputToFile>
+                    <systemPropertyVariables>
+                        <logging.file.name>target/test-logs/margosha.log</logging.file.name>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
             <plugin>

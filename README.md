@@ -24,6 +24,6 @@ milestone before.
   Writes are stored on 2 replicas (W = 2) and reads ask 2 (R = 2). Every replica keeps a log on its disk, so the data
   survives reboots, deploys and the end of a lab session. Deploys are versioned and can be rolled back.
 - **[Milestone 4: Operations](M4.md).** Monitoring, tracing, conflict resolution and agent access. Metrics from all 7
-  nodes go to a CloudWatch dashboard, and 16 alarms send an email when a node is down, answers are slow, or a follower
+  nodes go to a CloudWatch dashboard, and 17 alarms send an email when a node is down, answers are slow or fail, or a follower
   falls behind. Every request carries a trace ID across the nodes, every write gets a version (Last-Write-Wins), and an
   AI agent can use the store through an MCP server with four record operations.

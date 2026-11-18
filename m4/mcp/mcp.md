@@ -72,7 +72,8 @@ These limits are checked twice:
      table.
    Requests **without** the header (`curl`, YCSB, the commands in the milestone pages) work as before.
 
-So even a changed or badly set up MCP server can't do more than the four operations on the allowed tables.
+So an MCP server that sends the key can't do more than the four operations on the allowed tables, even if its own
+table list is wrong. A program that leaves the header out is not limited (see "Accepted limits" below).
 
 The key is never in the repository or in a log line. For every tool call the MCP server logs one line with the tool,
 the table, the result and the trace ID, but not the key and not the record's values:

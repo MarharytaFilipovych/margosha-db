@@ -10,6 +10,8 @@
 # Data folders of nodes run on a local machine (README, "Run it on your machine")
 app/data/
 
+app/node/data/
+
 # BlueJ files
 *.ctxt
 

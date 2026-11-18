@@ -82,7 +82,12 @@ public class ApiExceptionHandler {
 	}
 
 	private ResponseEntity<ApiError> answer(HttpServletRequest request, HttpStatus status, ApiError body) {
-		Operation.of(request).ifPresent(operation -> metrics.error(operation, body.code()));
+		Operation.of(request).ifPresent(operation -> {
+			metrics.error(operation, body.code());
+			if (status.is5xxServerError()) {
+				metrics.failed();
+			}
+		});
 		return ResponseEntity.status(status).body(body);
 	}
 }
