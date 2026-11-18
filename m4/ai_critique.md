@@ -29,7 +29,8 @@ per shard on `margosha.cluster.replicas` (leader below 1, followers below 2).
 > **Response: fixed.** The coordinator expects `<shard>-1` … `<shard>-3` for each shard in
 > `margosha.metrics.expected-shards`. An expected replica has no `up` value for 3 minutes after the coordinator starts,
 > and 0 after that until it answers, so its node-down alarm fires ([ADR 0019](../adr/0019-expected-replicas.md),
-> `ReplicaMetricsRelayTest`).
+> `ReplicaMetricsRelayTest`). Checked on AWS: the alarm fired about 4 minutes after the coordinator started
+> ([expected_replicas.md](checks/expected_replicas.md)).
 
 ## 2. ADR 0018 moved the read limit to fit a slowdown nobody explained (medium–high)
 
@@ -72,7 +73,8 @@ limit down in `tracing.md`.
 
 > **Response: fixed.** Every node also writes its JSON log to `logs/margosha.log` in its data folder, rotated at
 > 20 MB, up to 200 MB. The trace helper reads these files over SSH with `-Files` / `--files` ([ADR 0020](../adr/0020-log-file.md),
-> `StructuredLogTest`, `tracing.md`).
+> `StructuredLogTest`, `tracing.md`). Checked on AWS: after about 3 MB of new lines the console had lost a request,
+> the files still had it ([log_file.md](checks/log_file.md)).
 
 ## 4. Two of the three SLOs are not measured or alerted (medium)
 
@@ -94,7 +96,9 @@ alarm reports.
 > **Response: partly fixed.** A new counter `margosha.requests.failed` and an availability alarm: more than 5% of at
 > least 20 requests in 5 minutes answered with a 5xx ([ADR 0021](../adr/0021-availability-alarm.md)). ADR 0021 also
 > says that the SLI doesn't see a coordinator outage. Not changed: the 5 s lag target has no alarm of its own. The
-> 10 s lag alarm is looser on purpose, so that short pauses don't trigger it (ADR 0014).
+> 10 s lag alarm is looser on purpose, so that short pauses don't trigger it (ADR 0014). Checked on AWS: with shard A's
+> leader stopped, 32 of 60 requests failed and the alarm fired at 53.33%
+> ([availability_alarm.md](checks/availability_alarm.md)).
 
 ## 5. The agent key limits a request, it doesn't let it in (medium)
 

@@ -36,8 +36,9 @@ function Get-LogFiles {
         ForEach-Object { $name, $private, $public = $_ -split "`t"; [pscustomobject]@{ Name = $name; Private = $private; Public = $public } }
     $coordinator = ($nodes | Where-Object Name -eq 'margosha-coordinator').Public
     if (-not $coordinator) { throw "The coordinator is not running" }
-    # Trace IDs are only letters, digits and dashes, so the ID needs no quoting
-    $search = "sudo zgrep -h -F $TraceId /var/lib/margosha/logs/margosha.log*"
+    # Trace IDs are only letters, digits and dashes, so the ID needs no quoting. The folder belongs to the margosha
+    # user, so the * must be expanded by a root shell, not by ec2-user's
+    $search = "sudo sh -c 'zgrep -h -F $TraceId /var/lib/margosha/logs/margosha.log*'"
     $options = @('-i', $Pem, '-o', 'StrictHostKeyChecking=accept-new', '-o', 'LogLevel=ERROR')
     foreach ($node in $nodes) {
         if ($node.Name -eq 'margosha-coordinator') {

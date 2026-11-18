@@ -31,8 +31,9 @@ log_files() {
     --query "Reservations[].Instances[].[Tags[?Key=='Name']|[0].Value, PrivateIpAddress, PublicIpAddress]" --output text)
   coordinator=$(printf '%s\n' "$nodes" | awk '$1 == "margosha-coordinator" { print $3 }')
   [ -n "$coordinator" ] || { echo "The coordinator is not running." >&2; exit 1; }
-  # Trace IDs are only letters, digits and dashes, so the ID needs no quoting
-  search="sudo zgrep -h -F $trace_id /var/lib/margosha/logs/margosha.log*"
+  # Trace IDs are only letters, digits and dashes, so the ID needs no quoting. The folder belongs to the margosha user,
+  # so the * must be expanded by a root shell, not by ec2-user's
+  search="sudo sh -c 'zgrep -h -F $trace_id /var/lib/margosha/logs/margosha.log*'"
   printf '%s\n' "$nodes" | while read -r name private _; do
     if [ "$name" = "margosha-coordinator" ]; then
       ssh -n -i "$pem" -o StrictHostKeyChecking=accept-new -o LogLevel=ERROR "ec2-user@$coordinator" "$search" || true

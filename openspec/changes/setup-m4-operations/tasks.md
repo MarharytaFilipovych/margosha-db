@@ -75,8 +75,8 @@
 
 - [x] 10.1 New ADRs first, the earlier ADRs stay as they are: ADR 0019 (expected replicas), ADR 0020 (log file), ADR 0021 (availability alarm and `margosha.requests.failed`); verify each states the options and the choice
 - [x] 10.2 Finding 1: the coordinator creates `margosha.replica.up` for the expected replicas of `margosha.metrics.expected-shards`, with no value during the grace time after it starts and 0 after it until the replica answers; verify a test where an expected replica never registers and its `up` value becomes 0
-- [ ] 10.3 Finding 3: every node also writes its JSON log to `logs/margosha.log` in its data folder, rotated by size; the trace helper can read these files over SSH; verify a test that a request's line is in the file, and on AWS that the helper finds a trace in the files
-- [ ] 10.4 Finding 4: the counter `margosha.requests.failed` and the availability alarm in `cfn/margosha-app.yaml`; verify tests that a 5xx increments it and a 4xx doesn't, `cfn-lint` passes, and the change set replaces no instance
+- [x] 10.3 Finding 3: every node also writes its JSON log to `logs/margosha.log` in its data folder, rotated by size; the trace helper can read these files over SSH; verify a test that a request's line is in the file, and on AWS that the helper finds a trace in the files
+- [x] 10.4 Finding 4: the counter `margosha.requests.failed` and the availability alarm in `cfn/margosha-app.yaml`; verify tests that a 5xx increments it and a 4xx doesn't, `cfn-lint` passes, and the change set replaces no instance
 - [x] 10.5 Update `m4/metrics.md`, `m4/tracing/tracing.md`, `M4.md` and the critique's responses; verify `./mvnw verify` passes
 
 ## Workflow follow-up
